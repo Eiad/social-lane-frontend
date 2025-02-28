@@ -1,12 +1,66 @@
+// Import Roboto font
+@import '@fontsource/roboto/300.css';
+@import '@fontsource/roboto/400.css';
+@import '@fontsource/roboto/500.css';
+@import '@fontsource/roboto/700.css';
+
+// Modern color palette
 :root {
+  // Primary colors
+  --primary: #4361ee;
+  --primary-light: #738eef;
+  --primary-dark: #2f4ad0;
+  
+  // Secondary colors
+  --secondary: #ff6b6b;
+  --secondary-light: #ff9e9e;
+  --secondary-dark: #e63e3e;
+  
+  // Neutral colors
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #333333;
+  --gray-100: #f8f9fa;
+  --gray-200: #e9ecef;
+  --gray-300: #dee2e6;
+  --gray-400: #ced4da;
+  --gray-500: #adb5bd;
+  --gray-600: #6c757d;
+  --gray-700: #495057;
+  --gray-800: #343a40;
+  --gray-900: #212529;
+  
+  // Success/Error colors
+  --success: #4ade80;
+  --error: #ef4444;
+  
+  // Animation durations
+  --transition-fast: 0.15s;
+  --transition-normal: 0.3s;
+  --transition-slow: 0.5s;
 }
 
+// Dark mode colors
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #121212;
+    --foreground: #f8f9fa;
+    --gray-100: #212529;
+    --gray-200: #343a40;
+    --gray-300: #495057;
+    --gray-400: #6c757d;
+    --gray-500: #adb5bd;
+    --gray-600: #ced4da;
+    --gray-700: #dee2e6;
+    --gray-800: #e9ecef;
+    --gray-900: #f8f9fa;
+    
+    --primary: #738eef;
+    --primary-light: #a5b9f7;
+    --primary-dark: #2f4ad0;
+    
+    --secondary: #ff9e9e;
+    --secondary-light: #ffcaca;
+    --secondary-dark: #e63e3e;
   }
 }
 
@@ -19,20 +73,136 @@ body {
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+  font-size: 16px;
 }
 
 * {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+  transition: background-color var(--transition-fast) ease, 
+              color var(--transition-fast) ease,
+              border-color var(--transition-fast) ease,
+              box-shadow var(--transition-fast) ease;
 }
 
 a {
-  color: inherit;
+  color: var(--primary);
   text-decoration: none;
+  font-weight: 500;
+  
+  &:hover {
+    text-decoration: underline;
+    color: var(--primary-dark);
+  }
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 0.5em;
+  color: var(--foreground);
+}
+
+h1 {
+  font-size: 2.5rem;
+}
+
+h2 {
+  font-size: 2rem;
+}
+
+h3 {
+  font-size: 1.75rem;
+}
+
+p {
+  margin-bottom: 1rem;
+}
+
+button, 
+input[type="submit"] {
+  cursor: pointer;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  transition: all var(--transition-fast) ease;
+  
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.3);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+input, textarea, select {
+  font-family: 'Roboto', sans-serif;
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  background-color: var(--background);
+  color: var(--foreground);
+  transition: all var(--transition-fast) ease;
+  
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+  }
+  
+  &::placeholder {
+    color: var(--gray-500);
+  }
+}
+
+// Container class
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+// Animation keyframes
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+// Utility classes
+.fadeIn {
+  animation: fadeIn var(--transition-normal) ease;
+}
+
+.slideUp {
+  animation: slideUp var(--transition-normal) ease;
+}
+
+.pulse {
+  animation: pulse 2s infinite;
 }
 
 @media (prefers-color-scheme: dark) {
