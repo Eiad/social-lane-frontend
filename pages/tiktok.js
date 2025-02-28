@@ -8,8 +8,10 @@ import Link from 'next/link';
 // Replace this line:
 // const API_BASE_URL = typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_API_URL : undefined;
 
-// With this simple approach:
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+// With this approach that safely handles both server and client environments:
+const API_BASE_URL = typeof window !== 'undefined' 
+  ? process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat'
+  : process.env.NEXT_PUBLIC_API_URL;
 
 export default function TikTok() {
   const [videoUrl, setVideoUrl] = useState('');
@@ -17,9 +19,7 @@ export default function TikTok() {
   const [accessToken, setAccessToken] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [apiUrl, setApiUrl] = useState(API_BASE_URL);
-  const [successMessage, setSuccessMessage] = useState('');
   const router = useRouter();
 
   // Check for existing token in localStorage on component mount
@@ -41,7 +41,7 @@ export default function TikTok() {
     const { access_token, open_id, error: urlError } = router?.query || {};
     
     if (urlError) {
-      setError(decodeURIComponent(urlError));
+      window.showToast?.error?.(decodeURIComponent(urlError));
       // Remove the error from URL
       router?.replace('/tiktok', undefined, { shallow: true });
       return;
@@ -51,7 +51,7 @@ export default function TikTok() {
       setAccessToken(access_token);
       setOpenId(open_id || '');
       setIsAuthenticated(true);
-      setSuccessMessage('Successfully connected to TikTok!');
+      window.showToast?.success?.('Successfully connected to TikTok!');
       
       // Save token to localStorage for persistence
       localStorage?.setItem('tiktokAccessToken', access_token);
@@ -65,10 +65,14 @@ export default function TikTok() {
   const handleConnect = async () => {
     try {
       setIsLoading(true);
-      setError(null);
       
       // Make sure we're using the environment variable
       const url = `${apiUrl}/tiktok/auth`;
+      
+      // Debug logging
+      console.log('Connecting to TikTok with URL:', url);
+      console.log('API URL from state:', apiUrl);
+      console.log('API_BASE_URL constant:', API_BASE_URL);
       
       const response = await fetch(url, {
         method: 'GET',
@@ -79,16 +83,21 @@ export default function TikTok() {
         mode: 'cors',
       });
       
+      // Debug response
+      console.log('Response status:', response.status);
+      
       const data = await response?.json();
+      console.log('Response data:', data);
       
       if (data?.authUrl) {
+        console.log('Redirecting to auth URL:', data.authUrl);
         window.location.href = data.authUrl;
       } else {
         throw new Error('Failed to get auth URL');
       }
     } catch (error) {
-      setError('Failed to initiate TikTok authentication: ' + (error?.message || 'Unknown error'));
-      console.error('Auth error:', error);
+      console.error('Detailed auth error:', error);
+      window.showToast?.error?.(('Failed to initiate TikTok authentication: ' + (error?.message || 'Unknown error')));
     } finally {
       setIsLoading(false);
     }
@@ -100,8 +109,6 @@ export default function TikTok() {
 
     try {
       setIsLoading(true);
-      setError(null);
-      setSuccessMessage('');
       
       // Use the token from state or localStorage as a fallback
       const token = accessToken || localStorage?.getItem('tiktokAccessToken');
@@ -129,13 +136,13 @@ export default function TikTok() {
       const data = await response?.json();
       
       if (response?.ok) {
-        setSuccessMessage('Video posted successfully!');
+        window.showToast?.success?.('Video posted successfully!');
         setVideoUrl('');
       } else {
         throw new Error(data?.error || 'Failed to post video');
       }
     } catch (error) {
-      setError(error?.message || 'Unknown error occurred');
+      window.showToast?.error?.(error?.message || 'Unknown error occurred');
       console.error('Post error:', error);
     } finally {
       setIsLoading(false);
@@ -146,9 +153,9 @@ export default function TikTok() {
     setAccessToken(null);
     setOpenId(null);
     setIsAuthenticated(false);
-    setSuccessMessage('');
     localStorage?.removeItem('tiktokAccessToken');
     localStorage?.removeItem('tiktokOpenId');
+    window.showToast?.info?.('Disconnected from TikTok account');
   };
 
   const goToHome = () => {
@@ -201,29 +208,6 @@ export default function TikTok() {
             {apiUrl && (
               <div className={styles.apiUrlBadge}>
                 <span>API: {apiUrl}</span>
-              </div>
-            )}
-
-            {/* Error Message */}
-            {error && (
-              <div className={styles.messageBox + ' ' + styles.errorMessage}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="8" x2="12" y2="12"></line>
-                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-                <p>{error}</p>
-              </div>
-            )}
-
-            {/* Success Message */}
-            {successMessage && (
-              <div className={styles.messageBox + ' ' + styles.successMessage}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-                <p>{successMessage}</p>
               </div>
             )}
 

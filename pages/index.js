@@ -14,13 +14,13 @@ import {
 } from '../src/components/icons/SocialIcons';
 
 // Use environment variable for API URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_BASE_URL = typeof window !== 'undefined' 
+  ? process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat'
+  : process.env.NEXT_PUBLIC_API_URL;
 
 export default function Home() {
   const [isConnected, setIsConnected] = useState(false);
   const [videoUrl, setVideoUrl] = useState('');
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState('info'); // 'info', 'success', 'error'
   const [apiUrl, setApiUrl] = useState(API_BASE_URL);
   const [accessToken, setAccessToken] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,8 +36,7 @@ export default function Home() {
     if (savedToken) {
       setAccessToken(savedToken);
       setIsConnected(true);
-      setMessage('Connected to your TikTok account.');
-      setMessageType('success');
+      window.showToast?.success?.('Connected to your TikTok account.');
     }
   }, []);
 
@@ -51,15 +50,13 @@ export default function Home() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage('Posting video...');
-    setMessageType('info');
+    window.showToast?.info?.('Posting video...');
 
     // Get the token from state or localStorage
     const token = accessToken || localStorage?.getItem('tiktokAccessToken');
     
     if (!token) {
-      setMessage('Error: No access token available. Please connect your TikTok account first.');
-      setMessageType('error');
+      window.showToast?.error?.('No access token available. Please connect your TikTok account first.');
       setIsLoading(false);
       return;
     }
@@ -78,16 +75,13 @@ export default function Home() {
       
       const data = await res?.json();
       if (res?.ok) {
-        setMessage('Video posted successfully!');
-        setMessageType('success');
+        window.showToast?.success?.('Video posted successfully!');
         setVideoUrl('');
       } else {
-        setMessage(`Error: ${data?.error || 'Failed to post video'}`);
-        setMessageType('error');
+        window.showToast?.error?.(data?.error || 'Failed to post video');
       }
     } catch (error) {
-      setMessage(`Error: ${error?.message || 'Unknown error occurred'}`);
-      setMessageType('error');
+      window.showToast?.error?.(error?.message || 'Unknown error occurred');
       console.error('Post error:', error);
     } finally {
       setIsLoading(false);
@@ -99,8 +93,7 @@ export default function Home() {
     localStorage?.removeItem('tiktokAccessToken');
     setAccessToken(null);
     setIsConnected(false);
-    setMessage('Disconnected from TikTok.');
-    setMessageType('info');
+    window.showToast?.info?.('Disconnected from TikTok.');
   };
 
   // Toggle FAQ item

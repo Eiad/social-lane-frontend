@@ -1000,6 +1000,12 @@
   }
 }
 
+.tiktokIcon{
+  width: 60px;
+  height: 60px;
+  margin: 20px auto 40px auto;
+}
+
 .apiUrlBadge {
   background-color: var(--gray-100);
   border-radius: 20px;
@@ -1161,6 +1167,11 @@
   max-width: 300px;
   transition: all 0.2s ease;
   margin-bottom: 1rem;
+
+  > svg {
+    width: 20px;
+    height: 20px;
+  }
   
   &:hover {
     background-color: #16a34a;
