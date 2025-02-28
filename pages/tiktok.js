@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import styles from '../styles/Home.module.scss';
+import tikTokStyles from '../styles/TikTok.module.css';
 import Head from 'next/head';
 import { TikTokSimpleIcon } from '../src/components/icons/SocialIcons';
 import Link from 'next/link';
@@ -20,7 +21,59 @@ export default function TikTok() {
   const [openId, setOpenId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [apiUrl, setApiUrl] = useState(API_BASE_URL);
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
+  const [uploadDetails, setUploadDetails] = useState(null);
+  const fileInputRef = useRef(null);
   const router = useRouter();
+
+  // Define the upload process steps
+  const uploadSteps = [
+    { id: 'validating', label: 'Validate' },
+    { id: 'uploading', label: 'Upload' },
+    { id: 'processing', label: 'Process' },
+    { id: 'completed', label: 'Complete' }
+  ];
+
+  // Define the posting process steps
+  const postingSteps = [
+    { id: 'preparing', label: 'Prepare' },
+    { id: 'posting', label: 'Post' },
+    { id: 'success', label: 'Success' }
+  ];
+
+  // Get the current step index for the active process
+  const getCurrentStepIndex = () => {
+    if (!currentStep) return -1;
+    
+    // Check if we're in the upload process
+    const uploadStepIndex = uploadSteps.findIndex(step => step.id === currentStep);
+    if (uploadStepIndex !== -1) return uploadStepIndex;
+    
+    // Check if we're in the posting process
+    const postingStepIndex = postingSteps.findIndex(step => step.id === currentStep);
+    if (postingStepIndex !== -1) return postingStepIndex;
+    
+    return -1;
+  };
+
+  // Determine which process is active (upload or posting)
+  const getActiveProcess = () => {
+    if (!currentStep) return null;
+    
+    if (uploadSteps.some(step => step.id === currentStep)) {
+      return 'upload';
+    }
+    
+    if (postingSteps.some(step => step.id === currentStep)) {
+      return 'posting';
+    }
+    
+    return null;
+  };
 
   // Check for existing token in localStorage on component mount
   useEffect(() => {
@@ -103,12 +156,135 @@ export default function TikTok() {
     }
   };
 
+  const handleFileUpload = async (e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+
+    // Reset states
+    setUploadError(null);
+    setUploadDetails(null);
+    setCurrentStep('validating');
+
+    // Check if file is a video
+    if (!file.type.startsWith('video/')) {
+      setUploadError('Please select a video file');
+      window.showToast?.error?.('Please select a video file');
+      setCurrentStep(null);
+      return;
+    }
+
+    // Check file size (max 500MB)
+    if (file.size > 500 * 1024 * 1024) {
+      setUploadError('File size exceeds 500MB limit');
+      window.showToast?.error?.('File size exceeds 500MB limit');
+      setCurrentStep(null);
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      setUploadProgress(0);
+      setCurrentStep('uploading');
+      
+      // Log file details
+      console.log('[UPLOAD] Starting upload for file:', {
+        name: file.name,
+        type: file.type,
+        size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+      });
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // Create XMLHttpRequest to track upload progress
+      const xhr = new XMLHttpRequest();
+      
+      // Set up progress tracking
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentCompleted = Math.round((event.loaded * 100) / event.total);
+          setUploadProgress(percentCompleted);
+          console.log(`[UPLOAD] Progress: ${percentCompleted}%`);
+        }
+      });
+      
+      // Create a promise to handle the XHR request
+      const uploadPromise = new Promise((resolve, reject) => {
+        xhr.open('POST', '/api/upload', true);
+        
+        xhr.onload = () => {
+          console.log(`[UPLOAD] Request completed with status: ${xhr.status}`);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const data = JSON.parse(xhr.responseText);
+              console.log('[UPLOAD] Response data:', data);
+              resolve(data);
+            } catch (error) {
+              console.error('[UPLOAD] Error parsing response:', error);
+              reject(new Error('Invalid response format'));
+            }
+          } else {
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              console.error('[UPLOAD] Error response:', errorData);
+              reject(new Error(errorData?.error || errorData?.details || 'Upload failed'));
+            } catch (error) {
+              console.error('[UPLOAD] Error parsing error response:', error);
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          }
+        };
+        
+        xhr.onerror = (error) => {
+          console.error('[UPLOAD] Network error:', error);
+          reject(new Error('Network error during upload'));
+        };
+        
+        console.log('[UPLOAD] Sending request');
+        xhr.send(formData);
+      });
+      
+      setCurrentStep('processing');
+      const data = await uploadPromise;
+      
+      if (data?.success && data?.url) {
+        console.log('[UPLOAD] Upload successful, URL:', data.url);
+        setVideoUrl(data.url);
+        setUploadedFile(file.name);
+        setUploadDetails({
+          filename: data.filename,
+          url: data.url,
+          size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+          type: file.type
+        });
+        window.showToast?.success?.('File uploaded successfully');
+        setCurrentStep('completed');
+      } else {
+        console.error('[UPLOAD] Missing success or URL in response');
+        throw new Error('Failed to get upload URL');
+      }
+    } catch (error) {
+      console.error('[UPLOAD] Error:', error);
+      setUploadError(error?.message || 'Error uploading file');
+      window.showToast?.error?.(error?.message || 'Error uploading file');
+      setCurrentStep('error');
+    } finally {
+      setIsUploading(false);
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handlePostVideo = async (e) => {
     e.preventDefault();
     if (!videoUrl) return;
 
     try {
       setIsLoading(true);
+      setCurrentStep('preparing');
       
       // Use the token from state or localStorage as a fallback
       const token = accessToken || localStorage?.getItem('tiktokAccessToken');
@@ -120,6 +296,12 @@ export default function TikTok() {
       // Make sure we're using the environment variable
       const url = `${apiUrl}/tiktok/post-video`;
       
+      console.log('[POST] Sending video to TikTok:', {
+        url: videoUrl,
+        apiEndpoint: url
+      });
+      
+      setCurrentStep('posting');
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -133,15 +315,23 @@ export default function TikTok() {
         }),
       });
 
+      console.log('[POST] Response status:', response?.status);
       const data = await response?.json();
+      console.log('[POST] Response data:', data);
       
       if (response?.ok) {
+        setCurrentStep('success');
         window.showToast?.success?.('Video posted successfully!');
         setVideoUrl('');
+        setUploadedFile(null);
+        setUploadDetails(null);
       } else {
+        setCurrentStep('error');
         throw new Error(data?.error || 'Failed to post video');
       }
     } catch (error) {
+      console.error('[POST] Error:', error);
+      setCurrentStep('error');
       window.showToast?.error?.(error?.message || 'Unknown error occurred');
       console.error('Post error:', error);
     } finally {
@@ -288,26 +478,184 @@ export default function TikTok() {
                   
                   <div className={styles.postVideoSection}>
                     <h3>Post a Video to TikTok</h3>
-                    <form onSubmit={handlePostVideo} className={styles.postForm}>
-                      <div className={styles.formGroup}>
+                    
+                    {/* Step Indicator */}
+                    {currentStep && (
+                      <div className={tikTokStyles.stepIndicator}>
+                        <div className={tikTokStyles.stepTitle}>
+                          {currentStep === 'validating' && 'Validating file...'}
+                          {currentStep === 'uploading' && 'Uploading file...'}
+                          {currentStep === 'processing' && 'Processing upload...'}
+                          {currentStep === 'completed' && 'Upload completed successfully!'}
+                          {currentStep === 'preparing' && 'Preparing to post...'}
+                          {currentStep === 'posting' && 'Posting to TikTok...'}
+                          {currentStep === 'success' && 'Posted successfully!'}
+                          {currentStep === 'error' && 'Error occurred'}
+                        </div>
+                        
+                        {/* Show progress bar for uploading and processing steps */}
+                        {(currentStep === 'uploading' || currentStep === 'processing') && (
+                          <div className={tikTokStyles.progressBarContainer}>
+                            <div 
+                              className={tikTokStyles.progressBar} 
+                              style={{ 
+                                width: `${currentStep === 'processing' ? 100 : uploadProgress}%`,
+                              }}
+                            ></div>
+                            <span className={tikTokStyles.progressText}>
+                              {currentStep === 'processing' ? 'Processing...' : `${uploadProgress}%`}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Show completed progress bar for file uploads */}
+                        {currentStep === 'completed' && (
+                          <div className={`${tikTokStyles.progressBarContainer} ${tikTokStyles.uploadCompleted}`}>
+                            <div 
+                              className={tikTokStyles.progressBar} 
+                              style={{ width: '100%' }}
+                            ></div>
+                            <span className={tikTokStyles.progressText}>Completed!</span>
+                          </div>
+                        )}
+                        
+                        {/* Show completed progress bar for success step with static styling */}
+                        {currentStep === 'success' && (
+                          <div className={`${tikTokStyles.progressBarContainer} ${tikTokStyles.uploadCompleted} ${tikTokStyles.staticCompleted}`}>
+                            <div 
+                              className={tikTokStyles.progressBar} 
+                              style={{ width: '100%' }}
+                            ></div>
+                            <span className={tikTokStyles.progressText}>Posted Successfully!</span>
+                          </div>
+                        )}
+                        
+                        {/* Multi-step progress indicator for upload process */}
+                        {getActiveProcess() === 'upload' && (
+                          <div className={tikTokStyles.progressSteps}>
+                            {uploadSteps.map((step, index) => {
+                              const currentIndex = getCurrentStepIndex();
+                              const isActive = index === currentIndex;
+                              const isCompleted = index < currentIndex;
+                              
+                              return (
+                                <div key={step.id} className={tikTokStyles.progressStep}>
+                                  <div 
+                                    className={`${tikTokStyles.progressStepDot} ${isActive ? tikTokStyles.active : ''} ${isCompleted ? tikTokStyles.completed : ''}`}
+                                  ></div>
+                                  <div 
+                                    className={`${tikTokStyles.progressStepLabel} ${isActive ? tikTokStyles.active : ''} ${isCompleted ? tikTokStyles.completed : ''}`}
+                                  >
+                                    {step.label}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        
+                        {/* Multi-step progress indicator for posting process */}
+                        {getActiveProcess() === 'posting' && (
+                          <div className={`${tikTokStyles.progressSteps} ${currentStep === 'success' ? tikTokStyles.staticCompleted : ''}`}>
+                            {postingSteps.map((step, index) => {
+                              const currentIndex = getCurrentStepIndex();
+                              const isActive = index === currentIndex;
+                              const isCompleted = index < currentIndex || currentStep === 'success';
+                              const isSuccessStep = step.id === 'success';
+                              const isStaticSuccess = currentStep === 'success';
+                              
+                              return (
+                                <div key={step.id} className={tikTokStyles.progressStep}>
+                                  <div 
+                                    className={`
+                                      ${tikTokStyles.progressStepDot} 
+                                      ${isActive ? tikTokStyles.active : ''} 
+                                      ${isCompleted ? tikTokStyles.completed : ''} 
+                                      ${isActive && isSuccessStep && !isStaticSuccess ? 'success' : ''}
+                                      ${isStaticSuccess ? tikTokStyles.staticCompleted : ''}
+                                    `}
+                                  ></div>
+                                  <div 
+                                    className={`
+                                      ${tikTokStyles.progressStepLabel} 
+                                      ${isActive ? tikTokStyles.active : ''} 
+                                      ${isCompleted ? tikTokStyles.completed : ''} 
+                                      ${isActive && isSuccessStep && !isStaticSuccess ? 'success' : ''}
+                                      ${isStaticSuccess && isSuccessStep ? tikTokStyles.staticCompleted : ''}
+                                    `}
+                                  >
+                                    {step.label}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Error Message */}
+                    {uploadError && (
+                      <div className={tikTokStyles.errorMessage}>
+                        <p>{uploadError}</p>
+                      </div>
+                    )}
+                    
+                    <div className={tikTokStyles.uploadSection}>
+                      <h4>Upload Video</h4>
+                      <div className={tikTokStyles.uploadContainer}>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          onChange={handleFileUpload}
+                          disabled={isUploading || isLoading}
+                          ref={fileInputRef}
+                          className={tikTokStyles.fileInput}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading || isLoading}
+                          className={tikTokStyles.uploadButton}
+                        >
+                          {isUploading ? `Uploading...` : 'Select File'}
+                        </button>
+                      </div>
+                      
+                      {uploadedFile && (
+                        <div className={tikTokStyles.uploadedFile}>
+                          <span>Uploaded: {uploadedFile}</span>
+                          {uploadDetails && (
+                            <div className={tikTokStyles.uploadDetails}>
+                              <p>Size: {uploadDetails.size}</p>
+                              <p>Type: {uploadDetails.type}</p>
+                              <p>URL: <a href={uploadDetails.url} target="_blank" rel="noopener noreferrer">{uploadDetails.url}</a></p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <form onSubmit={handlePostVideo} className={tikTokStyles.postForm}>
+                      <div className={tikTokStyles.formGroup}>
                         <label htmlFor="videoUrl">Video URL</label>
                         <input
                           type="url"
                           id="videoUrl"
                           value={videoUrl}
                           onChange={(e) => setVideoUrl(e.target.value)}
-                          placeholder="Enter TikTok video URL"
+                          placeholder="Enter video URL or upload a file"
                           required
                           disabled={isLoading}
-                          className={styles.videoUrlInput}
+                          className={tikTokStyles.videoUrlInput}
                         />
                       </div>
                       
-                      <div className={styles.formActions}>
+                      <div className={tikTokStyles.formActions}>
                         <button
                           type="submit"
-                          disabled={isLoading}
-                          className={styles.postButton}
+                          disabled={isLoading || !videoUrl}
+                          className={tikTokStyles.postButton}
                         >
                           {isLoading ? 'Posting...' : 'Post to TikTok'}
                         </button>
@@ -315,7 +663,7 @@ export default function TikTok() {
                         <button
                           type="button"
                           onClick={handleLogout}
-                          className={styles.disconnectButton}
+                          className={tikTokStyles.disconnectButton}
                           disabled={isLoading}
                         >
                           Disconnect Account

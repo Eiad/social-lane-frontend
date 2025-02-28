@@ -48,7 +48,7 @@ export default function Home() {
 
   // Submit video URL to the backend
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     setIsLoading(true);
     window.showToast?.info?.('Posting video...');
 

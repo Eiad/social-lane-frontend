@@ -4,6 +4,12 @@ const nextConfig = {
   sassOptions: {
     includePaths: ['./styles'],
   },
+  // Increase the maximum payload size for API routes
+  api: {
+    bodyParser: {
+      sizeLimit: '500mb',
+    },
+  },
 };
 
 export default nextConfig;

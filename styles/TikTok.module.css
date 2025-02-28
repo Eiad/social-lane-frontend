@@ -1,0 +1,452 @@
+.postVideoSection {
+  margin-top: 20px;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Step Indicator Styles */
+.stepIndicator {
+  margin: 15px 0;
+  padding: 15px;
+  transition: all 0.3s ease;
+}
+
+.stepTitle {
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+}
+
+.stepTitle::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #1890ff;
+  margin-right: 10px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(24, 144, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(24, 144, 255, 0);
+  }
+}
+
+.progressBarContainer {
+  height: 24px;
+  background-color: #f0f0f0;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  margin: 15px 0;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.progressBar {
+  height: 100%;
+  background: linear-gradient(90deg, #52c41a 0%, #95de64 50%, #52c41a 100%);
+  background-size: 200% 100%;
+  border-radius: 12px;
+  transition: width 0.5s ease;
+  position: relative;
+  overflow: hidden;
+  animation: gradientShift 2s linear infinite;
+  box-shadow: 0 0 10px rgba(82, 196, 26, 0.5);
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.progressBar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.4) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0.4) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 20px 20px;
+  animation: progressStripes 1s linear infinite;
+  z-index: 1;
+  border-radius: 12px;
+}
+
+@keyframes progressStripes {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 20px 0;
+  }
+}
+
+.progressText {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+  animation: pulseText 1.5s infinite;
+}
+
+@keyframes pulseText {
+  0% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.9;
+  }
+}
+
+.progressSteps {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 0 5px;
+}
+
+.progressStep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+}
+
+.progressStep::before {
+  content: '';
+  height: 3px;
+  width: 100%;
+  background-color: #e9ecef;
+  position: absolute;
+  top: 10px;
+  left: -50%;
+  z-index: 1;
+}
+
+.progressStep:first-child::before {
+  display: none;
+}
+
+.progressStepDot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #e9ecef;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px #d9d9d9;
+  z-index: 2;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.progressStepDot.active {
+  background-color: #1890ff;
+  box-shadow: 0 0 0 1px #1890ff;
+}
+
+.progressStepDot.completed {
+  background-color: #52c41a;
+  box-shadow: 0 0 0 1px #52c41a, 0 0 0 4px rgba(82, 196, 26, 0.2);
+  animation: dotPulse 1.5s infinite;
+}
+
+@keyframes dotPulse {
+  0% {
+    box-shadow: 0 0 0 1px #52c41a, 0 0 0 4px rgba(82, 196, 26, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 1px #52c41a, 0 0 0 8px rgba(82, 196, 26, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 1px #52c41a, 0 0 0 4px rgba(82, 196, 26, 0.2);
+  }
+}
+
+/* Add special styling for the success step */
+.progressStepDot.active[class*="success"] {
+  background-color: #52c41a;
+  box-shadow: 0 0 0 1px #52c41a, 0 0 0 4px rgba(82, 196, 26, 0.3);
+  animation: none;
+}
+
+.progressStepLabel.active[class*="success"] {
+  color: #52c41a;
+  font-weight: 600;
+  animation: none;
+}
+
+.progressStepLabel {
+  font-size: 12px;
+  margin-top: 8px;
+  color: #666;
+  text-align: center;
+}
+
+.progressStepLabel.active {
+  color: #1890ff;
+  font-weight: 500;
+}
+
+.progressStepLabel.completed {
+  color: #52c41a;
+  font-weight: 600;
+}
+
+/* Error Message Styles */
+.errorMessage {
+  margin: 15px 0;
+  padding: 12px 15px;
+  background-color: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 6px;
+  color: #ff4d4f;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 5px rgba(255, 77, 79, 0.1);
+}
+
+.errorMessage::before {
+  content: '⚠️';
+  margin-right: 10px;
+  font-size: 16px;
+}
+
+.errorMessage p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Upload Section Styles */
+.uploadSection {
+  margin-bottom: 20px;
+}
+
+.uploadContainer {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.fileInput {
+  display: none;
+}
+
+.uploadButton {
+  padding: 8px 16px;
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.uploadButton:hover {
+  background-color: #40a9ff;
+}
+
+.uploadButton:disabled {
+  background-color: #d9d9d9;
+  cursor: not-allowed;
+}
+
+.uploadedFile {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 4px;
+}
+
+.uploadDetails {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #666;
+}
+
+.uploadDetails p {
+  margin: 4px 0;
+}
+
+.uploadDetails a {
+  color: #1890ff;
+  word-break: break-all;
+}
+
+/* Form Styles */
+.postForm {
+  margin-top: 20px;
+}
+
+.formGroup {
+  margin-bottom: 15px;
+}
+
+.formGroup label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.videoUrlInput {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.videoUrlInput:focus {
+  border-color: #40a9ff;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.formActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.postButton {
+  padding: 8px 16px;
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.postButton:hover {
+  background-color: #40a9ff;
+}
+
+.postButton:disabled {
+  background-color: #d9d9d9;
+  cursor: not-allowed;
+}
+
+.disconnectButton {
+  padding: 8px 16px;
+  background-color: white;
+  color: #ff4d4f;
+  border: 1px solid #ff4d4f;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.disconnectButton:hover {
+  background-color: #fff1f0;
+}
+
+.disconnectButton:disabled {
+  color: #d9d9d9;
+  border-color: #d9d9d9;
+  cursor: not-allowed;
+}
+
+/* Success animation for completed uploads */
+.uploadCompleted {
+  box-shadow: 0 0 5px rgba(82, 196, 26, 0.5);
+  transition: all 0.3s ease;
+}
+
+.uploadCompleted .progressBar {
+  background: linear-gradient(90deg, #52c41a 0%, #73d13d 100%);
+  box-shadow: 0 0 8px rgba(82, 196, 26, 0.4);
+  animation: none;
+}
+
+.uploadCompleted .progressText {
+  font-weight: 700;
+  font-size: 15px;
+  animation: none;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Add special styling for the success step */
+.progressStepDot.active[class*="success"] {
+  background-color: #52c41a;
+  box-shadow: 0 0 0 1px #52c41a, 0 0 0 4px rgba(82, 196, 26, 0.3);
+  animation: none;
+}
+
+.progressStepLabel.active[class*="success"] {
+  color: #52c41a;
+  font-weight: 600;
+  animation: none;
+}
+
+/* Specific styling for the static completed state */
+.staticCompleted .progressBar {
+  background: linear-gradient(90deg, #52c41a 0%, #73d13d 100%);
+  animation: none;
+  box-shadow: 0 0 5px rgba(82, 196, 26, 0.3);
+}
+
+.staticCompleted .progressBar::after {
+  animation: none;
+  background: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.2) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.2) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 20px 20px;
+}
+
+.staticCompleted .progressText {
+  animation: none;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+} 
