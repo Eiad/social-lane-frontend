@@ -216,43 +216,31 @@ export default function TikTok() {
         }
       });
       
-      // Create a promise to handle the XHR request
+      // Create a promise to handle the XHR response
       const uploadPromise = new Promise((resolve, reject) => {
-        xhr.open('POST', '/api/upload', true);
-        
-        xhr.onload = () => {
-          console.log(`[UPLOAD] Request completed with status: ${xhr.status}`);
+        xhr.onload = function() {
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
-              const data = JSON.parse(xhr.responseText);
-              console.log('[UPLOAD] Response data:', data);
-              resolve(data);
-            } catch (error) {
-              console.error('[UPLOAD] Error parsing response:', error);
+              const response = JSON.parse(xhr.responseText);
+              resolve(response);
+            } catch (e) {
               reject(new Error('Invalid response format'));
             }
           } else {
-            try {
-              const errorData = JSON.parse(xhr.responseText);
-              console.error('[UPLOAD] Error response:', errorData);
-              reject(new Error(errorData?.error || errorData?.details || 'Upload failed'));
-            } catch (error) {
-              console.error('[UPLOAD] Error parsing error response:', error);
-              reject(new Error(`Upload failed with status ${xhr.status}`));
-            }
+            reject(new Error(`Upload failed with status ${xhr.status}`));
           }
         };
         
-        xhr.onerror = (error) => {
-          console.error('[UPLOAD] Network error:', error);
+        xhr.onerror = function() {
           reject(new Error('Network error during upload'));
         };
-        
-        console.log('[UPLOAD] Sending request');
-        xhr.send(formData);
       });
       
-      setCurrentStep('processing');
+      // Open and send the request
+      xhr.open('POST', '/api/upload', true);
+      xhr.send(formData);
+      
+      // Wait for the upload to complete
       const data = await uploadPromise;
       
       if (data?.success && data?.url) {
@@ -267,6 +255,13 @@ export default function TikTok() {
         });
         window.showToast?.success?.('File uploaded successfully');
         setCurrentStep('completed');
+        
+        // Automatically post to TikTok after a delay
+        console.log('[UPLOAD] Waiting 2 seconds before posting to TikTok...');
+        setTimeout(() => {
+          console.log('[UPLOAD] Auto-posting to TikTok with URL:', data.url);
+          handlePostVideo(null, data.url);
+        }, 2000);
       } else {
         console.error('[UPLOAD] Missing success or URL in response');
         throw new Error('Failed to get upload URL');
@@ -286,13 +281,16 @@ export default function TikTok() {
     }
   };
 
-  const handlePostVideo = async (e) => {
+  const handlePostVideo = async (e, urlOverride) => {
     e?.preventDefault();
-    if (!videoUrl) return;
+    const videoUrlToPost = urlOverride || videoUrl;
+    
+    if (!videoUrlToPost) return;
 
     try {
       setIsLoading(true);
       setCurrentStep('preparing');
+      setUploadError(null); // Clear any previous errors
       
       // Use the token from state or localStorage as a fallback
       const token = accessToken || localStorage?.getItem('tiktokAccessToken');
@@ -305,7 +303,7 @@ export default function TikTok() {
       const url = `${apiUrl}/tiktok/post-video`;
       
       console.log('[POST] Sending video to TikTok:', {
-        url: videoUrl,
+        url: videoUrlToPost,
         apiEndpoint: url
       });
       
@@ -318,7 +316,7 @@ export default function TikTok() {
         credentials: 'include',
         mode: 'cors',
         body: JSON.stringify({
-          videoUrl,
+          videoUrl: videoUrlToPost,
           accessToken: token,
         }),
       });
@@ -330,18 +328,29 @@ export default function TikTok() {
       if (response?.ok) {
         setCurrentStep('success');
         window.showToast?.success?.('Video posted successfully!');
-        setVideoUrl('');
-        setUploadedFile(null);
-        setUploadDetails(null);
+        if (!urlOverride) {
+          setVideoUrl('');
+          setUploadedFile(null);
+          setUploadDetails(null);
+        }
       } else {
         setCurrentStep('error');
-        throw new Error(data?.error || 'Failed to post video');
+        // Display detailed error information
+        const errorMessage = data?.error || 'Failed to post video';
+        setUploadError(errorMessage);
+        console.error('[POST] Error response:', data);
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('[POST] Error:', error);
       setCurrentStep('error');
-      window.showToast?.error?.(error?.message || 'Unknown error occurred');
-      console.error('Post error:', error);
+      
+      // Set a more detailed error message for display
+      const errorMessage = error?.message || 'Unknown error occurred';
+      setUploadError(errorMessage);
+      
+      window.showToast?.error?.(errorMessage);
+      console.error('Post error details:', error);
     } finally {
       setIsLoading(false);
     }
@@ -605,7 +614,17 @@ export default function TikTok() {
                     {/* Error Message */}
                     {uploadError && (
                       <div className={tikTokStyles.errorMessage}>
-                        <p>{uploadError}</p>
+                        <div className={tikTokStyles.errorIcon}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                          </svg>
+                        </div>
+                        <div className={tikTokStyles.errorContent}>
+                          <h4>Error occurred</h4>
+                          <p>{uploadError}</p>
+                        </div>
                       </div>
                     )}
                     

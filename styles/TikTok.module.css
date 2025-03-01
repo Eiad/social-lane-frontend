@@ -232,28 +232,40 @@
   font-weight: 600;
 }
 
-/* Error Message Styles */
+/* Error Message */
 .errorMessage {
-  margin: 15px 0;
-  padding: 12px 15px;
-  background-color: #fff2f0;
-  border: 1px solid #ffccc7;
-  border-radius: 6px;
-  color: #ff4d4f;
+  background-color: #ffebee;
+  border: 1px solid #ef5350;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
   display: flex;
-  align-items: center;
-  box-shadow: 0 2px 5px rgba(255, 77, 79, 0.1);
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.errorMessage::before {
-  content: '⚠️';
-  margin-right: 10px;
+.errorIcon {
+  color: #d32f2f;
+  flex-shrink: 0;
+}
+
+.errorContent {
+  flex: 1;
+}
+
+.errorContent h4 {
+  color: #d32f2f;
+  margin: 0 0 8px 0;
   font-size: 16px;
+  font-weight: 600;
 }
 
-.errorMessage p {
+.errorContent p {
   margin: 0;
+  color: #b71c1c;
   font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 /* Upload Section Styles */
