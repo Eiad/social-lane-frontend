@@ -49,3 +49,6 @@ next-env.d.ts
 *.avi
 *.wmv
 *.flv
+
+# temp directory
+/temp
