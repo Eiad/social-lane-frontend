@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { IncomingForm } from 'formidable';
+import axios from 'axios';
+import FormData from 'form-data';
 
 // Disable the default body parser to handle file uploads
 export const config = {
@@ -18,21 +20,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-    console.log('[UPLOAD API] Uploads directory path:', uploadsDir);
+    // Create temp directory if it doesn't exist
+    const tempDir = path.join(process.cwd(), 'temp');
+    console.log('[UPLOAD API] Temp directory path:', tempDir);
     
-    if (!fs.existsSync(uploadsDir)) {
-      console.log('[UPLOAD API] Creating uploads directory');
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    if (!fs.existsSync(tempDir)) {
+      console.log('[UPLOAD API] Creating temp directory');
+      fs.mkdirSync(tempDir, { recursive: true });
     } else {
-      console.log('[UPLOAD API] Uploads directory already exists');
+      console.log('[UPLOAD API] Temp directory already exists');
     }
 
     // Parse the incoming form data
     console.log('[UPLOAD API] Initializing form parser');
     const form = new IncomingForm({
-      uploadDir: uploadsDir,
+      uploadDir: tempDir,
       keepExtensions: true,
       maxFileSize: 500 * 1024 * 1024, // 500MB max file size
       multiples: false, // Only allow one file upload at a time
@@ -40,10 +42,10 @@ export default async function handler(req, res) {
 
     return new Promise((resolve, reject) => {
       console.log('[UPLOAD API] Starting form parsing');
-      form.parse(req, (err, fields, files) => {
+      form.parse(req, async (err, fields, files) => {
         if (err) {
           console.error('[UPLOAD API] Error parsing form:', err);
-          res.status(500).json({ error: 'Error uploading file', details: err.message });
+          res.status(500).json({ error: 'Error uploading file', details: err?.message });
           return resolve();
         }
 
@@ -75,39 +77,66 @@ export default async function handler(req, res) {
           const originalFilename = file?.originalFilename || file?.originalName || 'video.mp4';
           const fileExtension = path.extname(originalFilename);
           const newFilename = `video-${timestamp}${fileExtension}`;
-          const finalPath = path.join(uploadsDir, newFilename);
+          const tempFilePath = file?.filepath || file?.path;
           
-          console.log('[UPLOAD API] Renaming file', { 
+          console.log('[UPLOAD API] Processing file', { 
             originalFilename,
             newFilename,
-            finalPath
+            tempFilePath
           });
 
-          // Rename the file
-          fs.renameSync(file?.filepath || file?.path, finalPath);
-          console.log('[UPLOAD API] File renamed successfully');
-
-          // Generate the public URL
-          const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://sociallane-frontend.mindio.chat';
-          const fileUrl = `${baseUrl}/uploads/${newFilename}`;
-          console.log('[UPLOAD API] Generated public URL:', fileUrl);
-
-          console.log('[UPLOAD API] Upload completed successfully');
-          res.status(200).json({ 
-            success: true, 
-            url: fileUrl,
-            filename: newFilename
+          // Upload to R2 via backend API
+          console.log('[UPLOAD API] Uploading to R2 via backend');
+          const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+          const uploadUrl = `${backendUrl}/upload`;
+          
+          // Create a Node.js compatible FormData
+          const formData = new FormData();
+          // Append the file directly from the file path
+          formData.append('file', fs.createReadStream(tempFilePath), {
+            filename: newFilename,
+            contentType: file.mimetype || 'video/mp4'
           });
+          
+          const uploadResponse = await axios.post(uploadUrl, formData, {
+            headers: {
+              ...formData.getHeaders()
+            },
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
+          });
+          
+          console.log('[UPLOAD API] R2 upload response:', uploadResponse?.data);
+          
+          // Clean up the temp file
+          try {
+            fs.unlinkSync(tempFilePath);
+            console.log('[UPLOAD API] Temp file deleted');
+          } catch (cleanupError) {
+            console.error('[UPLOAD API] Error cleaning up temp file:', cleanupError);
+          }
+          
+          if (uploadResponse?.data?.success && uploadResponse?.data?.url) {
+            console.log('[UPLOAD API] Upload completed successfully');
+            res.status(200).json({ 
+              success: true, 
+              url: uploadResponse.data.url,
+              filename: newFilename
+            });
+          } else {
+            throw new Error('Failed to upload to R2: ' + (uploadResponse?.data?.error || 'Unknown error'));
+          }
+          
           return resolve();
         } catch (error) {
           console.error('[UPLOAD API] Error handling file:', error);
-          res.status(500).json({ error: 'Error processing uploaded file', details: error.message });
+          res.status(500).json({ error: 'Error processing uploaded file', details: error?.message });
           return resolve();
         }
       });
     });
   } catch (error) {
     console.error('[UPLOAD API] Server error:', error);
-    res.status(500).json({ error: 'Server error', details: error.message });
+    res.status(500).json({ error: 'Server error', details: error?.message });
   }
 } 
