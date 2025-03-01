@@ -20,7 +20,7 @@ export default function SocialPosting() {
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files?.[0];
+    const selectedFile = e.target?.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
       setUploadedFile(selectedFile.name);
@@ -28,6 +28,22 @@ export default function SocialPosting() {
       setVideoUrl('');
       setPostSuccess(false);
     }
+  };
+
+  const handleChangeFile = () => {
+    // Reset the file state first
+    setFile(null);
+    setUploadedFile(null);
+    
+    // Reset the file input value to ensure onChange fires even if selecting the same file
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    
+    // Trigger the file input click after a small delay to ensure the reset has taken effect
+    setTimeout(() => {
+      fileInputRef.current?.click();
+    }, 50);
   };
 
   const handleUploadClick = () => {
@@ -161,7 +177,12 @@ export default function SocialPosting() {
       case 1:
         return (
           <div className={styles.step}>
-            <h2>Upload Media</h2>
+            <div className={styles.stepTitle}>
+              <h2>Upload Your Video</h2>
+              <p className={styles.stepDescription}>
+                Share your creativity with the world. Upload a video in MP4 or MOV format.
+              </p>
+            </div>
             <div className={styles.uploadSection}>
               {!uploadedFile && !isUploading && (
                 <div 
@@ -169,18 +190,35 @@ export default function SocialPosting() {
                   onClick={handleUploadClick}
                 >
                   <div className={styles.uploadIcon}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                       <polyline points="17 8 12 3 7 8"></polyline>
                       <line x1="12" y1="3" x2="12" y2="15"></line>
                     </svg>
                   </div>
                   <p className={styles.uploadText}>
-                    Click to upload or drag and drop
+                    Drag and drop your video here
                   </p>
                   <p className={styles.uploadHint}>
-                    Supported formats: MP4, MOV (max 500MB)
+                    or <span className={styles.uploadLink}>browse files</span>
                   </p>
+                  <div className={styles.uploadSpecs}>
+                    <div className={styles.uploadSpec}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                      </svg>
+                      MP4, MOV
+                    </div>
+                    <div className={styles.uploadSpec}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
+                      Up to 500MB
+                    </div>
+                  </div>
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -194,14 +232,27 @@ export default function SocialPosting() {
               {uploadedFile && (
                 <div className={styles.uploadedFileCard}>
                   <div className={styles.uploadedFileInfo}>
-                    <h5>{uploadedFile}</h5>
+                    <div className={styles.uploadedFileIcon}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                      </svg>
+                    </div>
+                    <div className={styles.uploadedFileDetails}>
+                      <h5>{uploadedFile}</h5>
+                      <span>{file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : ''}</span>
+                    </div>
                   </div>
                   <div className={styles.uploadActions}>
                     <button 
                       className={styles.changeFileButton}
-                      onClick={handleUploadClick}
+                      onClick={handleChangeFile}
                       disabled={isUploading}
                     >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
                       Change
                     </button>
                     <button
@@ -209,6 +260,11 @@ export default function SocialPosting() {
                       onClick={handleFileUpload}
                       disabled={isUploading}
                     >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
                       Upload
                     </button>
                   </div>
@@ -217,14 +273,22 @@ export default function SocialPosting() {
 
               {isUploading && (
                 <div className={styles.progressSection}>
+                  <div className={styles.progressStatus}>
+                    <div className={styles.progressInfo}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
+                      <span className={styles.progressLabel}>Uploading...</span>
+                    </div>
+                    <span className={styles.progressPercentage}>{uploadProgress}%</span>
+                  </div>
                   <div className={styles.progressBarContainer}>
                     <div 
                       className={styles.progressBar} 
                       style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                    <span className={styles.progressText}>
-                      {uploadProgress}%
-                    </span>
+                    />
                   </div>
                 </div>
               )}
@@ -235,22 +299,44 @@ export default function SocialPosting() {
       case 2:
         return (
           <div className={styles.step}>
-            <h2>Select Platforms</h2>
+            <div className={styles.stepTitle}>
+              <h2>Choose Platforms</h2>
+              <p className={styles.stepDescription}>
+                Select where you want to share your content.
+              </p>
+            </div>
             <div className={styles.platformsGrid}>
               <button
                 className={`${styles.platformButton} ${selectedPlatforms.includes('tiktok') ? styles.selected : ''}`}
                 onClick={() => handlePlatformToggle('tiktok')}
               >
-                <TikTokSimpleIcon width="24" height="24" />
-                <span>TikTok</span>
+                <div className={styles.platformIcon}>
+                  <TikTokSimpleIcon width="32" height="32" />
+                </div>
+                <div className={styles.platformInfo}>
+                  <div className={styles.platformName}>TikTok</div>
+                  <div className={styles.platformDescription}>
+                    Share short-form videos
+                  </div>
+                </div>
+                <div className={styles.platformCheck}>
+                  {selectedPlatforms.includes('tiktok') && (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  )}
+                </div>
               </button>
-              {/* Add more platforms here in the future */}
             </div>
             <div className={styles.stepActions}>
               <button 
                 className={styles.backButton} 
                 onClick={() => setCurrentStep(1)}
               >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12"></line>
+                  <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
                 Back
               </button>
               <button
@@ -259,6 +345,10 @@ export default function SocialPosting() {
                 disabled={selectedPlatforms.length === 0}
               >
                 Next
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
               </button>
             </div>
           </div>
@@ -267,20 +357,29 @@ export default function SocialPosting() {
       case 3:
         return (
           <div className={styles.step}>
-            <h2>Add Details</h2>
+            <div className={styles.stepTitle}>
+              <h2>Add Details</h2>
+              <p className={styles.stepDescription}>
+                Write a caption for your post.
+              </p>
+            </div>
             <div className={styles.detailsForm}>
               <div className={styles.formGroup}>
-                <label htmlFor="caption">Caption</label>
-                <textarea
-                  id="caption"
-                  className={styles.captionInput}
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  placeholder="Write a caption for your post..."
-                  maxLength={2200}
-                />
-                <div className={styles.captionCounter}>
-                  {caption.length}/2200
+                <label htmlFor="caption">
+                  Caption
+                  <span className={styles.captionCounter}>
+                    {caption.length}/2200
+                  </span>
+                </label>
+                <div className={styles.captionInputWrapper}>
+                  <textarea
+                    id="caption"
+                    className={styles.captionInput}
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                    placeholder="Write a caption for your post..."
+                    maxLength={2200}
+                  />
                 </div>
               </div>
             </div>
@@ -289,13 +388,21 @@ export default function SocialPosting() {
                 className={styles.backButton} 
                 onClick={() => setCurrentStep(2)}
               >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12"></line>
+                  <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
                 Back
               </button>
               <button
-                className={styles.nextButton}
+                className={styles.reviewButton}
                 onClick={() => setCurrentStep(4)}
               >
-                Next
+                Review
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                  <polyline points="12 5 19 12 12 19"></polyline>
+                </svg>
               </button>
             </div>
           </div>
@@ -304,22 +411,73 @@ export default function SocialPosting() {
       case 4:
         return (
           <div className={styles.step}>
-            <h2>Review & Publish</h2>
+            <div className={styles.stepTitle}>
+              <h2>Review Your Post</h2>
+              <p className={styles.stepDescription}>
+                Take a final look at your content before sharing it with the world.
+              </p>
+            </div>
             <div className={styles.reviewSection}>
-              <div className={styles.reviewItem}>
-                <h3>Selected Platforms</h3>
-                <div className={styles.platformsList}>
-                  {selectedPlatforms.map(platform => (
-                    <div key={platform} className={styles.platformBadge}>
-                      {platform === 'tiktok' && <TikTokSimpleIcon width="16" height="16" />}
-                      <span>{platform}</span>
+              <div className={styles.reviewDetails}>
+                <div className={styles.reviewItem}>
+                  <h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    File
+                  </h3>
+                  <div className={styles.fileItem}>
+                    <div className={styles.fileIcon}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                      </svg>
                     </div>
-                  ))}
+                    <div className={styles.fileInfo}>
+                      <div className={styles.fileName}>{uploadedFile}</div>
+                      <div className={styles.fileSize}>{file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : ''}</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className={styles.reviewItem}>
+                  <h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                    </svg>
+                    Caption
+                  </h3>
+                  <p className={styles.captionPreview}>{caption || 'No caption added'}</p>
+                </div>
+                
+                <div className={styles.reviewItem}>
+                  <h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5 0-.28-.03-.56-.08-.83A7.72 7.72 0 0 0 23 3z"></path>
+                    </svg>
+                    Publishing to
+                  </h3>
+                  <div className={styles.platformsList}>
+                    {selectedPlatforms.map(platform => (
+                      <div key={platform} className={styles.platformBadge}>
+                        {platform === 'tiktok' && <TikTokSimpleIcon width="18" height="18" />}
+                        <span>TikTok</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className={styles.reviewItem}>
-                <h3>Caption</h3>
-                <p className={styles.captionPreview}>{caption || 'No caption'}</p>
+              
+              <div className={styles.videoPreviewSection}>
+                <div className={styles.videoPreviewContainer}>
+                  <video
+                    className={styles.videoPreview}
+                    src={videoUrl}
+                    controls
+                    playsInline
+                  />
+                </div>
               </div>
             </div>
             <div className={styles.stepActions}>
@@ -327,14 +485,41 @@ export default function SocialPosting() {
                 className={styles.backButton} 
                 onClick={() => setCurrentStep(3)}
               >
-                Back
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12"></line>
+                  <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                Edit
               </button>
               <button
-                className={styles.publishButton}
+                className={styles.reviewButton}
                 onClick={handlePost}
                 disabled={isPosting}
               >
-                {isPosting ? 'Publishing...' : 'Publish'}
+                {isPosting ? (
+                  <>
+                    <svg className={styles.loadingIcon} xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="2" x2="12" y2="6"></line>
+                      <line x1="12" y1="18" x2="12" y2="22"></line>
+                      <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                      <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                      <line x1="2" y1="12" x2="6" y2="12"></line>
+                      <line x1="18" y1="12" x2="22" y2="12"></line>
+                      <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                      <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                    </svg>
+                    Publishing...
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                      <polyline points="16 6 12 2 8 6"></polyline>
+                      <line x1="12" y1="2" x2="12" y2="15"></line>
+                    </svg>
+                    Post Now
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -345,13 +530,13 @@ export default function SocialPosting() {
           <div className={styles.step}>
             <div className={styles.successMessage}>
               <div className={styles.successIcon}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                   <polyline points="22 4 12 14.01 9 11.01"></polyline>
                 </svg>
               </div>
-              <h2>Post Published Successfully!</h2>
-              <p>Your content has been published to the selected platforms.</p>
+              <h2>Post Published</h2>
+              <p>Your content has been successfully published.</p>
               <button
                 className={styles.newPostButton}
                 onClick={() => {
@@ -364,7 +549,12 @@ export default function SocialPosting() {
                   setPostSuccess(false);
                 }}
               >
-                Create New Post
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="16"></line>
+                  <line x1="8" y1="12" x2="16" y2="12"></line>
+                </svg>
+                Create Another Post
               </button>
             </div>
           </div>
@@ -381,7 +571,7 @@ export default function SocialPosting() {
 
       <main className={styles.main}>
         <div className={styles.header}>
-          <h1>Create a Post</h1>
+          <h1>Create Your Post</h1>
           <div className={styles.steps}>
             {[1, 2, 3, 4].map((step) => (
               <div
@@ -390,10 +580,10 @@ export default function SocialPosting() {
               >
                 <div className={styles.stepNumber}>{step}</div>
                 <div className={styles.stepLabel}>
-                  {step === 1 && 'Upload'}
-                  {step === 2 && 'Platforms'}
-                  {step === 3 && 'Details'}
-                  {step === 4 && 'Publish'}
+                  {step === 1 && 'UPLOAD'}
+                  {step === 2 && 'PLATFORMS'}
+                  {step === 3 && 'DETAILS'}
+                  {step === 4 && 'PUBLISH'}
                 </div>
               </div>
             ))}
@@ -407,7 +597,7 @@ export default function SocialPosting() {
         {uploadError && (
           <div className={styles.errorMessage}>
             <div className={styles.errorIcon}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="12" y1="8" x2="12" y2="12"></line>
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
