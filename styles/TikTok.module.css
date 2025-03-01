@@ -882,4 +882,171 @@
 
 .securityNote svg {
   color: #52c41a;
+}
+
+/* Post Container */
+.postContainer {
+  margin-bottom: 2rem;
+}
+
+/* Preview Section */
+.previewSection {
+  padding: 2rem;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.previewHeader {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.previewHeader h4 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.previewDescription {
+  color: #666;
+  font-size: 0.875rem;
+}
+
+.videoPreviewContainer {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto 1.5rem;
+  background-color: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 9/16;
+}
+
+.videoPreview {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.captionContainer {
+  margin-bottom: 1.5rem;
+}
+
+.captionInput {
+  width: 100%;
+  min-height: 100px;
+  padding: 1rem;
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  resize: vertical;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  transition: all 0.3s ease;
+}
+
+.captionInput:focus {
+  outline: none;
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.captionCounter {
+  margin-top: 0.5rem;
+  text-align: right;
+  color: #666;
+  font-size: 0.75rem;
+}
+
+/* Post Actions */
+.postActions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.backButton {
+  background-color: #fff !important;
+  color: #666 !important;
+  border: 1px solid #d9d9d9 !important;
+}
+
+.backButton:hover {
+  color: #1890ff !important;
+  border-color: #1890ff !important;
+  background-color: #fff !important;
+}
+
+/* Progress Bar Enhancements */
+.progressSection {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+}
+
+.progressBarContainer {
+  margin-top: 1rem;
+  height: 8px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progressBar {
+  height: 100%;
+  background-color: #1890ff;
+  transition: width 0.3s ease;
+}
+
+.progressText {
+  position: absolute;
+  top: -20px;
+  right: 0;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+/* Step Indicator */
+.stepIndicator {
+  text-align: center;
+}
+
+.stepTitle {
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+/* Error Message */
+.errorMessage {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.errorIcon {
+  color: #ff4d4f;
+  flex-shrink: 0;
+}
+
+.errorContent h4 {
+  margin: 0 0 0.5rem;
+  color: #ff4d4f;
+  font-weight: 500;
+}
+
+.errorContent p {
+  margin: 0;
+  color: #666;
+  font-size: 0.875rem;
 } 
