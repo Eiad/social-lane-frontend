@@ -1,0 +1,390 @@
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
+import styles from '../styles/Home.module.scss';
+import tikTokStyles from '../styles/TikTok.module.css';
+import Head from 'next/head';
+import { TikTokSimpleIcon } from '../src/components/icons/SocialIcons';
+import Link from 'next/link';
+import axios from 'axios';
+
+// Replace this line:
+// const API_BASE_URL = typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_API_URL : undefined;
+
+// With this approach that safely handles both server and client environments:
+const API_BASE_URL =  'https://sociallane-backend.mindio.chat';
+
+
+export default function TikTok() {
+  const [videoUrl, setVideoUrl] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [accessToken, setAccessToken] = useState(null);
+  const [openId, setOpenId] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiUrl, setApiUrl] = useState(API_BASE_URL);
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
+  const [uploadDetails, setUploadDetails] = useState(null);
+  const fileInputRef = useRef(null);
+  const router = useRouter();
+  const [userId, setUserId] = useState('');
+  const [file, setFile] = useState(null);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState('');
+  const [isPosting, setIsPosting] = useState(false);
+  const [postSuccess, setPostSuccess] = useState(false);
+
+  // Define the upload process steps
+  const uploadSteps = [
+    { id: 'validating', label: 'Validate' },
+    { id: 'uploading', label: 'Upload' },
+    { id: 'processing', label: 'Process' },
+    { id: 'completed', label: 'Complete' }
+  ];
+
+  // Define the posting process steps
+  const postingSteps = [
+    { id: 'preparing', label: 'Prepare' },
+    { id: 'posting', label: 'Post' },
+    { id: 'success', label: 'Success' }
+  ];
+
+  // Get the current step index for the active process
+  const getCurrentStepIndex = () => {
+    if (!currentStep) return -1;
+    
+    // Check if we're in the upload process
+    const uploadStepIndex = uploadSteps.findIndex(step => step.id === currentStep);
+    if (uploadStepIndex !== -1) return uploadStepIndex;
+    
+    // Check if we're in the posting process
+    const postingStepIndex = postingSteps.findIndex(step => step.id === currentStep);
+    if (postingStepIndex !== -1) return postingStepIndex;
+    
+    return -1;
+  };
+
+  // Determine which process is active (upload or posting)
+  const getActiveProcess = () => {
+    if (!currentStep) return null;
+    
+    if (uploadSteps.some(step => step.id === currentStep)) {
+      return 'upload';
+    }
+    
+    if (postingSteps.some(step => step.id === currentStep)) {
+      return 'posting';
+    }
+    
+    return null;
+  };
+
+  // Check for existing token in localStorage on component mount
+  useEffect(() => {
+    // Use the API_BASE_URL constant instead of accessing process.env directly
+    setApiUrl(API_BASE_URL);
+    
+    const savedToken = localStorage?.getItem('tiktokAccessToken');
+    const savedOpenId = localStorage?.getItem('tiktokOpenId');
+    if (savedToken) {
+      setAccessToken(savedToken);
+      setOpenId(savedOpenId);
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Check for token in URL (new flow)
+    const { access_token, open_id, error: urlError } = router?.query || {};
+    
+    if (urlError) {
+      window.showToast?.error?.(decodeURIComponent(urlError));
+      // Remove the error from URL
+      router?.replace('/tiktok', undefined, { shallow: true });
+      return;
+    }
+    
+    if (access_token) {
+      setAccessToken(access_token);
+      setOpenId(open_id || '');
+      setIsAuthenticated(true);
+      window.showToast?.success?.('Successfully connected to TikTok!');
+      
+      // Save token to localStorage for persistence
+      localStorage?.setItem('tiktokAccessToken', access_token);
+      if (open_id) localStorage?.setItem('tiktokOpenId', open_id);
+      
+      // Remove the token from URL for security
+      router?.replace('/tiktok', undefined, { shallow: true });
+    }
+  }, [router?.query]);
+
+  const handleConnect = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Make sure we're using the environment variable
+      const url = `${apiUrl}/tiktok/auth`;
+      
+      // Debug logging
+      console.log('Connecting to TikTok with URL:', url);
+      console.log('API URL from state:', apiUrl);
+      console.log('API_BASE_URL constant:', API_BASE_URL);
+      
+      // Try with fetch first
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+        
+        // Debug response
+        console.log('Response status:', response?.status);
+        
+        if (!response?.ok) {
+          throw new Error(`HTTP error! Status: ${response?.status}`);
+        }
+        
+        const data = await response?.json?.();
+        console.log('Response data:', data);
+        
+        if (data?.authUrl) {
+          console.log('Redirecting to auth URL:', data.authUrl);
+          window.location.href = data.authUrl;
+          return;
+        }
+      } catch (fetchError) {
+        console.error('Fetch error:', fetchError);
+        // If fetch fails, try direct redirect as fallback
+        window.location.href = `${apiUrl}/tiktok/auth`;
+      }
+    } catch (error) {
+      console.error('Detailed auth error:', error);
+      window.showToast?.error?.('Failed to initiate TikTok authentication: ' + (error?.message || 'Unknown error'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setUploadedFile(selectedFile.name);
+      setUploadError(null);
+      setVideoUrl('');
+      setPostSuccess(false);
+      setCurrentStep(null);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async () => {
+    if (!file) return;
+
+    // Reset states
+    setUploadError(null);
+    setUploadDetails(null);
+    setCurrentStep('validating');
+
+    // Check if file is a video
+    if (!file.type?.startsWith('video/')) {
+      setUploadError('Please select a video file');
+      window.showToast?.error?.('Please select a video file');
+      setCurrentStep(null);
+      return;
+    }
+
+    // Check file size (max 500MB)
+    if (file.size > 500 * 1024 * 1024) {
+      setUploadError('File size exceeds 500MB limit');
+      window.showToast?.error?.('File size exceeds 500MB limit');
+      setCurrentStep(null);
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      setUploadProgress(0);
+      setCurrentStep('uploading');
+      
+      // Log file details
+      console.log('[UPLOAD] Starting upload for file:', {
+        name: file.name,
+        type: file.type,
+        size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+      });
+      
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Create XMLHttpRequest to track upload progress
+      const xhr = new XMLHttpRequest();
+      
+      // Set up progress tracking
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentCompleted = Math.round((event.loaded * 100) / event.total);
+          setUploadProgress(percentCompleted);
+          console.log(`[UPLOAD] Progress: ${percentCompleted}%`);
+        }
+      });
+      
+      // Create a promise to handle the XHR response
+      const uploadPromise = new Promise((resolve, reject) => {
+        xhr.onload = function() {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              resolve(response);
+            } catch (e) {
+              reject(new Error('Invalid response format'));
+            }
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`));
+          }
+        };
+        
+        xhr.onerror = function() {
+          reject(new Error('Network error during upload'));
+        };
+      });
+      
+      // Open and send the request
+      xhr.open('POST', '/api/upload', true);
+      xhr.send(formData);
+      
+      // Wait for the upload to complete
+      const data = await uploadPromise;
+      
+      if (data?.success && data?.url) {
+        console.log('[UPLOAD] Upload successful, URL:', data.url);
+        setVideoUrl(data.url);
+        setUploadDetails({
+          filename: data.filename,
+          size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+          type: file.type
+        });
+        window.showToast?.success?.('File uploaded successfully');
+        setCurrentStep('completed');
+        
+        // Automatically post to TikTok after a delay
+        console.log('[UPLOAD] Waiting 2 seconds before posting to TikTok...');
+        setTimeout(() => {
+          console.log('[UPLOAD] Auto-posting to TikTok with URL:', data.url);
+          handlePostVideo(null, data.url);
+        }, 2000);
+      } else {
+        console.error('[UPLOAD] Missing success or URL in response');
+        throw new Error('Failed to get upload URL');
+      }
+    } catch (error) {
+      console.error('[UPLOAD] Error:', error);
+      setUploadError(error?.message || 'Error uploading file');
+      window.showToast?.error?.(error?.message || 'Error uploading file');
+      setCurrentStep('error');
+    } finally {
+      setIsUploading(false);
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handlePostVideo = async (e, urlOverride) => {
+    e?.preventDefault();
+    const videoUrlToPost = urlOverride || videoUrl;
+    
+    if (!videoUrlToPost) return;
+
+    try {
+      setIsLoading(true);
+      setCurrentStep('preparing');
+      setUploadError(null); // Clear any previous errors
+      
+      // Use the token from state or localStorage as a fallback
+      const token = accessToken || localStorage?.getItem('tiktokAccessToken');
+      
+      if (!token) {
+        throw new Error('No access token available. Please reconnect your TikTok account.');
+      }
+
+      // Make sure we're using the environment variable
+      const url = `${apiUrl}/tiktok/post-video`;
+      
+      console.log('[POST] Sending video to TikTok:', {
+        url: videoUrlToPost,
+        apiEndpoint: url
+      });
+      
+      setCurrentStep('posting');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        mode: 'cors',
+        body: JSON.stringify({
+          videoUrl: videoUrlToPost,
+          accessToken: token,
+        }),
+      });
+
+      console.log('[POST] Response status:', response?.status);
+      const data = await response?.json?.();
+      console.log('[POST] Response data:', data);
+      
+      if (response?.ok) {
+        setCurrentStep('success');
+        setPostSuccess(true);
+        window.showToast?.success?.('Video posted successfully!');
+        if (!urlOverride) {
+          setVideoUrl('');
+          setUploadedFile(null);
+          setUploadDetails(null);
+        }
+      } else {
+        setCurrentStep('error');
+        // Display detailed error information
+        const errorMessage = data?.error || 'Failed to post video';
+        setUploadError(errorMessage);
+        console.error('[POST] Error response:', data);
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      console.error('[POST] Error:', error);
+      setCurrentStep('error');
+      
+      // Set a more detailed error message for display
+      const errorMessage = error?.message || 'Unknown error occurred';
+      setUploadError(errorMessage);
+      
+      window.showToast?.error?.(errorMessage);
+      console.error('Post error details:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setAccessToken(null);
+    setOpenId(null);
+    setIsAuthenticated(false);
+    localStorage?.removeItem('tiktokAccessToken');
+    localStorage?.removeItem('tiktokOpenId');
+    window.showToast?.info?.('Disconnected from TikTok account');
+  };
+
+  const goToHome = () => {
+    router?.push('/');
+  };
