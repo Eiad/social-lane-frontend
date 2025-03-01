@@ -27,6 +27,7 @@ export default function TikTok() {
   const [currentStep, setCurrentStep] = useState(null);
   const [uploadError, setUploadError] = useState(null);
   const [uploadDetails, setUploadDetails] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
   const fileInputRef = useRef(null);
   const router = useRouter();
   const [userId, setUserId] = useState('');
@@ -80,7 +81,28 @@ export default function TikTok() {
     return null;
   };
 
-  // Check for existing token in localStorage on component mount
+  // Fetch user info
+  const fetchUserInfo = async (token) => {
+    try {
+      const response = await fetch(`${apiUrl}/tiktok/user-info`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response?.json();
+      if (response?.ok && data?.data) {
+        setUserInfo(data.data);
+      } else {
+        console.error('Failed to fetch user info:', data?.error);
+      }
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+    }
+  };
+
+  // Update useEffect for token handling
   useEffect(() => {
     // Use the API_BASE_URL constant instead of accessing process.env directly
     setApiUrl(API_BASE_URL);
@@ -91,6 +113,7 @@ export default function TikTok() {
       setAccessToken(savedToken);
       setOpenId(savedOpenId);
       setIsAuthenticated(true);
+      fetchUserInfo(savedToken);
     }
   }, []);
 
@@ -114,6 +137,9 @@ export default function TikTok() {
       // Save token to localStorage for persistence
       localStorage?.setItem('tiktokAccessToken', access_token);
       if (open_id) localStorage?.setItem('tiktokOpenId', open_id);
+      
+      // Fetch user info with new token
+      fetchUserInfo(access_token);
       
       // Remove the token from URL for security
       router?.replace('/tiktok', undefined, { shallow: true });
@@ -380,6 +406,7 @@ export default function TikTok() {
     setAccessToken(null);
     setOpenId(null);
     setIsAuthenticated(false);
+    setUserInfo(null);
     localStorage?.removeItem('tiktokAccessToken');
     localStorage?.removeItem('tiktokOpenId');
     window.showToast?.info?.('Disconnected from TikTok account');
@@ -594,27 +621,53 @@ export default function TikTok() {
 
             <div className={styles.tiktokCard}>
               <div className={styles.connectedContainer}>
-                <div className={styles.connectedHeader}>
-                  <div className={styles.connectedStatus}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                    </svg>
-                    <h2>TikTok Connected</h2>
-                  </div>
-                  
-                  {openId && (
-                    <div className={styles.accountInfo}>
-                      <span>Account ID: {openId}</span>
+                {/* TikTok Account Section */}
+                <div className={tikTokStyles.accountSection}>
+                  <div className={tikTokStyles.accountCard}>
+                    <div className={tikTokStyles.accountInfo}>
+                      <div className={tikTokStyles.accountAvatar}>
+                        {userInfo?.avatar_url ? (
+                          <img 
+                            src={userInfo.avatar_url} 
+                            alt={userInfo.display_name || 'TikTok User'} 
+                            className={tikTokStyles.avatarImage}
+                          />
+                        ) : (
+                          <TikTokSimpleIcon width="24" height="24" />
+                        )}
+                      </div>
+                      <div className={tikTokStyles.accountDetails}>
+                        <div className={tikTokStyles.accountName}>
+                          {userInfo?.display_name || 'TikTok Account'}
+                        </div>
+                        <div className={tikTokStyles.accountStatus}>
+                          <span className={tikTokStyles.statusIndicator}></span>
+                          Connected
+                        </div>
+                        {userInfo?.username && (
+                          <div className={tikTokStyles.accountUsername}>
+                            @{userInfo.username}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
+                    <button 
+                      className={tikTokStyles.disconnectButton}
+                      onClick={handleLogout}
+                      disabled={isLoading}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                      </svg> Disconnect Account
+                    </button>
+                  </div>
                 </div>
-                
-                <div className={styles.postVideoSection}>
-                  <h3>Post a Video to TikTok</h3>
-                  
-                  {/* Step Indicator */}
-                  {currentStep && (
+
+                {/* Progress Section */}
+                {currentStep && (
+                  <div className={tikTokStyles.progressSection}>
                     <div className={tikTokStyles.stepIndicator}>
                       <div className={tikTokStyles.stepTitle}>
                         {currentStep === 'validating' && 'Validating file...'}
@@ -627,7 +680,7 @@ export default function TikTok() {
                         {currentStep === 'error' && 'Error occurred'}
                       </div>
                       
-                      {/* Show progress bar for uploading and processing steps */}
+                      {/* Progress Bar */}
                       {(currentStep === 'uploading' || currentStep === 'processing') && (
                         <div className={tikTokStyles.progressBarContainer}>
                           <div 
@@ -642,7 +695,7 @@ export default function TikTok() {
                         </div>
                       )}
                       
-                      {/* Show completed progress bar for file uploads */}
+                      {/* Completed Progress Bar */}
                       {currentStep === 'completed' && (
                         <div className={`${tikTokStyles.progressBarContainer} ${tikTokStyles.uploadCompleted}`}>
                           <div 
@@ -653,7 +706,7 @@ export default function TikTok() {
                         </div>
                       )}
                       
-                      {/* Show completed progress bar for success step with static styling */}
+                      {/* Success Progress Bar */}
                       {currentStep === 'success' && (
                         <div className={`${tikTokStyles.progressBarContainer} ${tikTokStyles.uploadCompleted} ${tikTokStyles.staticCompleted}`}>
                           <div 
@@ -664,7 +717,7 @@ export default function TikTok() {
                         </div>
                       )}
                       
-                      {/* Multi-step progress indicator for upload process */}
+                      {/* Multi-step Progress */}
                       {getActiveProcess() === 'upload' && (
                         <div className={tikTokStyles.progressSteps}>
                           {uploadSteps.map((step, index) => {
@@ -687,247 +740,122 @@ export default function TikTok() {
                           })}
                         </div>
                       )}
-                      
-                      {/* Multi-step progress indicator for posting process */}
-                      {getActiveProcess() === 'posting' && (
-                        <div className={`${tikTokStyles.progressSteps} ${currentStep === 'success' ? tikTokStyles.staticCompleted : ''}`}>
-                          {postingSteps.map((step, index) => {
-                            const currentIndex = getCurrentStepIndex();
-                            const isActive = index === currentIndex;
-                            const isCompleted = index < currentIndex || currentStep === 'success';
-                            const isSuccessStep = step.id === 'success';
-                            const isStaticSuccess = currentStep === 'success';
-                            
-                            return (
-                              <div key={step.id} className={tikTokStyles.progressStep}>
-                                <div 
-                                  className={`
-                                    ${tikTokStyles.progressStepDot} 
-                                    ${isActive ? tikTokStyles.active : ''} 
-                                    ${isCompleted ? tikTokStyles.completed : ''} 
-                                    ${isActive && isSuccessStep && !isStaticSuccess ? 'success' : ''}
-                                    ${isStaticSuccess ? tikTokStyles.staticCompleted : ''}
-                                  `}
-                                ></div>
-                                <div 
-                                  className={`
-                                    ${tikTokStyles.progressStepLabel} 
-                                    ${isActive ? tikTokStyles.active : ''} 
-                                    ${isCompleted ? tikTokStyles.completed : ''} 
-                                    ${isActive && isSuccessStep && !isStaticSuccess ? 'success' : ''}
-                                    ${isStaticSuccess && isSuccessStep ? tikTokStyles.staticCompleted : ''}
-                                  `}
-                                >
-                                  {step.label}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Error Message */}
-                  {uploadError && (
-                    <div className={tikTokStyles.errorMessage}>
-                      <div className={tikTokStyles.errorIcon}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <line x1="12" y1="8" x2="12" y2="12"></line>
-                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                        </svg>
-                      </div>
-                      <div className={tikTokStyles.errorContent}>
-                        <h4>Error occurred</h4>
-                        <p>{uploadError}</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className={tikTokStyles.contentContainer}>
-                    <div className={tikTokStyles.uploadSection}>
-                      <div className={tikTokStyles.uploadHeader}>
-                        <h4>Upload Video to TikTok</h4>
-                        <p className={tikTokStyles.uploadDescription}>
-                          Select a video file to upload and post directly to your TikTok account
-                        </p>
-                      </div>
-                      
-                      {!uploadedFile && !isUploading && (
-                        <div className={tikTokStyles.uploadDropzone}>
-                          <div 
-                            className={tikTokStyles.uploadPlaceholder}
-                            onClick={handleUploadClick}
-                          >
-                            <div className={tikTokStyles.uploadIcon}>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                              </svg>
-                            </div>
-                            <p className={tikTokStyles.uploadText}>
-                              {isUploading ? 'Uploading...' : 'Drag & drop your video here or click to browse'}
-                            </p>
-                            <p className={tikTokStyles.uploadHint}>
-                              Supported formats: MP4, MOV (max 60 seconds)
-                            </p>
-                            <input
-                              type="file"
-                              ref={fileInputRef}
-                              onChange={handleFileChange}
-                              accept="video/*"
-                              className={tikTokStyles.fileInput}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {uploadedFile && !isLoading && !postSuccess && (
-                        <div className={tikTokStyles.uploadedFileCard}>
-                          <div className={tikTokStyles.uploadedFileHeader}>
-                            <div className={tikTokStyles.videoIcon}>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                              </svg>
-                            </div>
-                            <div className={tikTokStyles.uploadedFileInfo}>
-                              <h5>{uploadedFile}</h5>
-                              {uploadDetails && (
-                                <div className={tikTokStyles.uploadedFileDetails}>
-                                  <span>{uploadDetails.size}</span>
-                                  <span>{uploadDetails.type}</span>
-                                </div>
-                              )}
-                            </div>
-                            <button 
-                              className={tikTokStyles.changeFileButton}
-                              onClick={handleUploadClick}
-                              disabled={isUploading || isLoading}
-                            >
-                              Change
-                            </button>
-                          </div>
-                          
-                          {!videoUrl && (
-                            <div className={tikTokStyles.postActions}>
-                              <button
-                                className={tikTokStyles.postButton}
-                                onClick={handleFileUpload}
-                                disabled={isUploading || !file}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                  <polyline points="17 8 12 3 7 8"></polyline>
-                                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                                </svg> Upload Video
-                              </button>
-                            </div>
-                          )}
-                          
-                          {videoUrl && (
-                            <div className={tikTokStyles.postActions}>
-                              <button
-                                className={tikTokStyles.postButton}
-                                onClick={(e) => handlePostVideo(e)}
-                                disabled={isLoading || !videoUrl}
-                              >
-                                <TikTokSimpleIcon width="16" height="16" /> Post to TikTok
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      
-                      {isLoading && currentStep === 'posting' && (
-                        <div className={tikTokStyles.stepIndicator}>
-                          <div className={tikTokStyles.stepTitle}>Posting to TikTok...</div>
-                          <div className={tikTokStyles.progressBarContainer}>
-                            <div 
-                              className={tikTokStyles.progressBar} 
-                              style={{ width: '100%' }}
-                            ></div>
-                            <div className={tikTokStyles.progressText}>
-                              <div className={tikTokStyles.buttonLoader}>
-                                <span className={tikTokStyles.loaderDot}></span>
-                                <span className={tikTokStyles.loaderDot}></span>
-                                <span className={tikTokStyles.loaderDot}></span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {postSuccess && (
-                        <div className={`${tikTokStyles.stepIndicator} ${tikTokStyles.uploadCompleted}`}>
-                          <div className={tikTokStyles.stepTitle}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#52c41a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px', color: '#52c41a' }}>
-                              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                              <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                            </svg>
-                            Posted Successfully to TikTok
-                          </div>
-                          <div className={tikTokStyles.progressBarContainer}>
-                            <div 
-                              className={tikTokStyles.progressBar} 
-                              style={{ width: '100%' }}
-                            ></div>
-                            <div className={tikTokStyles.progressText}>Complete</div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className={tikTokStyles.accountSection}>
-                      <div className={tikTokStyles.accountCard}>
-                        <div className={tikTokStyles.accountHeader}>
-                          <div className={tikTokStyles.tiktokLogo}>
-                            <TikTokSimpleIcon width="24" height="24" />
-                          </div>
-                          <h4>TikTok Account</h4>
-                        </div>
-                        
-                        <div className={tikTokStyles.accountInfo}>
-                          <div className={tikTokStyles.accountId}>
-                            <span className={tikTokStyles.accountLabel}>User ID</span>
-                            <div className={tikTokStyles.accountValue}>{openId}</div>
-                          </div>
-                          
-                          <div className={tikTokStyles.accountStatus}>
-                            <div className={tikTokStyles.statusIndicator}></div>
-                            Connected
-                          </div>
-                        </div>
-                        
-                        <button 
-                          className={tikTokStyles.disconnectButton}
-                          onClick={handleLogout}
-                          disabled={isLoading}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                            <polyline points="16 17 21 12 16 7"></polyline>
-                            <line x1="21" y1="12" x2="9" y2="12"></line>
-                          </svg> Disconnect Account
-                        </button>
-                      </div>
                     </div>
                   </div>
-                </div>
-                
-                <div className={styles.backToHomeContainer}>
-                  <button 
-                    onClick={goToHome}
-                    className={styles.backToHomeButton}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="19" y1="12" x2="5" y2="12"></line>
-                      <polyline points="12 19 5 12 12 5"></polyline>
-                    </svg>
-                    Back to Dashboard
-                  </button>
+                )}
+
+                {/* Error Message */}
+                {uploadError && (
+                  <div className={tikTokStyles.errorMessage}>
+                    <div className={tikTokStyles.errorIcon}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                      </svg>
+                    </div>
+                    <div className={tikTokStyles.errorContent}>
+                      <h4>Error occurred</h4>
+                      <p>{uploadError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Upload Section */}
+                <div className={tikTokStyles.uploadSection}>
+                  <div className={tikTokStyles.uploadHeader}>
+                    <h4>Upload Video to TikTok</h4>
+                    <p className={tikTokStyles.uploadDescription}>
+                      Select a video file to upload and post directly to your TikTok account
+                    </p>
+                  </div>
+                  
+                  {!uploadedFile && !isUploading && (
+                    <div className={tikTokStyles.uploadDropzone}>
+                      <div 
+                        className={tikTokStyles.uploadPlaceholder}
+                        onClick={handleUploadClick}
+                      >
+                        <div className={tikTokStyles.uploadIcon}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                          </svg>
+                        </div>
+                        <p className={tikTokStyles.uploadText}>
+                          {isUploading ? 'Uploading...' : 'Drag & drop your video here or click to browse'}
+                        </p>
+                        <p className={tikTokStyles.uploadHint}>
+                          Supported formats: MP4, MOV (max 60 seconds)
+                        </p>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleFileChange}
+                          accept="video/*"
+                          className={tikTokStyles.fileInput}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {uploadedFile && !isLoading && !postSuccess && (
+                    <div className={tikTokStyles.uploadedFileCard}>
+                      <div className={tikTokStyles.uploadedFileHeader}>
+                        <div className={tikTokStyles.videoIcon}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                          </svg>
+                        </div>
+                        <div className={tikTokStyles.uploadedFileInfo}>
+                          <h5>{uploadedFile}</h5>
+                          {uploadDetails && (
+                            <div className={tikTokStyles.uploadedFileDetails}>
+                              <span>{uploadDetails.size}</span>
+                              <span>{uploadDetails.type}</span>
+                            </div>
+                          )}
+                        </div>
+                        <button 
+                          className={tikTokStyles.changeFileButton}
+                          onClick={handleUploadClick}
+                          disabled={isUploading || isLoading}
+                        >
+                          Change
+                        </button>
+                      </div>
+                      
+                      {!videoUrl && (
+                        <div className={tikTokStyles.postActions}>
+                          <button
+                            className={tikTokStyles.postButton}
+                            onClick={handleFileUpload}
+                            disabled={isUploading || !file}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                              <polyline points="17 8 12 3 7 8"></polyline>
+                              <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg> Upload Video
+                          </button>
+                        </div>
+                      )}
+                      
+                      {videoUrl && (
+                        <div className={tikTokStyles.postActions}>
+                          <button
+                            className={tikTokStyles.postButton}
+                            onClick={(e) => handlePostVideo(e)}
+                            disabled={isLoading || !videoUrl}
+                          >
+                            <TikTokSimpleIcon width="16" height="16" /> Post to TikTok
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

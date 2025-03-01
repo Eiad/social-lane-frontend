@@ -1,24 +1,197 @@
 /* Content Container */
 .contentContainer {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
   margin-top: 24px;
+  width: 100%;
 }
 
-@media (max-width: 768px) {
-  .contentContainer {
-    grid-template-columns: 1fr;
+/* Account Section */
+.accountSection {
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.accountCard {
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.3s ease;
+}
+
+.accountCard:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+
+.accountInfo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.accountAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 2px solid #e8e8e8;
+  transition: all 0.3s ease;
+}
+
+.accountAvatar:hover {
+  border-color: #1890ff;
+  transform: scale(1.05);
+}
+
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.accountDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.accountName {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.accountUsername {
+  font-size: 14px;
+  color: #666;
+  font-family: monospace;
+}
+
+.accountStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #52c41a;
+  font-weight: 500;
+}
+
+.statusIndicator {
+  width: 8px;
+  height: 8px;
+  background-color: #52c41a;
+  border-radius: 50%;
+  position: relative;
+}
+
+.statusIndicator::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 50%;
+  border: 1px solid #52c41a;
+  opacity: 0.5;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
   }
+  70% {
+    transform: scale(1.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+}
+
+.disconnectButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: transparent;
+  color: #ff4d4f;
+  border: 1px solid #ff4d4f;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.disconnectButton:hover {
+  background-color: #fff1f0;
+  border-color: #ff7875;
+  color: #ff7875;
+}
+
+.disconnectButton:disabled {
+  background-color: #f5f5f5;
+  border-color: #d9d9d9;
+  color: #d9d9d9;
+  cursor: not-allowed;
+}
+
+.disconnectButton svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.3s ease;
+}
+
+.disconnectButton:hover svg {
+  transform: translateX(2px);
+}
+
+/* Progress Section */
+.progressSection {
+  width: 100%;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.stepIndicator {
+  margin-bottom: 24px;
+}
+
+.stepTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Upload Section Styles */
 .uploadSection {
+  width: 100%;
   background-color: #fff;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   overflow: hidden;
-  transition: all 0.3s ease;
 }
 
 .uploadHeader {
@@ -235,117 +408,6 @@
     opacity: 1;
     transform: scale(1.2);
   }
-}
-
-/* Account Section */
-.accountSection {
-  align-self: start;
-}
-
-.accountCard {
-  background-color: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.accountHeader {
-  padding: 20px;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.tiktokLogo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.accountHeader h4 {
-  margin: 0;
-  font-size: 18px;
-  color: #333;
-}
-
-.accountInfo {
-  padding: 20px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.accountId {
-  margin-bottom: 16px;
-}
-
-.accountLabel {
-  display: block;
-  font-size: 13px;
-  color: #888;
-  margin-bottom: 4px;
-}
-
-.accountValue {
-  font-size: 14px;
-  color: #333;
-  font-family: monospace;
-  word-break: break-all;
-}
-
-.accountStatus {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #52c41a;
-  font-weight: 500;
-}
-
-.statusIndicator {
-  width: 10px;
-  height: 10px;
-  background-color: #52c41a;
-  border-radius: 50%;
-  position: relative;
-}
-
-.statusIndicator::after {
-  content: '';
-  position: absolute;
-  top: -4px;
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
-  border-radius: 50%;
-  border: 1px solid #52c41a;
-  opacity: 0.5;
-  animation: pulse 1.5s infinite;
-}
-
-.disconnectButton {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
-  background-color: white;
-  color: #ff4d4f;
-  border: none;
-  border-top: 1px solid #f0f0f0;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.3s ease;
-}
-
-.disconnectButton:hover {
-  background-color: #fff1f0;
-}
-
-.disconnectButton:disabled {
-  color: #d9d9d9;
-  cursor: not-allowed;
 }
 
 /* Step Indicator Styles */

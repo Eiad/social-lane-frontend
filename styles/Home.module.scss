@@ -957,8 +957,7 @@
 
 // TikTok Integration Page Styles
 .tiktokIntegrationSection {
-  padding: 2rem 2rem 4rem;
-  max-width: 1000px;
+  padding: 30px;  
   margin: 0 auto;
 }
 
@@ -1207,6 +1206,12 @@
   &:active {
     transform: translateY(0);
   }
+}
+
+.tiktokCard{
+  display: block;
+  width: 80%;  
+  margin: 0 auto;
 }
 
 .connectedContainer {
