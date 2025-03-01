@@ -392,14 +392,145 @@ export default function TikTok() {
   if (!isAuthenticated) {
     return (
       <div className={styles.container}>
-        <h1>TikTok Integration</h1>
-        <p>Connect your TikTok account to post videos directly from Social Lane.</p>
-        <button
-          onClick={handleConnect}
-          className={styles.postButton}
-        >
-          <TikTokSimpleIcon width="18" height="18" /> Connect TikTok Account
-        </button>
+        <Head>
+          <title>TikTok Integration - Social Lane</title>
+          <meta name="description" content="Connect your TikTok account with Social Lane" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <link rel="icon" href="/favicon.ico" />
+        </Head>
+
+        <nav className={styles.navbar}>
+          <div className={styles.navContainer}>
+            <div className={styles.logo}>
+              <Link href="/">
+                <span className={styles.logoText}>sociallane</span>
+              </Link>
+            </div>
+            <div className={styles.navLinks}>
+              <Link href="/#features">Features</Link>
+              <Link href="/#pricing">Pricing</Link>
+              <Link href="/#about">About</Link>
+              <Link href="/#faq">FAQ</Link>
+              <Link href="/#blog">Blog</Link>
+            </div>
+            <div className={styles.navButtons}>
+              <button className={styles.loginButton}>Log in</button>
+              <button className={styles.signupButton}>Sign up free</button>
+            </div>
+          </div>
+        </nav>
+
+        <main className={tikTokStyles.preLoginContainer}>
+          <div className={tikTokStyles.preLoginContent}>
+            <div className={tikTokStyles.preLoginHeader}>
+              <div className={tikTokStyles.preLoginIcon}>
+                <TikTokSimpleIcon width="48" height="48" />
+              </div>
+              <h1>TikTok Integration</h1>
+              <p>Connect your TikTok account to post videos directly from Social Lane</p>
+            </div>
+
+            <div className={tikTokStyles.preLoginFeatures}>
+              <div className={tikTokStyles.featureItem}>
+                <div className={tikTokStyles.featureIcon}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                    <circle cx="12" cy="13" r="4"></circle>
+                  </svg>
+                </div>
+                <h3>Direct Video Upload</h3>
+                <p>Upload videos directly to TikTok from your dashboard</p>
+              </div>
+
+              <div className={tikTokStyles.featureItem}>
+                <div className={tikTokStyles.featureIcon}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                </div>
+                <h3>Schedule Posts</h3>
+                <p>Plan and schedule your TikTok content in advance</p>
+              </div>
+
+              <div className={tikTokStyles.featureItem}>
+                <div className={tikTokStyles.featureIcon}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                  </svg>
+                </div>
+                <h3>Analytics & Insights</h3>
+                <p>Track performance and engagement metrics</p>
+              </div>
+            </div>
+
+            <div className={tikTokStyles.preLoginCTA}>
+              <button
+                onClick={handleConnect}
+                className={tikTokStyles.connectButton}
+                disabled={isLoading}
+              >
+                <TikTokSimpleIcon width="24" height="24" />
+                <span>Connect TikTok Account</span>
+                {isLoading && (
+                  <div className={tikTokStyles.buttonLoader}>
+                    <span className={tikTokStyles.loaderDot}></span>
+                    <span className={tikTokStyles.loaderDot}></span>
+                    <span className={tikTokStyles.loaderDot}></span>
+                  </div>
+                )}
+              </button>
+              <p className={tikTokStyles.securityNote}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                Secure OAuth2 authentication with TikTok
+              </p>
+            </div>
+          </div>
+        </main>
+
+        <footer className={styles.footer}>
+          <div className={styles.footerContent}>
+            <div className={styles.footerLogo}>
+              <span className={styles.logoText}>sociallane</span>
+            </div>
+            
+            <div className={styles.footerLinks}>
+              <div className={styles.footerColumn}>
+                <h4>Product</h4>
+                <Link href="/#features">Features</Link>
+                <Link href="/#pricing">Pricing</Link>
+                <Link href="#">Integrations</Link>
+              </div>
+              
+              <div className={styles.footerColumn}>
+                <h4>Company</h4>
+                <Link href="/#about">About</Link>
+                <Link href="/#blog">Blog</Link>
+                <Link href="#">Careers</Link>
+              </div>
+              
+              <div className={styles.footerColumn}>
+                <h4>Resources</h4>
+                <Link href="#">Help Center</Link>
+                <Link href="#">API</Link>
+                <Link href="#">Status</Link>
+              </div>
+              
+              <div className={styles.footerColumn}>
+                <h4>Legal</h4>
+                <Link href="#">Privacy</Link>
+                <Link href="#">Terms</Link>
+                <Link href="#">Security</Link>
+              </div>
+            </div>
+          </div>
+          
+          <div className={styles.footerBottom}>
+            <p>© 2023 Social Lane. All rights reserved.</p>
+          </div>
+        </footer>
       </div>
     );
   }
