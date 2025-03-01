@@ -73,7 +73,7 @@ export default function Home() {
         })
       });
       
-      const data = await res?.json();
+      const data = await res?.json?.();
       if (res?.ok) {
         window.showToast?.success?.('Video posted successfully!');
         setVideoUrl('');

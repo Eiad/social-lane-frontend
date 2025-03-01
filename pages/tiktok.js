@@ -10,9 +10,8 @@ import Link from 'next/link';
 // const API_BASE_URL = typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_API_URL : undefined;
 
 // With this approach that safely handles both server and client environments:
-const API_BASE_URL = typeof window !== 'undefined' 
-  ? process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat'
-  : process.env.NEXT_PUBLIC_API_URL;
+const API_BASE_URL =  'https://sociallane-backend.mindio.chat';
+
 
 export default function TikTok() {
   const [videoUrl, setVideoUrl] = useState('');
@@ -127,30 +126,39 @@ export default function TikTok() {
       console.log('API URL from state:', apiUrl);
       console.log('API_BASE_URL constant:', API_BASE_URL);
       
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        mode: 'cors',
-      });
-      
-      // Debug response
-      console.log('Response status:', response.status);
-      
-      const data = await response?.json();
-      console.log('Response data:', data);
-      
-      if (data?.authUrl) {
-        console.log('Redirecting to auth URL:', data.authUrl);
-        window.location.href = data.authUrl;
-      } else {
-        throw new Error('Failed to get auth URL');
+      // Try with fetch first
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+        
+        // Debug response
+        console.log('Response status:', response?.status);
+        
+        if (!response?.ok) {
+          throw new Error(`HTTP error! Status: ${response?.status}`);
+        }
+        
+        const data = await response?.json?.();
+        console.log('Response data:', data);
+        
+        if (data?.authUrl) {
+          console.log('Redirecting to auth URL:', data.authUrl);
+          window.location.href = data.authUrl;
+          return;
+        }
+      } catch (fetchError) {
+        console.error('Fetch error:', fetchError);
+        // If fetch fails, try direct redirect as fallback
+        window.location.href = `${apiUrl}/tiktok/auth`;
       }
     } catch (error) {
       console.error('Detailed auth error:', error);
-      window.showToast?.error?.(('Failed to initiate TikTok authentication: ' + (error?.message || 'Unknown error')));
+      window.showToast?.error?.('Failed to initiate TikTok authentication: ' + (error?.message || 'Unknown error'));
     } finally {
       setIsLoading(false);
     }
@@ -166,7 +174,7 @@ export default function TikTok() {
     setCurrentStep('validating');
 
     // Check if file is a video
-    if (!file.type.startsWith('video/')) {
+    if (!file.type?.startsWith('video/')) {
       setUploadError('Please select a video file');
       window.showToast?.error?.('Please select a video file');
       setCurrentStep(null);
@@ -279,7 +287,7 @@ export default function TikTok() {
   };
 
   const handlePostVideo = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!videoUrl) return;
 
     try {
@@ -316,7 +324,7 @@ export default function TikTok() {
       });
 
       console.log('[POST] Response status:', response?.status);
-      const data = await response?.json();
+      const data = await response?.json?.();
       console.log('[POST] Response data:', data);
       
       if (response?.ok) {
