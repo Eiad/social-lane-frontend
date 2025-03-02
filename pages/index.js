@@ -12,6 +12,7 @@ import {
   RedditIcon,
   TikTokSimpleIcon
 } from '../src/components/icons/SocialIcons';
+import Link from 'next/link';
 
 // Use environment variable for API URL
 const API_BASE_URL = typeof window !== 'undefined' 
@@ -132,8 +133,8 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Social Lane - Schedule & Post Content</title>
-        <meta name="description" content="Schedule and post your content everywhere in seconds" />
+        <title>Social Lane - Schedule and Post to All Social Media Platforms</title>
+        <meta name="description" content="Schedule and automatically post your content across all social media platforms with just a few clicks." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
@@ -283,19 +284,52 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Supported Platforms */}
-        <section className={styles.platformsSection}>
-          <h3>Supported Platforms</h3>
+        {/* Platforms Section */}
+        <section className={styles.platformsSection} id="platforms">
+          <h2>Connect Your Social Media Accounts</h2>
+          <p>Easily connect and manage all your social media accounts in one place</p>
           
-          <div className={styles.platformIcons}>
-            <div className={styles.platformIcon}><TwitterIcon /></div>
-            <div className={styles.platformIcon}><LinkedInIcon /></div>
-            <div className={styles.platformIcon}><FacebookIcon /></div>
-            <div className={styles.platformIcon}><InstagramIcon /></div>
-            <div className={styles.platformIcon}><YouTubeIcon /></div>
-            <div className={styles.platformIcon}><TikTokSimpleIcon /></div>
-            <div className={styles.platformIcon}><PinterestIcon /></div>
-            <div className={styles.platformIcon}><RedditIcon /></div>
+          <div className={styles.platformsGrid}>
+            <Link href="/tiktok" className={styles.platformCard}>
+              <div className={styles.platformIcon}><TikTokSimpleIcon /></div>
+              <h3>TikTok</h3>
+              <p>Post videos directly to TikTok</p>
+            </Link>
+            
+            <Link href="/twitter" className={styles.platformCard}>
+              <div className={styles.platformIcon}><TwitterIcon /></div>
+              <h3>Twitter</h3>
+              <p>Post media tweets with ease</p>
+            </Link>
+            
+            {/* Other platforms (coming soon) */}
+            <div className={`${styles.platformCard} ${styles.comingSoon}`}>
+              <div className={styles.platformIcon}><InstagramIcon /></div>
+              <h3>Instagram</h3>
+              <p>Coming soon</p>
+              <div className={styles.comingSoonBadge}>Coming Soon</div>
+            </div>
+            
+            <div className={`${styles.platformCard} ${styles.comingSoon}`}>
+              <div className={styles.platformIcon}><FacebookIcon /></div>
+              <h3>Facebook</h3>
+              <p>Coming soon</p>
+              <div className={styles.comingSoonBadge}>Coming Soon</div>
+            </div>
+            
+            <div className={`${styles.platformCard} ${styles.comingSoon}`}>
+              <div className={styles.platformIcon}><LinkedInIcon /></div>
+              <h3>LinkedIn</h3>
+              <p>Coming soon</p>
+              <div className={styles.comingSoonBadge}>Coming Soon</div>
+            </div>
+            
+            <div className={`${styles.platformCard} ${styles.comingSoon}`}>
+              <div className={styles.platformIcon}><YouTubeIcon /></div>
+              <h3>YouTube</h3>
+              <p>Coming soon</p>
+              <div className={styles.comingSoonBadge}>Coming Soon</div>
+            </div>
           </div>
         </section>
 

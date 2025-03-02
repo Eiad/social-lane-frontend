@@ -1,0 +1,311 @@
+/* Twitter page styles */
+.container {
+  padding: 0 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  color: #1DA1F2; /* Twitter blue */
+}
+
+.titleIcon {
+  margin-right: 0.5rem;
+  color: #1DA1F2;
+}
+
+.nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.backButton {
+  padding: 0.5rem 1rem;
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.backButton:hover {
+  background-color: #e5e5e5;
+}
+
+.card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.authSection {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.connectButton {
+  background-color: #1DA1F2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 1rem;
+}
+
+.connectButton:hover {
+  background-color: #0c85d0;
+}
+
+.connectButton:disabled {
+  background-color: #9ad0f5;
+  cursor: not-allowed;
+}
+
+.authenticatedSection {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.userProfile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profileImage {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.userDetails {
+  display: flex;
+  flex-direction: column;
+}
+
+.userName {
+  font-weight: bold;
+  margin: 0;
+}
+
+.userHandle {
+  color: #666;
+  margin: 0;
+}
+
+.logoutButton {
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logoutButton:hover {
+  background-color: #e5e5e5;
+}
+
+.uploadSection {
+  padding-top: 1rem;
+}
+
+.uploadControls {
+  margin: 1.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.uploadButton {
+  background-color: #1DA1F2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.uploadButton:hover {
+  background-color: #0c85d0;
+}
+
+.uploadButton:disabled {
+  background-color: #9ad0f5;
+  cursor: not-allowed;
+}
+
+.fileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+.progressContainer {
+  margin: 1rem 0;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 10px;
+  background-color: #1DA1F2;
+  transition: width 0.3s ease;
+}
+
+.errorMessage {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: #ffebee;
+  color: #c62828;
+  border-radius: 4px;
+}
+
+.successMessage {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.previewSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.videoPreview {
+  width: 100%;
+  max-height: 400px;
+  border-radius: 8px;
+  background-color: #000;
+}
+
+.captionSection {
+  margin: 1rem 0;
+}
+
+.captionInput {
+  width: 100%;
+  min-height: 100px;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+.charCount {
+  text-align: right;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+.postActions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+}
+
+.postButton {
+  background-color: #1DA1F2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.postButton:hover {
+  background-color: #0c85d0;
+}
+
+.postButton:disabled {
+  background-color: #9ad0f5;
+  cursor: not-allowed;
+}
+
+.newPostButton {
+  background-color: #1DA1F2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 1rem;
+}
+
+.newPostButton:hover {
+  background-color: #0c85d0;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .nav {
+    width: 100%;
+  }
+  
+  .backButton {
+    width: 100%;
+  }
+  
+  .userProfile {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .postActions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .postButton, .backButton {
+    width: 100%;
+  }
+} 
