@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import Head from 'next/head';
 import styles from '../styles/SocialPosting.module.css';
-import { TikTokSimpleIcon } from '../src/components/icons/SocialIcons';
+import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
 
@@ -17,6 +17,7 @@ export default function SocialPosting() {
   const [caption, setCaption] = useState('');
   const [isPosting, setIsPosting] = useState(false);
   const [postSuccess, setPostSuccess] = useState(false);
+  const [platformResults, setPlatformResults] = useState({});
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
@@ -133,36 +134,107 @@ export default function SocialPosting() {
     try {
       setIsPosting(true);
       setUploadError(null);
+      setPlatformResults({});
+      
+      const postPromises = [];
+      const results = {};
 
-      // Currently only supporting TikTok
+      // Post to TikTok if selected
       if (selectedPlatforms.includes('tiktok')) {
-        const token = localStorage?.getItem('tiktokAccessToken');
+        const tiktokToken = localStorage?.getItem('tiktokAccessToken');
         
-        if (!token) {
-          throw new Error('Please connect your TikTok account first');
+        if (!tiktokToken) {
+          results.tiktok = { success: false, error: 'Please connect your TikTok account first' };
+        } else {
+          const tiktokPromise = fetch(`${API_BASE_URL}/tiktok/post-video`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            mode: 'cors',
+            body: JSON.stringify({
+              videoUrl,
+              accessToken: tiktokToken,
+              caption
+            }),
+          }).then(response => {
+            if (!response?.ok) {
+              throw new Error('Failed to post to TikTok');
+            }
+            return { success: true };
+          }).catch(error => {
+            console.error('TikTok posting error:', error);
+            return { success: false, error: error?.message || 'Failed to post to TikTok' };
+          });
+          
+          postPromises.push(tiktokPromise.then(result => {
+            results.tiktok = result;
+          }));
         }
+      }
 
-        const response = await fetch(`${API_BASE_URL}/tiktok/post-video`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          mode: 'cors',
-          body: JSON.stringify({
-            videoUrl,
-            accessToken: token,
-            caption
-          }),
-        });
-
-        if (!response?.ok) {
-          throw new Error('Failed to post to TikTok');
+      // Post to Twitter if selected
+      if (selectedPlatforms.includes('twitter')) {
+        const twitterToken = localStorage?.getItem('twitter_access_token');
+        
+        if (!twitterToken) {
+          results.twitter = { success: false, error: 'Please connect your Twitter account first' };
+        } else {
+          const twitterPromise = fetch(`${API_BASE_URL}/twitter/post-media`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            mode: 'cors',
+            body: JSON.stringify({
+              videoUrl,
+              accessToken: twitterToken,
+              text: caption
+            }),
+          }).then(response => {
+            if (!response?.ok) {
+              throw new Error('Failed to post to Twitter');
+            }
+            return { success: true };
+          }).catch(error => {
+            console.error('Twitter posting error:', error);
+            return { success: false, error: error?.message || 'Failed to post to Twitter' };
+          });
+          
+          postPromises.push(twitterPromise.then(result => {
+            results.twitter = result;
+          }));
         }
+      }
 
-        window.showToast?.success?.('Posted successfully to TikTok!');
+      // Wait for all posting operations to complete
+      if (postPromises.length > 0) {
+        await Promise.all(postPromises);
+      }
+      
+      setPlatformResults(results);
+      
+      // Check if any platform was successful
+      const anySuccess = Object.values(results).some(result => result?.success);
+      
+      if (anySuccess) {
+        // Show success message for successful platforms
+        const successPlatforms = Object.entries(results)
+          .filter(([_, result]) => result?.success)
+          .map(([platform]) => platform);
+          
+        window.showToast?.success?.(
+          `Posted successfully to ${successPlatforms.join(' and ')}!`
+        );
+        
         setPostSuccess(true);
         setCurrentStep(5);
+      } else {
+        // If all failed, show error for the first platform
+        const firstError = Object.values(results)[0]?.error || 'Error posting content';
+        throw new Error(firstError);
       }
     } catch (error) {
       setUploadError(error?.message || 'Error posting content');
@@ -327,6 +399,28 @@ export default function SocialPosting() {
                   )}
                 </div>
               </button>
+              
+              <button
+                className={`${styles.platformButton} ${selectedPlatforms.includes('twitter') ? styles.selected : ''}`}
+                onClick={() => handlePlatformToggle('twitter')}
+              >
+                <div className={styles.platformIcon}>
+                  <TwitterIcon width="32" height="32" />
+                </div>
+                <div className={styles.platformInfo}>
+                  <div className={styles.platformName}>Twitter</div>
+                  <div className={styles.platformDescription}>
+                    Share videos with your followers
+                  </div>
+                </div>
+                <div className={styles.platformCheck}>
+                  {selectedPlatforms.includes('twitter') && (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  )}
+                </div>
+              </button>
             </div>
             <div className={styles.stepActions}>
               <button 
@@ -462,7 +556,8 @@ export default function SocialPosting() {
                     {selectedPlatforms.map(platform => (
                       <div key={platform} className={styles.platformBadge}>
                         {platform === 'tiktok' && <TikTokSimpleIcon width="18" height="18" />}
-                        <span>TikTok</span>
+                        {platform === 'twitter' && <TwitterIcon width="18" height="18" />}
+                        <span>{platform === 'tiktok' ? 'TikTok' : 'Twitter'}</span>
                       </div>
                     ))}
                   </div>
@@ -537,6 +632,39 @@ export default function SocialPosting() {
               </div>
               <h2>Post Published</h2>
               <p>Your content has been successfully published.</p>
+              {Object.entries(platformResults).length > 0 && (
+                <div className={styles.platformResults}>
+                  {Object.entries(platformResults).map(([platform, result]) => (
+                    <div 
+                      key={platform} 
+                      className={`${styles.platformResult} ${result.success ? styles.success : styles.error}`}
+                    >
+                      <div className={styles.platformResultIcon}>
+                        {result.success ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="15" y1="9" x2="9" y2="15"></line>
+                            <line x1="9" y1="9" x2="15" y2="15"></line>
+                          </svg>
+                        )}
+                      </div>
+                      <div className={styles.platformResultInfo}>
+                        <span className={styles.platformResultName}>
+                          {platform === 'tiktok' ? 'TikTok' : 'Twitter'}
+                        </span>
+                        <span className={styles.platformResultStatus}>
+                          {result.success ? 'Posted successfully' : result.error || 'Failed to post'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <button
                 className={styles.newPostButton}
                 onClick={() => {
@@ -547,6 +675,7 @@ export default function SocialPosting() {
                   setSelectedPlatforms([]);
                   setCaption('');
                   setPostSuccess(false);
+                  setPlatformResults({});
                 }}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
