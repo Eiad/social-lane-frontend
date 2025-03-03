@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import styles from '../styles/SocialPosting.module.css';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 
@@ -18,7 +19,24 @@ export default function SocialPosting() {
   const [isPosting, setIsPosting] = useState(false);
   const [postSuccess, setPostSuccess] = useState(false);
   const [platformResults, setPlatformResults] = useState({});
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [userId, setUserId] = useState('');
   const fileInputRef = useRef(null);
+
+  // Generate and store UUID for user if not already present
+  useEffect(() => {
+    const storedUserId = localStorage?.getItem('userId');
+    if (storedUserId) {
+      setUserId(storedUserId);
+    } else {
+      // Generate UUID v4
+      const newUserId = crypto.randomUUID();
+      localStorage?.setItem('userId', newUserId);
+      setUserId(newUserId);
+    }
+  }, []);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target?.files?.[0];
@@ -136,6 +154,146 @@ export default function SocialPosting() {
       setUploadError(null);
       setPlatformResults({});
       
+      // Get tokens from localStorage
+      const tiktokAccessToken = localStorage?.getItem('tiktokAccessToken');
+      const tiktokRefreshToken = localStorage?.getItem('tiktokRefreshToken');
+      const twitterAccessToken = localStorage?.getItem('twitter_access_token');
+      // Try to get the access token secret from both possible keys
+      let twitterAccessTokenSecret = localStorage?.getItem('twitter_access_token_secret');
+      if (!twitterAccessTokenSecret) {
+        // If not found, try the refresh token as a fallback
+        twitterAccessTokenSecret = localStorage?.getItem('twitter_refresh_token');
+        if (twitterAccessTokenSecret) {
+          // If found in refresh_token, store it with the correct name for future use
+          localStorage?.setItem('twitter_access_token_secret', twitterAccessTokenSecret);
+          console.log('Copied twitter_refresh_token to twitter_access_token_secret for compatibility');
+        }
+      }
+      
+      // Log the tokens for debugging
+      console.log('Retrieved tokens from localStorage:', {
+        hasTiktokAccessToken: !!tiktokAccessToken,
+        hasTiktokRefreshToken: !!tiktokRefreshToken,
+        hasTwitterAccessToken: !!twitterAccessToken,
+        hasTwitterAccessTokenSecret: !!twitterAccessTokenSecret,
+        twitterAccessToken: twitterAccessToken ? `${twitterAccessToken.substring(0, 5)}...` : null,
+        twitterAccessTokenSecret: twitterAccessTokenSecret ? `${twitterAccessTokenSecret.substring(0, 5)}...` : null,
+        allTwitterKeys: Object.keys(localStorage).filter(key => key.startsWith('twitter_'))
+      });
+      
+      // Check if Twitter is selected but credentials are missing
+      if (selectedPlatforms.includes('twitter') && (!twitterAccessToken || !twitterAccessTokenSecret)) {
+        console.warn('Twitter selected but credentials are missing:', {
+          hasAccessToken: !!twitterAccessToken,
+          hasAccessTokenSecret: !!twitterAccessTokenSecret
+        });
+        window.showToast?.warning?.('Twitter credentials are missing. Please connect your Twitter account first.');
+        
+        // Don't prevent posting to other platforms, just warn the user
+        // If they continue, Twitter will be skipped in the backend
+      }
+      
+      // If scheduled, save to database and return
+      if (isScheduled && scheduledDate && scheduledTime) {
+        const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+        
+        // Check if the scheduled time is in the future
+        if (scheduledDateTime <= new Date()) {
+          throw new Error('Scheduled time must be in the future');
+        }
+        
+        console.log('Scheduling post to:', `${API_BASE_URL}/posts`);
+        
+        try {
+          // Use AbortController for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+          
+          // Prepare the request body
+          const requestBody = {
+            video_url: videoUrl,
+            post_description: caption,
+            platforms: selectedPlatforms,
+            userId: userId,
+            isScheduled: true,
+            scheduledDate: scheduledDateTime.toISOString(),
+            // Include tokens for each selected platform
+            ...(selectedPlatforms.includes('tiktok') && tiktokAccessToken ? {
+              tiktok_access_token: tiktokAccessToken,
+              tiktok_refresh_token: tiktokRefreshToken
+            } : {}),
+            ...(selectedPlatforms.includes('twitter') && twitterAccessToken ? {
+              twitter_access_token: twitterAccessToken,
+              twitter_access_token_secret: twitterAccessTokenSecret
+            } : {})
+          };
+          
+          // Log the request body for debugging (with sensitive data masked)
+          console.log('Scheduling post with request body:', {
+            ...requestBody,
+            tiktok_access_token: requestBody.tiktok_access_token ? `${requestBody.tiktok_access_token.substring(0, 5)}...` : undefined,
+            tiktok_refresh_token: requestBody.tiktok_refresh_token ? `${requestBody.tiktok_refresh_token.substring(0, 5)}...` : undefined,
+            twitter_access_token: requestBody.twitter_access_token ? `${requestBody.twitter_access_token.substring(0, 5)}...` : undefined,
+            twitter_access_token_secret: requestBody.twitter_access_token_secret ? `${requestBody.twitter_access_token_secret.substring(0, 5)}...` : undefined
+          });
+          
+          const response = await fetch(`${API_BASE_URL}/posts`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+            body: JSON.stringify(requestBody),
+          });
+          
+          // Clear the timeout
+          clearTimeout(timeoutId);
+          
+          if (!response?.ok) {
+            const errorText = await response.text();
+            console.error('Server error response:', errorText);
+            throw new Error(`Failed to schedule post: ${response.status} ${response.statusText}`);
+          }
+          
+          const data = await response.json();
+          console.log('Post scheduled successfully:', data);
+          
+          console.log('Scheduling post with platforms:', selectedPlatforms);
+          
+          const newPlatformResults = {
+            scheduled: { success: true },
+            // Add each selected platform to the results
+            ...selectedPlatforms.reduce((acc, platform) => {
+              acc[platform] = { success: true };
+              return acc;
+            }, {})
+          };
+          
+          console.log('Setting platformResults to:', newPlatformResults);
+          setPlatformResults(newPlatformResults);
+          
+          window.showToast?.success?.('Post scheduled successfully!');
+          setPostSuccess(true);
+          setCurrentStep(5);
+        } catch (error) {
+          console.error('Error scheduling post:', error);
+          
+          if (error.name === 'AbortError') {
+            setUploadError('Request timed out. The server took too long to respond. Please try again or use a smaller video file.');
+            window.showToast?.error?.('Request timed out. Please try again.');
+          } else {
+            setUploadError(`Failed to schedule post: ${error.message}`);
+            window.showToast?.error?.(`Failed to schedule post: ${error.message}`);
+          }
+          
+          setPlatformResults({
+            scheduled: { success: false, error: error.message }
+          });
+        }
+        
+        return;
+      }
+      
       const postPromises = [];
       const results = {};
 
@@ -146,27 +304,48 @@ export default function SocialPosting() {
         if (!tiktokToken) {
           results.tiktok = { success: false, error: 'Please connect your TikTok account first' };
         } else {
-          const tiktokPromise = fetch(`${API_BASE_URL}/tiktok/post-video`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            mode: 'cors',
-            body: JSON.stringify({
-              videoUrl,
-              accessToken: tiktokToken,
-              caption
-            }),
-          }).then(response => {
-            if (!response?.ok) {
-              throw new Error('Failed to post to TikTok');
+          const tiktokPromise = (async () => {
+            try {
+              // Use AbortController for timeout
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+              
+              const response = await fetch(`${API_BASE_URL}/tiktok/post-video`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                mode: 'cors',
+                signal: controller.signal,
+                body: JSON.stringify({
+                  videoUrl,
+                  accessToken: tiktokToken,
+                  refreshToken: localStorage?.getItem('tiktokRefreshToken'),
+                  caption
+                }),
+              });
+              
+              // Clear the timeout
+              clearTimeout(timeoutId);
+              
+              if (!response?.ok) {
+                const errorText = await response.text();
+                console.error('TikTok API error response:', errorText);
+                throw new Error(`Failed to post to TikTok: ${response.status} ${response.statusText}`);
+              }
+              
+              return { success: true };
+            } catch (error) {
+              console.error('TikTok posting error:', error);
+              
+              if (error.name === 'AbortError') {
+                return { success: false, error: 'Request timed out. Please try again.' };
+              }
+              
+              return { success: false, error: error?.message || 'Failed to post to TikTok' };
             }
-            return { success: true };
-          }).catch(error => {
-            console.error('TikTok posting error:', error);
-            return { success: false, error: error?.message || 'Failed to post to TikTok' };
-          });
+          })();
           
           postPromises.push(tiktokPromise.then(result => {
             results.tiktok = result;
@@ -181,27 +360,48 @@ export default function SocialPosting() {
         if (!twitterToken) {
           results.twitter = { success: false, error: 'Please connect your Twitter account first' };
         } else {
-          const twitterPromise = fetch(`${API_BASE_URL}/twitter/post-media`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            mode: 'cors',
-            body: JSON.stringify({
-              videoUrl,
-              accessToken: twitterToken,
-              text: caption
-            }),
-          }).then(response => {
-            if (!response?.ok) {
-              throw new Error('Failed to post to Twitter');
+          const twitterPromise = (async () => {
+            try {
+              // Use AbortController for timeout
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+              
+              const response = await fetch(`${API_BASE_URL}/twitter/post-media`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                mode: 'cors',
+                signal: controller.signal,
+                body: JSON.stringify({
+                  videoUrl,
+                  accessToken: twitterToken,
+                  accessTokenSecret: localStorage?.getItem('twitter_access_token_secret'),
+                  text: caption
+                }),
+              });
+              
+              // Clear the timeout
+              clearTimeout(timeoutId);
+              
+              if (!response?.ok) {
+                const errorText = await response.text();
+                console.error('Twitter API error response:', errorText);
+                throw new Error(`Failed to post to Twitter: ${response.status} ${response.statusText}`);
+              }
+              
+              return { success: true };
+            } catch (error) {
+              console.error('Twitter posting error:', error);
+              
+              if (error.name === 'AbortError') {
+                return { success: false, error: 'Request timed out. Please try again.' };
+              }
+              
+              return { success: false, error: error?.message || 'Failed to post to Twitter' };
             }
-            return { success: true };
-          }).catch(error => {
-            console.error('Twitter posting error:', error);
-            return { success: false, error: error?.message || 'Failed to post to Twitter' };
-          });
+          })();
           
           postPromises.push(twitterPromise.then(result => {
             results.twitter = result;
@@ -220,6 +420,57 @@ export default function SocialPosting() {
       const anySuccess = Object.values(results).some(result => result?.success);
       
       if (anySuccess) {
+        // Save successful post to database
+        try {
+          console.log('Saving post to database...');
+          
+          // Use AbortController for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+          
+          const response = await fetch(`${API_BASE_URL}/posts`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+            body: JSON.stringify({
+              video_url: videoUrl,
+              post_description: caption,
+              platforms: selectedPlatforms,
+              userId: userId,
+              isScheduled: false,
+              status: 'completed',
+              // Include tokens for each selected platform
+              ...(selectedPlatforms.includes('tiktok') && tiktokAccessToken ? {
+                tiktok_access_token: tiktokAccessToken,
+                tiktok_refresh_token: tiktokRefreshToken
+              } : {}),
+              ...(selectedPlatforms.includes('twitter') && twitterAccessToken ? {
+                twitter_access_token: twitterAccessToken,
+                twitter_access_token_secret: twitterAccessTokenSecret
+              } : {})
+            }),
+          });
+          
+          // Clear the timeout
+          clearTimeout(timeoutId);
+          
+          if (!response?.ok) {
+            console.error('Error saving post to database:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.error('Server error response:', errorText);
+          } else {
+            console.log('Post saved to database successfully');
+          }
+        } catch (error) {
+          console.error('Error saving post to database:', error);
+          
+          if (error.name === 'AbortError') {
+            console.error('Database save timed out, but post was sent to platforms');
+          }
+        }
+        
         // Show success message for successful platforms
         const successPlatforms = Object.entries(results)
           .filter(([_, result]) => result?.success)
@@ -575,6 +826,48 @@ export default function SocialPosting() {
                 </div>
               </div>
             </div>
+            <div className={styles.schedulingSection}>
+              <div className={styles.schedulingToggle}>
+                <label className={styles.toggleLabel}>
+                  <input
+                    type="checkbox"
+                    checked={isScheduled}
+                    onChange={(e) => setIsScheduled(e.target.checked)}
+                    className={styles.toggleInput}
+                  />
+                  <span className={styles.toggleSlider}></span>
+                  Schedule for later
+                </label>
+              </div>
+              
+              {isScheduled && (
+                <div className={styles.schedulingOptions}>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="scheduledDate">Date</label>
+                    <input
+                      id="scheduledDate"
+                      type="date"
+                      className={styles.dateInput}
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      required
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="scheduledTime">Time</label>
+                    <input
+                      id="scheduledTime"
+                      type="time"
+                      className={styles.timeInput}
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
             <div className={styles.stepActions}>
               <button 
                 className={styles.backButton} 
@@ -589,7 +882,7 @@ export default function SocialPosting() {
               <button
                 className={styles.reviewButton}
                 onClick={handlePost}
-                disabled={isPosting}
+                disabled={isPosting || (isScheduled && (!scheduledDate || !scheduledTime))}
               >
                 {isPosting ? (
                   <>
@@ -603,7 +896,7 @@ export default function SocialPosting() {
                       <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
                       <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
                     </svg>
-                    Publishing...
+                    {isScheduled ? 'Scheduling...' : 'Publishing...'}
                   </>
                 ) : (
                   <>
@@ -612,7 +905,7 @@ export default function SocialPosting() {
                       <polyline points="16 6 12 2 8 6"></polyline>
                       <line x1="12" y1="2" x2="12" y2="15"></line>
                     </svg>
-                    Post Now
+                    {isScheduled ? 'Schedule Post' : 'Post Now'}
                   </>
                 )}
               </button>
@@ -621,6 +914,7 @@ export default function SocialPosting() {
         );
 
       case 5:
+        console.log('Rendering success screen with platformResults:', platformResults);
         return (
           <div className={styles.step}>
             <div className={styles.successMessage}>
@@ -630,39 +924,63 @@ export default function SocialPosting() {
                   <polyline points="22 4 12 14.01 9 11.01"></polyline>
                 </svg>
               </div>
-              <h2>Post Published</h2>
-              <p>Your content has been successfully published.</p>
+              <h2>{platformResults.scheduled ? 'Post Scheduled' : 'Post Published'}</h2>
+              <p>
+                {platformResults.scheduled 
+                  ? 'Your content has been scheduled and will be published at the specified time.' 
+                  : 'Your content has been successfully published.'}
+              </p>
+              {platformResults.scheduled && (
+                <Link href="/scheduled-posts" className={styles.viewScheduledButton}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                  </svg>
+                  View Scheduled Posts
+                </Link>
+              )}
               {Object.entries(platformResults).length > 0 && (
                 <div className={styles.platformResults}>
-                  {Object.entries(platformResults).map(([platform, result]) => (
-                    <div 
-                      key={platform} 
-                      className={`${styles.platformResult} ${result.success ? styles.success : styles.error}`}
-                    >
-                      <div className={styles.platformResultIcon}>
-                        {result.success ? (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                          </svg>
-                        ) : (
-                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="15" y1="9" x2="9" y2="15"></line>
-                            <line x1="9" y1="9" x2="15" y2="15"></line>
-                          </svg>
-                        )}
-                      </div>
-                      <div className={styles.platformResultInfo}>
-                        <span className={styles.platformResultName}>
-                          {platform === 'tiktok' ? 'TikTok' : 'Twitter'}
-                        </span>
-                        <span className={styles.platformResultStatus}>
-                          {result.success ? 'Posted successfully' : result.error || 'Failed to post'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                  {Object.entries(platformResults)
+                    .filter(([platform]) => platform !== 'scheduled') // Filter out the 'scheduled' entry
+                    .map(([platform, result]) => {
+                      console.log('Rendering platform result:', platform, result);
+                      return (
+                        <div 
+                          key={platform} 
+                          className={`${styles.platformResult} ${result.success ? styles.success : styles.error}`}
+                        >
+                          <div className={styles.platformResultIcon}>
+                            {result.success ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="15" y1="9" x2="9" y2="15"></line>
+                                <line x1="9" y1="9" x2="15" y2="15"></line>
+                              </svg>
+                            )}
+                          </div>
+                          <div className={styles.platformResultInfo}>
+                            <span className={styles.platformResultName}>
+                              {platform === 'tiktok' ? 'TikTok' : 'Twitter'}
+                            </span>
+                            <span className={styles.platformResultStatus}>
+                              {platformResults.scheduled && result.success 
+                                ? 'Will be posted at scheduled time' 
+                                : result.success 
+                                  ? 'Posted successfully' 
+                                  : result.error || 'Failed to post'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
               <button
@@ -729,7 +1047,7 @@ export default function SocialPosting() {
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                <line x1="12" y1="16" x2="12" y2="16"></line>
               </svg>
             </div>
             <div className={styles.errorContent}>

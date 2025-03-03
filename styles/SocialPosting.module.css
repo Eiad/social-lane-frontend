@@ -670,6 +670,28 @@
   box-shadow: 0 8px 16px rgba(34, 197, 94, 0.2);
 }
 
+.viewScheduledButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: #f3f4f6;
+  color: #4b5563;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  text-decoration: none;
+}
+
+.viewScheduledButton:hover {
+  background-color: #e5e7eb;
+}
+
 /* Error Message */
 .errorMessage {
   margin-top: 2rem;
@@ -808,10 +830,9 @@
 .platformResults {
   margin: 20px 0;
   display: flex;
-  flex-direction: column;
+  justify-content: center;
   gap: 12px;
-  width: 100%;
-  max-width: 400px;
+  width: 100%;  
 }
 
 .platformResult {
@@ -874,4 +895,99 @@
 
 .error .platformResultStatus {
   color: #dc3545;
+}
+
+/* Scheduling Section */
+.schedulingSection {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.schedulingToggle {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.toggleLabel {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 500;
+  color: #4b5563;
+  user-select: none;
+}
+
+.toggleInput {
+  position: absolute;
+  opacity: 0;
+  height: 0;
+  width: 0;
+}
+
+.toggleSlider {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+  background-color: #e5e7eb;
+  border-radius: 24px;
+  margin-right: 12px;
+  transition: 0.4s;
+}
+
+.toggleSlider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.4s;
+}
+
+.toggleInput:checked + .toggleSlider {
+  background-color: #3b82f6;
+}
+
+.toggleInput:checked + .toggleSlider:before {
+  transform: translateX(24px);
+}
+
+.schedulingOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.schedulingOptions .formGroup {
+  flex: 1;
+  min-width: 200px;
+}
+
+.dateInput,
+.timeInput {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  color: #1f2937;
+  background-color: white;
+  transition: border-color 0.15s ease-in-out;
+}
+
+.dateInput:focus,
+.timeInput:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
 } 

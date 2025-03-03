@@ -154,10 +154,31 @@ export default function Twitter() {
   // Store tokens in localStorage when they change
   useEffect(() => {
     if (accessToken) {
+      // Store the standard Twitter tokens
       localStorage.setItem('twitter_access_token', accessToken);
-      if (refreshToken) localStorage.setItem('twitter_refresh_token', refreshToken);
+      if (refreshToken) {
+        localStorage.setItem('twitter_refresh_token', refreshToken);
+        // For Twitter API v1.1 compatibility, we need to store the refresh token as access_token_secret
+        // Note: This is not ideal, but Twitter's API v2 doesn't provide access_token_secret directly
+        localStorage.setItem('twitter_access_token_secret', refreshToken);
+        
+        console.log('Twitter tokens stored with values:', {
+          accessTokenPrefix: accessToken ? accessToken.substring(0, 5) + '...' : 'missing',
+          refreshTokenPrefix: refreshToken ? refreshToken.substring(0, 5) + '...' : 'missing'
+        });
+      }
       if (userId) localStorage.setItem('twitter_user_id', userId);
       if (username) localStorage.setItem('twitter_username', username);
+      
+      // Log the stored tokens for debugging
+      console.log('Twitter tokens stored in localStorage:', {
+        accessToken: !!accessToken,
+        refreshToken: !!refreshToken,
+        accessTokenSecret: !!refreshToken,
+        userId: !!userId,
+        username: !!username,
+        allTwitterKeys: Object.keys(localStorage).filter(key => key.startsWith('twitter_'))
+      });
     }
   }, [accessToken, refreshToken, userId, username]);
 
@@ -276,10 +297,31 @@ export default function Twitter() {
     try {
       setCurrentStep('posting');
       
+      // Get the access token secret from localStorage
+      // Try both possible keys for the access token secret
+      let accessTokenSecret = localStorage.getItem('twitter_access_token_secret');
+      if (!accessTokenSecret) {
+        // If not found, try the refresh token as a fallback
+        accessTokenSecret = localStorage.getItem('twitter_refresh_token');
+        if (accessTokenSecret) {
+          // If found in refresh_token, store it with the correct name for future use
+          localStorage.setItem('twitter_access_token_secret', accessTokenSecret);
+        }
+      }
+      
+      console.log('Posting to Twitter with credentials:', {
+        hasAccessToken: !!accessToken,
+        hasAccessTokenSecret: !!accessTokenSecret,
+        accessToken: accessToken ? `${accessToken.substring(0, 5)}...` : null,
+        accessTokenSecret: accessTokenSecret ? `${accessTokenSecret.substring(0, 5)}...` : null,
+        allTwitterKeys: Object.keys(localStorage).filter(key => key.startsWith('twitter_'))
+      });
+      
       // Post the video to Twitter
       const response = await axios.post(`${apiUrl}/twitter/post-media`, {
         videoUrl,
         accessToken,
+        accessTokenSecret,
         text: tweetText || 'Check out this video!'
       });
       
@@ -307,11 +349,14 @@ export default function Twitter() {
     setUsername(null);
     setUserInfo(null);
     
-    // Clear localStorage
-    localStorage.removeItem('twitter_access_token');
-    localStorage.removeItem('twitter_refresh_token');
-    localStorage.removeItem('twitter_user_id');
-    localStorage.removeItem('twitter_username');
+    // Clear all Twitter-related items from localStorage
+    const twitterKeys = Object.keys(localStorage).filter(key => key.startsWith('twitter_'));
+    console.log('Removing Twitter keys from localStorage:', twitterKeys);
+    
+    // Remove each Twitter-related key
+    twitterKeys.forEach(key => {
+      localStorage.removeItem(key);
+    });
   };
 
   // Go to home page

@@ -87,10 +87,13 @@ export default function TikTok() {
   // Fetch user info
   const fetchUserInfo = async (token) => {
     try {
+      const refreshToken = localStorage?.getItem('tiktokRefreshToken');
+      
       const response = await fetch(`${apiUrl}/tiktok/user-info`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Refresh-Token': refreshToken || ''
         }
       });
       
@@ -112,6 +115,8 @@ export default function TikTok() {
     
     const savedToken = localStorage?.getItem('tiktokAccessToken');
     const savedOpenId = localStorage?.getItem('tiktokOpenId');
+    const savedRefreshToken = localStorage?.getItem('tiktokRefreshToken');
+    
     if (savedToken) {
       setAccessToken(savedToken);
       setOpenId(savedOpenId);
@@ -122,7 +127,7 @@ export default function TikTok() {
 
   useEffect(() => {
     // Check for token in URL (new flow)
-    const { access_token, open_id, error: urlError } = router?.query || {};
+    const { access_token, open_id, refresh_token, error: urlError } = router?.query || {};
     
     if (urlError) {
       window.showToast?.error?.(decodeURIComponent(urlError));
@@ -139,6 +144,7 @@ export default function TikTok() {
       
       // Save token to localStorage for persistence
       localStorage?.setItem('tiktokAccessToken', access_token);
+      if (refresh_token) localStorage?.setItem('tiktokRefreshToken', refresh_token);
       if (open_id) localStorage?.setItem('tiktokOpenId', open_id);
       
       // Fetch user info with new token
@@ -336,6 +342,7 @@ export default function TikTok() {
       setUploadError(null);
       
       const token = accessToken || localStorage?.getItem('tiktokAccessToken');
+      const refreshToken = localStorage?.getItem('tiktokRefreshToken');
       
       if (!token) {
         throw new Error('No access token available. Please reconnect your TikTok account.');
@@ -360,6 +367,7 @@ export default function TikTok() {
         body: JSON.stringify({
           videoUrl: videoUrlToPost,
           accessToken: token,
+          refreshToken: refreshToken,
           caption: caption
         }),
       });
@@ -404,6 +412,7 @@ export default function TikTok() {
     setIsAuthenticated(false);
     setUserInfo(null);
     localStorage?.removeItem('tiktokAccessToken');
+    localStorage?.removeItem('tiktokRefreshToken');
     localStorage?.removeItem('tiktokOpenId');
     window.showToast?.info?.('Disconnected from TikTok account');
   };
