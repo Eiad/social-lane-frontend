@@ -3,10 +3,12 @@ import Head from 'next/head';
 import Link from 'next/link';
 import styles from '../styles/SocialPosting.module.css';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
+import ProtectedRoute from '../src/components/ProtectedRoute';
+import Navigation from '../src/components/Navigation';
 
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
 
-export default function SocialPosting() {
+function SocialPosting() {
   const [currentStep, setCurrentStep] = useState(1);
   const [file, setFile] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -810,53 +812,65 @@ export default function SocialPosting() {
   };
 
   return (
-    <div className={styles.container}>
+    <>
       <Head>
-        <title>Create Post - Social Lane</title>
-        <meta name="description" content="Create and publish social media posts" />
+        <title>Social Post | Social Lane</title>
+        <meta name="description" content="Post to social media platforms" />
       </Head>
-
-      <main className={styles.main}>
-        <div className={styles.header}>
-          <h1>Create Your Post</h1>
-          <div className={styles.steps}>
-            {[1, 2, 3, 4].map((step) => (
-              <div
-                key={step}
-                className={`${styles.step} ${currentStep >= step ? styles.active : ''} ${currentStep === step ? styles.current : ''}`}
-              >
-                <div className={styles.stepNumber}>{step}</div>
-                <div className={styles.stepLabel}>
-                  {step === 1 && 'UPLOAD'}
-                  {step === 2 && 'PLATFORMS'}
-                  {step === 3 && 'DETAILS'}
-                  {step === 4 && 'PUBLISH'}
+      
+      <Navigation />
+      
+      <div className={styles.container}>
+        <main className={styles.main}>
+          <div className={styles.header}>
+            <h1>Create Your Post</h1>
+            <div className={styles.steps}>
+              {[1, 2, 3, 4].map((step) => (
+                <div
+                  key={step}
+                  className={`${styles.step} ${currentStep >= step ? styles.active : ''} ${currentStep === step ? styles.current : ''}`}
+                >
+                  <div className={styles.stepNumber}>{step}</div>
+                  <div className={styles.stepLabel}>
+                    {step === 1 && 'UPLOAD'}
+                    {step === 2 && 'PLATFORMS'}
+                    {step === 3 && 'DETAILS'}
+                    {step === 4 && 'PUBLISH'}
+                  </div>
                 </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={styles.content}>
+            {renderStep()}
+          </div>
+
+          {uploadError && (
+            <div className={styles.errorMessage}>
+              <div className={styles.errorIcon}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12" y2="16"></line>
+                </svg>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className={styles.content}>
-          {renderStep()}
-        </div>
-
-        {uploadError && (
-          <div className={styles.errorMessage}>
-            <div className={styles.errorIcon}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12" y2="16"></line>
-              </svg>
+              <div className={styles.errorContent}>
+                <h4>Error</h4>
+                <p>{uploadError}</p>
+              </div>
             </div>
-            <div className={styles.errorContent}>
-              <h4>Error</h4>
-              <p>{uploadError}</p>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+          )}
+        </main>
+      </div>
+    </>
+  );
+}
+
+export default function SocialPostingPage() {
+  return (
+    <ProtectedRoute>
+      <SocialPosting />
+    </ProtectedRoute>
   );
 } 

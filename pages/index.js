@@ -13,6 +13,7 @@ import {
   TikTokSimpleIcon
 } from '../src/components/icons/SocialIcons';
 import Link from 'next/link';
+import Navigation from '../src/components/Navigation';
 
 // Use environment variable for API URL
 const API_BASE_URL = typeof window !== 'undefined' 
@@ -133,11 +134,11 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Social Lane - Schedule and Post to All Social Media Platforms</title>
-        <meta name="description" content="Schedule and automatically post your content across all social media platforms with just a few clicks." />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        <title>Social Lane - Schedule and Automate Social Media Posts</title>
+        <meta name="description" content="Streamline your social media presence with Social Lane. Schedule and automate your posts across multiple platforms." />
       </Head>
+
+      <Navigation />
       
       <div className={styles.landingPage}>
         {/* Navigation */}
