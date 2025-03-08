@@ -11,6 +11,30 @@ export const config = {
   },
 };
 
+// Function to retry failed requests
+const axiosWithRetry = async (config, maxRetries = 3, baseDelay = 3000) => {
+  let lastError = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[UPLOAD API] Request attempt ${attempt} of ${maxRetries}`);
+      return await axios(config);
+    } catch (error) {
+      lastError = error;
+      console.error(`[UPLOAD API] Attempt ${attempt} failed:`, error.message);
+      
+      // Check if we should retry
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(1.5, attempt - 1); // Exponential backoff
+        console.log(`[UPLOAD API] Retrying in ${delay/1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError || new Error('All retry attempts failed');
+};
+
 export default async function handler(req, res) {
   console.log('[UPLOAD API] Request received', { method: req.method });
   
@@ -85,46 +109,61 @@ export default async function handler(req, res) {
             tempFilePath
           });
 
-          // Upload to R2 via backend API
-          console.log('[UPLOAD API] Uploading to R2 via backend');
-          const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
-          const uploadUrl = `${backendUrl}/upload`;
-          
-          // Create a Node.js compatible FormData
-          const formData = new FormData();
-          // Append the file directly from the file path
-          formData.append('file', fs.createReadStream(tempFilePath), {
-            filename: newFilename,
-            contentType: file.mimetype || 'video/mp4'
-          });
-          
-          const uploadResponse = await axios.post(uploadUrl, formData, {
-            headers: {
-              ...formData.getHeaders()
-            },
-            maxContentLength: Infinity,
-            maxBodyLength: Infinity
-          });
-          
-          console.log('[UPLOAD API] R2 upload response:', uploadResponse?.data);
-          
-          // Clean up the temp file
           try {
-            fs.unlinkSync(tempFilePath);
-            console.log('[UPLOAD API] Temp file deleted');
-          } catch (cleanupError) {
-            console.error('[UPLOAD API] Error cleaning up temp file:', cleanupError);
-          }
-          
-          if (uploadResponse?.data?.success && uploadResponse?.data?.url) {
-            console.log('[UPLOAD API] Upload completed successfully');
-            res.status(200).json({ 
-              success: true, 
-              url: uploadResponse.data.url,
-              filename: newFilename
+            // Upload to R2 via backend API
+            console.log('[UPLOAD API] Uploading to R2 via backend');
+            const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+            const uploadUrl = `${backendUrl}/upload`;
+            
+            // Create a Node.js compatible FormData
+            const formData = new FormData();
+            // Append the file directly from the file path
+            formData.append('file', fs.createReadStream(tempFilePath), {
+              filename: newFilename,
+              contentType: file.mimetype || 'video/mp4'
             });
-          } else {
-            throw new Error('Failed to upload to R2: ' + (uploadResponse?.data?.error || 'Unknown error'));
+            
+            // Use axios with retry logic and increased timeout
+            const uploadResponse = await axiosWithRetry({
+              method: 'post',
+              url: uploadUrl,
+              data: formData,
+              headers: {
+                ...formData.getHeaders()
+              },
+              maxContentLength: Infinity,
+              maxBodyLength: Infinity,
+              timeout: 180000, // 3 minutes timeout
+            });
+            
+            console.log('[UPLOAD API] R2 upload response:', uploadResponse?.data);
+            
+            if (uploadResponse?.data?.success && uploadResponse?.data?.url) {
+              console.log('[UPLOAD API] Upload completed successfully');
+              res.status(200).json({ 
+                success: true, 
+                url: uploadResponse.data.url,
+                filename: newFilename
+              });
+            } else {
+              throw new Error('Failed to upload to R2: ' + (uploadResponse?.data?.error || 'Unknown error'));
+            }
+          } catch (uploadError) {
+            console.error('[UPLOAD API] Error uploading to backend:', uploadError);
+            res.status(500).json({ 
+              error: 'Error uploading to backend service', 
+              details: uploadError?.message 
+            });
+          } finally {
+            // Clean up the temp file
+            try {
+              if (fs.existsSync(tempFilePath)) {
+                fs.unlinkSync(tempFilePath);
+                console.log('[UPLOAD API] Temp file deleted');
+              }
+            } catch (cleanupError) {
+              console.error('[UPLOAD API] Error cleaning up temp file:', cleanupError);
+            }
           }
           
           return resolve();

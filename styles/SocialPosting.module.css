@@ -990,4 +990,281 @@
   border-color: #3b82f6;
   outline: none;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.stepContainer {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.platformSection {
+  margin-bottom: 2rem;
+}
+
+.platformButtons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.platformButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.platformButton.selected {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.accountsSection {
+  margin: 2rem 0;
+}
+
+.accountsList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.accountCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.accountCard.selectedAccount {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.accountInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.accountName {
+  font-weight: 500;
+}
+
+.accountCheckbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.noAccountsMessage {
+  text-align: center;
+  padding: 2rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+.connectButton,
+.addAccountButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: #3b82f6;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 1rem;
+}
+
+.addAccountButton {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.connectButton:hover,
+.addAccountButton:hover {
+  opacity: 0.9;
+}
+
+.captionSection {
+  margin: 2rem 0;
+}
+
+.captionInput {
+  width: 100%;
+  min-height: 120px;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+  margin-top: 0.5rem;
+  resize: vertical;
+}
+
+.captionCounter {
+  text-align: right;
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.schedulingSection {
+  margin: 2rem 0;
+}
+
+.scheduleToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.dateTimeInputs {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.dateInput,
+.timeInput {
+  padding: 0.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 0.5rem;
+}
+
+.postActions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+
+.backButton,
+.postButton {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.backButton {
+  background: #f3f4f6;
+  border: none;
+  color: #374151;
+}
+
+.postButton {
+  background: #3b82f6;
+  border: none;
+  color: white;
+}
+
+.backButton:disabled,
+.postButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.errorMessage {
+  color: #ef4444;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #fef2f2;
+  border-radius: 0.5rem;
+}
+
+.resultsSection {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 0.5rem;
+}
+
+.platformResult {
+  margin: 1rem 0;
+}
+
+.accountResult {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background: white;
+  border-radius: 0.25rem;
+  margin: 0.5rem 0;
+}
+
+.success {
+  color: #059669;
+}
+
+.error {
+  color: #ef4444;
+}
+
+.platformAccounts {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.platformAccounts h4 {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.5rem;
+}
+
+.accountBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 9999px;
+  margin-bottom: 0.5rem;
+}
+
+.accountBadge span {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.accountResults {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.accountResultHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.resultHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 } 

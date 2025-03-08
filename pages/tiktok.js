@@ -38,6 +38,21 @@ export default function TikTok() {
   const [postSuccess, setPostSuccess] = useState(false);
   const [caption, setCaption] = useState('');
   const [postStep, setPostStep] = useState(1); // 1: Upload, 2: Preview & Caption
+  // Add new state for multiple accounts
+  const [connectedAccounts, setConnectedAccounts] = useState([]);
+  // Remove selectedAccount state and replace with an array of tokens/openIds
+  const [accountTokens, setAccountTokens] = useState({});
+  // Add new state for UI improvements
+  const [isHovering, setIsHovering] = useState(null);
+
+  // Format file size function
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   // Define the upload process steps
   const uploadSteps = [
@@ -84,74 +99,131 @@ export default function TikTok() {
     return null;
   };
 
-  // Fetch user info
-  const fetchUserInfo = async (token) => {
-    try {
-      const refreshToken = localStorage?.getItem('tiktokRefreshToken');
+  // Load connected accounts from localStorage
+  useEffect(() => {
+    setApiUrl(API_BASE_URL);
+    
+    // First check for legacy token (no number)
+    const legacyToken = localStorage?.getItem('tiktokAccessToken');
+    const legacyOpenId = localStorage?.getItem('tiktokOpenId');
+    const legacyRefreshToken = localStorage?.getItem('tiktokRefreshToken');
+
+    if (legacyToken && legacyOpenId) {
+      const account = {
+        accessToken: legacyToken,
+        openId: legacyOpenId,
+        refreshToken: legacyRefreshToken,
+        index: 1  // Set legacy account as first
+      };
       
-      const response = await fetch(`${apiUrl}/tiktok/user-info`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'X-Refresh-Token': refreshToken || ''
+      // Migrate legacy tokens to new format
+      localStorage?.setItem('tiktok1AccessToken', legacyToken);
+      localStorage?.setItem('tiktok1OpenId', legacyOpenId);
+      if (legacyRefreshToken) localStorage?.setItem('tiktok1RefreshToken', legacyRefreshToken);
+      
+      // Remove legacy tokens
+      localStorage?.removeItem('tiktokAccessToken');
+      localStorage?.removeItem('tiktokOpenId');
+      localStorage?.removeItem('tiktokRefreshToken');
+      
+      setConnectedAccounts([account]);
+      // Initialize with the first account for backward compatibility
+      setAccessToken(legacyToken);
+      setOpenId(legacyOpenId);
+      setIsAuthenticated(true);
+      
+      // Set account tokens
+      setAccountTokens({
+        [legacyOpenId]: {
+          accessToken: legacyToken,
+          openId: legacyOpenId,
+          refreshToken: legacyRefreshToken
         }
       });
       
-      const data = await response?.json();
-      if (response?.ok && data?.data) {
-        setUserInfo(data.data);
-      } else {
-        console.error('Failed to fetch user info:', data?.error);
+      fetchUserInfo(legacyToken, legacyOpenId);
+    } else {
+      // Load all accounts with numbered keys
+      const accounts = [];
+      const tokens = {};
+      let i = 1;
+      
+      while (true) {
+        const token = localStorage?.getItem(`tiktok${i}AccessToken`);
+        const openId = localStorage?.getItem(`tiktok${i}OpenId`);
+        const refreshToken = localStorage?.getItem(`tiktok${i}RefreshToken`);
+        
+        if (!token || !openId) break;
+        
+        accounts.push({
+          accessToken: token,
+          openId,
+          refreshToken,
+          index: i
+        });
+        
+        tokens[openId] = {
+          accessToken: token,
+          openId,
+          refreshToken
+        };
+        
+        i++;
       }
-    } catch (error) {
-      console.error('Error fetching user info:', error);
-    }
-  };
-
-  // Update useEffect for token handling
-  useEffect(() => {
-    // Use the API_BASE_URL constant instead of accessing process.env directly
-    setApiUrl(API_BASE_URL);
-    
-    const savedToken = localStorage?.getItem('tiktokAccessToken');
-    const savedOpenId = localStorage?.getItem('tiktokOpenId');
-    const savedRefreshToken = localStorage?.getItem('tiktokRefreshToken');
-    
-    if (savedToken) {
-      setAccessToken(savedToken);
-      setOpenId(savedOpenId);
-      setIsAuthenticated(true);
-      fetchUserInfo(savedToken);
+      
+      if (accounts.length > 0) {
+        setConnectedAccounts(accounts);
+        // Initialize with the first account for backward compatibility
+        setAccessToken(accounts[0].accessToken);
+        setOpenId(accounts[0].openId);
+        setIsAuthenticated(true);
+        setAccountTokens(tokens);
+        
+        // Fetch user info for all accounts
+        accounts.forEach(account => {
+          fetchUserInfo(account.accessToken, account.openId);
+        });
+      }
     }
   }, []);
 
+  // Update token handling in the callback effect
   useEffect(() => {
-    // Check for token in URL (new flow)
     const { access_token, open_id, refresh_token, error: urlError } = router?.query || {};
     
     if (urlError) {
       window.showToast?.error?.(decodeURIComponent(urlError));
-      // Remove the error from URL
-      router?.replace('/tiktok', undefined, { shallow: true });
+      router?.replace('/tiktok');
       return;
     }
     
     if (access_token) {
+      // Find the next available index for the new account
+      const nextIndex = connectedAccounts.length + 1; // Start from 1
+      
+      // Save token to localStorage with numbered index
+      localStorage?.setItem(`tiktok${nextIndex}AccessToken`, access_token);
+      if (refresh_token) localStorage?.setItem(`tiktok${nextIndex}RefreshToken`, refresh_token);
+      if (open_id) localStorage?.setItem(`tiktok${nextIndex}OpenId`, open_id);
+      
+      const newAccount = {
+        accessToken: access_token,
+        openId: open_id,
+        refreshToken: refresh_token,
+        index: nextIndex
+      };
+      
+      setConnectedAccounts(prev => [...prev, newAccount]);
       setAccessToken(access_token);
-      setOpenId(open_id || '');
+      setOpenId(open_id);
       setIsAuthenticated(true);
-      window.showToast?.success?.('Successfully connected to TikTok!');
       
-      // Save token to localStorage for persistence
-      localStorage?.setItem('tiktokAccessToken', access_token);
-      if (refresh_token) localStorage?.setItem('tiktokRefreshToken', refresh_token);
-      if (open_id) localStorage?.setItem('tiktokOpenId', open_id);
+      window.showToast?.success?.('Successfully connected new TikTok account!');
       
-      // Fetch user info with new token
-      fetchUserInfo(access_token);
+      // Fetch user info for the new account
+      fetchUserInfo(access_token, open_id);
       
-      // Remove the token from URL for security
-      router?.replace('/tiktok', undefined, { shallow: true });
+      router?.replace('/tiktok');
     }
   }, [router?.query]);
 
@@ -159,62 +231,39 @@ export default function TikTok() {
     try {
       setIsLoading(true);
       
-      // Make sure we're using the environment variable
-      const url = `${apiUrl}/tiktok/auth`;
-      
-      // Debug logging
-      console.log('Connecting to TikTok with URL:', url);
-      console.log('API URL from state:', apiUrl);
-      console.log('API_BASE_URL constant:', API_BASE_URL);
-      
-      // Try with fetch first
-      try {
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-        });
-        
-        // Debug response
-        console.log('Response status:', response?.status);
-        
-        if (!response?.ok) {
-          throw new Error(`HTTP error! Status: ${response?.status}`);
-        }
-        
-        const data = await response?.json?.();
-        console.log('Response data:', data);
-        
-        if (data?.authUrl) {
-          console.log('Redirecting to auth URL:', data.authUrl);
-          window.location.href = data.authUrl;
-          return;
-        }
-      } catch (fetchError) {
-        console.error('Fetch error:', fetchError);
-        // If fetch fails, try direct redirect as fallback
-        window.location.href = `${apiUrl}/tiktok/auth`;
-      }
+      // Redirect directly to the backend auth endpoint
+      window.location.href = `${apiUrl}/tiktok/auth`;
     } catch (error) {
       console.error('Detailed auth error:', error);
       window.showToast?.error?.('Failed to initiate TikTok authentication: ' + (error?.message || 'Unknown error'));
-    } finally {
       setIsLoading(false);
     }
   };
 
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
+    const selectedFile = e.target?.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      setUploadedFile(selectedFile.name);
+      setUploadedFile(selectedFile);
       setUploadError(null);
-      setVideoUrl('');
-      setPostSuccess(false);
       setCurrentStep(null);
+      setPostSuccess(false);
     }
+  };
+
+  const handleChangeFile = () => {
+    setFile(null);
+    setUploadedFile(null);
+    setUploadError(null);
+    setCurrentStep(null);
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    
+    setTimeout(() => {
+      fileInputRef.current?.click();
+    }, 50);
   };
 
   const handleUploadClick = () => {
@@ -222,33 +271,36 @@ export default function TikTok() {
   };
 
   const handleFileUpload = async () => {
-    if (!file) return;
-
-    // Reset states
-    setUploadError(null);
-    setUploadDetails(null);
-    setCurrentStep('validating');
-    setPostStep(1);
-
-    // Check if file is a video
-    if (!file.type?.startsWith('video/')) {
-      setUploadError('Please select a video file');
-      window.showToast?.error?.('Please select a video file');
-      setCurrentStep(null);
-      return;
-    }
-
-    // Check file size (max 500MB)
-    if (file.size > 500 * 1024 * 1024) {
-      setUploadError('File size exceeds 500MB limit');
-      window.showToast?.error?.('File size exceeds 500MB limit');
-      setCurrentStep(null);
-      return;
-    }
-
+    if (!file || !connectedAccounts.length) return;
+    
     try {
       setIsUploading(true);
-      setUploadProgress(0);
+      setCurrentStep('validating');
+      setUploadProgress(10);
+      setUploadError(null);
+      
+      // Use the first account for compatibility
+      const accountToUse = connectedAccounts[0];
+      const token = accountToUse.accessToken;
+      
+      // Check if file is a video
+      if (!file.type?.startsWith('video/')) {
+        setUploadError('Please select a video file');
+        window.showToast?.error?.('Please select a video file');
+        setCurrentStep(null);
+        return;
+      }
+
+      // Check file size (max 500MB)
+      if (file.size > 500 * 1024 * 1024) {
+        setUploadError('File size exceeds 500MB limit');
+        window.showToast?.error?.('File size exceeds 500MB limit');
+        setCurrentStep(null);
+        return;
+      }
+
+      // Reset states
+      setUploadDetails(null);
       setCurrentStep('uploading');
       
       // Log file details
@@ -258,63 +310,98 @@ export default function TikTok() {
         size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
       });
       
-      const formData = new FormData();
-      formData.append('file', file);
-
-      // Create XMLHttpRequest to track upload progress
-      const xhr = new XMLHttpRequest();
-      
-      // Set up progress tracking
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const percentCompleted = Math.round((event.loaded * 100) / event.total);
-          setUploadProgress(percentCompleted);
-          console.log(`[UPLOAD] Progress: ${percentCompleted}%`);
-        }
-      });
-      
-      // Create a promise to handle the XHR response
-      const uploadPromise = new Promise((resolve, reject) => {
-        xhr.onload = function() {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const response = JSON.parse(xhr.responseText);
-              resolve(response);
-            } catch (e) {
-              reject(new Error('Invalid response format'));
-            }
-          } else {
-            reject(new Error(`Upload failed with status ${xhr.status}`));
-          }
-        };
+      // Upload function with retry capability
+      const uploadFileWithRetry = async (maxRetries = 3, retryDelay = 3000) => {
+        let lastError = null;
         
-        xhr.onerror = function() {
-          reject(new Error('Network error during upload'));
-        };
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Create XMLHttpRequest to track upload progress
+            const xhr = new XMLHttpRequest();
+            
+            // Set up progress tracking
+            xhr.upload.addEventListener('progress', (event) => {
+              if (event.lengthComputable) {
+                const percentCompleted = Math.round((event.loaded * 100) / event.total);
+                setUploadProgress(percentCompleted);
+                console.log(`[UPLOAD] Progress: ${percentCompleted}%`);
+              }
+            });
+            
+            // Set a timeout (120 seconds)
+            xhr.timeout = 120000; // 2 minutes
+            
+            // Create a promise to handle the XHR response
+            const uploadPromise = new Promise((resolve, reject) => {
+              xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  try {
+                    const response = JSON.parse(xhr.responseText);
+                    resolve(response);
+                  } catch (e) {
+                    reject(new Error('Invalid response format'));
+                  }
+                } else {
+                  reject(new Error(`Upload failed with status ${xhr.status}`));
+                }
+              };
+              
+              xhr.ontimeout = function() {
+                reject(new Error('Upload request timed out'));
+              };
+              
+              xhr.onerror = function() {
+                reject(new Error('Network error during upload'));
+              };
+            });
+            
+            // Open and send the request
+            xhr.open('POST', '/api/upload', true);
+            xhr.send(formData);
+            
+            // Wait for the upload to complete
+            const data = await uploadPromise;
+            
+            if (data?.success && data?.url) {
+              return data;
+            } else {
+              throw new Error('Failed to get upload URL');
+            }
+          } catch (error) {
+            console.error(`[UPLOAD] Attempt ${attempt} failed:`, error);
+            lastError = error;
+            
+            if (attempt < maxRetries) {
+              console.log(`[UPLOAD] Retrying in ${retryDelay/1000} seconds...`);
+              window.showToast?.warning?.(`Upload attempt ${attempt} failed, retrying...`);
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
+              // Increase retry delay for next attempt
+              retryDelay = retryDelay * 1.5;
+            }
+          }
+        }
+        
+        // If we get here, all retries have failed
+        throw lastError || new Error('Upload failed after multiple attempts');
+      };
+      
+      // Try to upload with retries
+      const data = await uploadFileWithRetry();
+      
+      console.log('[UPLOAD] Upload successful, URL:', data.url);
+      setVideoUrl(data.url);
+      setUploadedFileUrl(data.url);
+      setUploadDetails({
+        filename: data.filename,
+        size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+        type: file.type
       });
-      
-      // Open and send the request
-      xhr.open('POST', '/api/upload', true);
-      xhr.send(formData);
-      
-      // Wait for the upload to complete
-      const data = await uploadPromise;
-      
-      if (data?.success && data?.url) {
-        console.log('[UPLOAD] Upload successful, URL:', data.url);
-        setVideoUrl(data.url);
-        setUploadDetails({
-          filename: data.filename,
-          size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-          type: file.type
-        });
-        window.showToast?.success?.('File uploaded successfully');
-        setCurrentStep('completed');
-        setPostStep(2); // Move to preview & caption step
-      } else {
-        console.error('[UPLOAD] Missing success or URL in response');
-        throw new Error('Failed to get upload URL');
-      }
+      window.showToast?.success?.('File uploaded successfully');
+      setCurrentStep('completed');
+      setPostStep(2); // Move to preview & caption step
     } catch (error) {
       console.error('[UPLOAD] Error:', error);
       setUploadError(error?.message || 'Error uploading file');
@@ -332,89 +419,161 @@ export default function TikTok() {
 
   const handlePostVideo = async (e, urlOverride) => {
     e?.preventDefault();
-    const videoUrlToPost = urlOverride || videoUrl;
     
-    if (!videoUrlToPost) return;
-
+    if (!uploadedFile && !urlOverride) {
+      window.showToast?.error?.('Please upload a video first');
+      return;
+    }
+    
+    // Make sure we have at least one account
+    if (connectedAccounts.length === 0) {
+      window.showToast?.error?.('No TikTok accounts connected');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       setCurrentStep('preparing');
       setUploadError(null);
       
-      const token = accessToken || localStorage?.getItem('tiktokAccessToken');
-      const refreshToken = localStorage?.getItem('tiktokRefreshToken');
+      // Using the first account for posting
+      const accountToUse = connectedAccounts[0];
+      const uploadUrl = urlOverride || videoUrl;
       
-      if (!token) {
-        throw new Error('No access token available. Please reconnect your TikTok account.');
-      }
-
-      const url = `${apiUrl}/tiktok/post-video`;
-      
-      console.log('[POST] Sending video to TikTok:', {
-        url: videoUrlToPost,
-        apiEndpoint: url,
-        caption
-      });
+      // Function to retry posting if it fails
+      const postVideoWithRetry = async (maxRetries = 3, retryDelay = 2000) => {
+        let lastError = null;
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            console.log(`[POST] Attempt ${attempt}: Posting video to TikTok: ${uploadUrl}`);
+            
+            // Post using the specified account
+            const postResponse = await fetch(`${apiUrl}/tiktok/post-video`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                videoUrl: uploadUrl,
+                accessToken: accountToUse.accessToken,
+                refreshToken: accountToUse.refreshToken,
+                caption
+              }),
+            });
+            
+            console.log('[POST] Response status:', postResponse?.status);
+            
+            if (!postResponse?.ok) {
+              const errorText = await postResponse.text();
+              throw new Error(`Failed to post to TikTok: ${postResponse.status} - ${errorText}`);
+            }
+            
+            const data = await postResponse.json();
+            console.log('[POST] Response data:', data);
+            
+            return data;
+          } catch (error) {
+            console.error(`[POST] Attempt ${attempt} failed:`, error);
+            lastError = error;
+            
+            if (attempt < maxRetries) {
+              console.log(`[POST] Retrying in ${retryDelay/1000} seconds...`);
+              window.showToast?.warning?.(`Post attempt ${attempt} failed, retrying...`);
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
+              // Increase retry delay for next attempt
+              retryDelay = retryDelay * 1.5;
+            }
+          }
+        }
+        
+        // If we get here, all retries have failed
+        throw lastError || new Error('Posting failed after multiple attempts');
+      };
       
       setCurrentStep('posting');
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        mode: 'cors',
-        body: JSON.stringify({
-          videoUrl: videoUrlToPost,
-          accessToken: token,
-          refreshToken: refreshToken,
-          caption: caption
-        }),
-      });
-
-      console.log('[POST] Response status:', response?.status);
-      const data = await response?.json?.();
-      console.log('[POST] Response data:', data);
+      const postResult = await postVideoWithRetry();
       
-      if (response?.ok) {
-        setCurrentStep('success');
-        setPostSuccess(true);
-        window.showToast?.success?.('Video posted successfully!');
-        if (!urlOverride) {
-          setVideoUrl('');
-          setUploadedFile(null);
-          setUploadDetails(null);
-          setCaption('');
-          setPostStep(1);
-        }
-      } else {
-        setCurrentStep('error');
-        const errorMessage = data?.error || 'Failed to post video';
-        setUploadError(errorMessage);
-        console.error('[POST] Error response:', data);
-        throw new Error(errorMessage);
-      }
+      setCurrentStep('success');
+      setPostSuccess(true);
+      window.showToast?.success?.('Successfully posted to TikTok!');
+      
+      // Add short delay before redirect
+      setTimeout(() => {
+        goToHome();
+      }, 3000);
     } catch (error) {
       console.error('[POST] Error:', error);
+      setUploadError(error?.message || 'Error posting to TikTok');
+      window.showToast?.error?.(error?.message || 'Error posting to TikTok');
       setCurrentStep('error');
-      const errorMessage = error?.message || 'Unknown error occurred';
-      setUploadError(errorMessage);
-      window.showToast?.error?.(errorMessage);
-      console.error('Post error details:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    setAccessToken(null);
-    setOpenId(null);
-    setIsAuthenticated(false);
-    setUserInfo(null);
-    localStorage?.removeItem('tiktokAccessToken');
-    localStorage?.removeItem('tiktokRefreshToken');
-    localStorage?.removeItem('tiktokOpenId');
-    window.showToast?.info?.('Disconnected from TikTok account');
+  // Update handleLogout to use new localStorage key format
+  const handleLogout = (accountToRemove) => {
+    if (!accountToRemove) return;
+    
+    // Remove account from localStorage using numbered format
+    localStorage?.removeItem(`tiktok${accountToRemove.index}AccessToken`);
+    localStorage?.removeItem(`tiktok${accountToRemove.index}RefreshToken`);
+    localStorage?.removeItem(`tiktok${accountToRemove.index}OpenId`);
+    
+    // Update connected accounts
+    setConnectedAccounts(prev => prev.filter(acc => acc.index !== accountToRemove.index));
+    
+    // Update accountTokens
+    setAccountTokens(prev => {
+      const newTokens = {...prev};
+      delete newTokens[accountToRemove.openId];
+      return newTokens;
+    });
+    
+    // If this was the last account, reset authentication state
+    if (connectedAccounts.length <= 1) {
+      setIsAuthenticated(false);
+      setAccessToken(null);
+      setOpenId(null);
+    }
+  };
+
+  // Update fetchUserInfo to use new localStorage key format
+  const fetchUserInfo = async (token, accountOpenId) => {
+    try {
+      const account = connectedAccounts.find(acc => acc?.openId === accountOpenId);
+      const refreshToken = account ? localStorage?.getItem(`tiktok${account.index}RefreshToken`) : null;
+      
+      const response = await fetch(`${apiUrl}/tiktok/user-info`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Refresh-Token': refreshToken || ''
+        }
+      });
+      
+      const data = await response?.json();
+      if (response?.ok && data?.data) {
+        // Update the user info in the connected accounts array
+        setConnectedAccounts(prev => {
+          const accountIndex = prev?.findIndex(acc => acc?.openId === accountOpenId);
+          if (accountIndex !== -1) {
+            const updatedAccounts = [...prev];
+            updatedAccounts[accountIndex] = {
+              ...updatedAccounts[accountIndex],
+              userInfo: data.data
+            };
+            return updatedAccounts;
+          }
+          return prev;
+        });
+      } else {
+        console.error('Failed to fetch user info:', data?.error);
+      }
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+    }
   };
 
   const goToHome = () => {
@@ -531,30 +690,30 @@ export default function TikTok() {
             <div className={styles.footerLinks}>
               <div className={styles.footerColumn}>
                 <h4>Product</h4>
-                <Link href="/#features">Features</Link>
-                <Link href="/#pricing">Pricing</Link>
-                <Link href="#">Integrations</Link>
+                <Link href="/" legacyBehavior><a>Features</a></Link>
+                <Link href="/" legacyBehavior><a>Pricing</a></Link>
+                <Link href="/" legacyBehavior><a>Integrations</a></Link>
               </div>
               
               <div className={styles.footerColumn}>
                 <h4>Company</h4>
-                <Link href="/#about">About</Link>
-                <Link href="/#blog">Blog</Link>
-                <Link href="#">Careers</Link>
+                <Link href="/" legacyBehavior><a>About</a></Link>
+                <Link href="/" legacyBehavior><a>Blog</a></Link>
+                <Link href="/" legacyBehavior><a>Careers</a></Link>
               </div>
               
               <div className={styles.footerColumn}>
                 <h4>Resources</h4>
-                <Link href="#">Help Center</Link>
-                <Link href="#">API</Link>
-                <Link href="#">Status</Link>
+                <Link href="/" legacyBehavior><a>Help Center</a></Link>
+                <Link href="/" legacyBehavior><a>API</a></Link>
+                <Link href="/" legacyBehavior><a>Status</a></Link>
               </div>
               
               <div className={styles.footerColumn}>
                 <h4>Legal</h4>
-                <Link href="#">Privacy</Link>
-                <Link href="#">Terms</Link>
-                <Link href="#">Security</Link>
+                <Link href="/" legacyBehavior><a>Privacy</a></Link>
+                <Link href="/" legacyBehavior><a>Terms</a></Link>
+                <Link href="/" legacyBehavior><a>Security</a></Link>
               </div>
             </div>
           </div>
@@ -585,207 +744,270 @@ export default function TikTok() {
                       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                       <polyline points="22 4 12 14.01 9 11.01"></polyline>
                     </svg>
-                    <h2>Connected to TikTok</h2>
-                  </div>
-                  <div className={styles.accountInfo}>
-                    <span>Account ID: {openId}</span>
+                    <h2>TikTok Accounts</h2>
                   </div>
                 </div>
 
-                <div className={tikTokStyles.postContainer}>
-                  {postStep === 1 ? (
-                    // Step 1: Upload Video
-                    <div className={tikTokStyles.uploadSection}>
-                      <div className={tikTokStyles.uploadHeader}>
-                        <h4>Upload Video to TikTok</h4>
-                        <p className={tikTokStyles.uploadDescription}>
-                          Select a video file to upload to TikTok
-                        </p>
-                      </div>
+                {/* Accounts Management Section */}
+                <div className={tikTokStyles.accountsContainer}>
+                  <h2 className={tikTokStyles.sectionTitle}>Your TikTok Accounts</h2>
+                  
+                  <div className={tikTokStyles.accountsGrid}>
+                    {connectedAccounts.map(account => {
+                      const profilePic = account?.userInfo?.avatar_url;
+                      const username = account?.userInfo?.username || `TikTok Account ${account.index}`;
+                      const displayName = account?.userInfo?.display_name || username;
                       
-                      {!uploadedFile && !isUploading && (
+                      return (
                         <div 
-                          className={tikTokStyles.uploadDropzone}
-                          onClick={handleUploadClick}
+                          key={account.openId}
+                          className={tikTokStyles.accountCardNew}
+                          onMouseEnter={() => setIsHovering(account.openId)}
+                          onMouseLeave={() => setIsHovering(null)}
                         >
-                          <div className={tikTokStyles.uploadIcon}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                              <polyline points="17 8 12 3 7 8"></polyline>
-                              <line x1="12" y1="3" x2="12" y2="15"></line>
-                            </svg>
-                          </div>
-                          <p className={tikTokStyles.uploadText}>
-                            {isUploading ? 'Uploading...' : 'Drag & drop your video here or click to browse'}
-                          </p>
-                          <p className={tikTokStyles.uploadHint}>
-                            Supported formats: MP4, MOV (max 60 seconds)
-                          </p>
-                          <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                            accept="video/*"
-                            className={tikTokStyles.fileInput}
-                          />
-                        </div>
-                      )}
-
-                      {uploadedFile && !isLoading && !postSuccess && (
-                        <div className={tikTokStyles.uploadedFileCard}>
-                          <div className={tikTokStyles.uploadedFileHeader}>
-                            <div className={tikTokStyles.videoIcon}>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                              </svg>
-                            </div>
-                            <div className={tikTokStyles.uploadedFileInfo}>
-                              <h5>{uploadedFile}</h5>
-                              {uploadDetails && (
-                                <div className={tikTokStyles.uploadedFileDetails}>
-                                  <span>{uploadDetails.size}</span>
-                                  <span>{uploadDetails.type}</span>
-                                </div>
+                          <div className={tikTokStyles.accountCardHeader}>
+                            <div className={tikTokStyles.accountAvatar}>
+                              {profilePic ? (
+                                <img 
+                                  src={profilePic} 
+                                  alt={`${username} avatar`}
+                                  className={tikTokStyles.avatarImage}
+                                />
+                              ) : (
+                                <TikTokSimpleIcon width="32" height="32" />
                               )}
                             </div>
-                            <button 
-                              className={tikTokStyles.changeFileButton}
-                              onClick={handleUploadClick}
-                              disabled={isUploading || isLoading}
-                            >
-                              Change
-                            </button>
                           </div>
                           
-                          {!videoUrl && (
-                            <div className={tikTokStyles.postActions}>
-                              <button
-                                className={tikTokStyles.postButton}
-                                onClick={handleFileUpload}
-                                disabled={isUploading || !file}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <div className={tikTokStyles.accountCardBody}>
+                            <h3 className={tikTokStyles.accountCardName}>{displayName}</h3>
+                            <p className={tikTokStyles.accountCardUsername}>@{username}</p>
+                          </div>
+                          
+                          <div className={tikTokStyles.accountCardFooter}>
+                            <button 
+                              className={tikTokStyles.disconnectButtonNew}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleLogout(account);
+                              }}
+                              aria-label="Disconnect account"
+                            >
+                              Disconnect
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    <div 
+                      className={tikTokStyles.addAccountCardNew}
+                      onClick={handleConnect}
+                    >
+                      <div className={tikTokStyles.addAccountIconNew}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="12" y1="8" x2="12" y2="16"></line>
+                          <line x1="8" y1="12" x2="16" y2="12"></line>
+                        </svg>
+                      </div>
+                      <h3 className={tikTokStyles.addAccountText}>Add New Account</h3>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Post Container - Show if there are any accounts */}
+                {connectedAccounts.length > 0 && (
+                  <div className={tikTokStyles.postContainer}>
+                    {postStep === 1 ? (
+                      // Step 1: Upload Video
+                      <div className={tikTokStyles.uploadSection}>
+                        <div className={tikTokStyles.uploadHeader}>
+                          <h4>Upload Video to TikTok</h4>
+                          <p className={tikTokStyles.uploadDescription}>
+                            Select a video file to upload to TikTok
+                          </p>
+                        </div>
+                        
+                        {!uploadedFile && !isUploading && (
+                          <div 
+                            className={tikTokStyles.uploadDropzone}
+                            onClick={handleUploadClick}
+                          >
+                            <div className={tikTokStyles.uploadPlaceholder}>
+                              <div className={tikTokStyles.uploadIcon}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                   <polyline points="17 8 12 3 7 8"></polyline>
                                   <line x1="12" y1="3" x2="12" y2="15"></line>
-                                </svg> Upload Video
-                              </button>
+                                </svg>
+                              </div>
+                              <div className={tikTokStyles.uploadText}>
+                                Click to upload a video
+                              </div>
+                              <div className={tikTokStyles.uploadHint}>
+                                MP4 or WebM format, max size 50MB
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      )}
+                            <input
+                              type="file"
+                              ref={fileInputRef}
+                              onChange={handleFileChange}
+                              accept="video/mp4,video/webm"
+                              className={tikTokStyles.fileInput}
+                            />
+                          </div>
+                        )}
 
-                      {/* Progress Section */}
-                      {currentStep && (
-                        <div className={tikTokStyles.progressSection}>
-                          <div className={tikTokStyles.stepIndicator}>
-                            <div className={tikTokStyles.stepTitle}>
-                              {currentStep === 'validating' && 'Validating file...'}
-                              {currentStep === 'uploading' && 'Uploading file...'}
-                              {currentStep === 'processing' && 'Processing upload...'}
-                              {currentStep === 'completed' && 'Upload completed successfully!'}
-                              {currentStep === 'preparing' && 'Preparing to post...'}
-                              {currentStep === 'posting' && 'Posting to TikTok...'}
-                              {currentStep === 'success' && 'Posted successfully!'}
-                              {currentStep === 'error' && 'Error occurred'}
+                        {uploadedFile && !isLoading && !postSuccess && (
+                          <div className={tikTokStyles.uploadedFileCard}>
+                            <div className={tikTokStyles.uploadedFileHeader}>
+                              <div className={tikTokStyles.videoIcon}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                                </svg>
+                              </div>
+                              <div className={tikTokStyles.uploadedFileInfo}>
+                                <h5>{uploadedFile?.name}</h5>
+                                <div className={tikTokStyles.uploadedFileDetails}>
+                                  {formatFileSize(uploadedFile?.size)} • {uploadedFile?.type}
+                                </div>
+                              </div>
                             </div>
                             
-                            {(currentStep === 'uploading' || currentStep === 'processing') && (
-                              <div className={tikTokStyles.progressBarContainer}>
-                                <div 
-                                  className={tikTokStyles.progressBar} 
-                                  style={{ 
-                                    width: `${currentStep === 'processing' ? 100 : uploadProgress}%`,
-                                  }}
-                                ></div>
-                                <span className={tikTokStyles.progressText}>
-                                  {currentStep === 'processing' ? 'Processing...' : `${uploadProgress}%`}
-                                </span>
-                              </div>
-                            )}
+                            <button 
+                              className={tikTokStyles.changeFileButton}
+                              onClick={handleChangeFile}
+                              disabled={isUploading}
+                            >
+                              Change File
+                            </button>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    // Step 2: Preview & Caption
-                    <div className={tikTokStyles.previewSection}>
-                      <div className={tikTokStyles.previewHeader}>
-                        <h4>Preview & Add Caption</h4>
-                        <p className={tikTokStyles.previewDescription}>
-                          Preview your video and add a caption before posting
-                        </p>
-                      </div>
+                        )}
 
-                      <div className={tikTokStyles.videoPreviewContainer}>
-                        {videoUrl && (
-                          <video
-                            ref={videoRef}
-                            className={tikTokStyles.videoPreview}
-                            src={videoUrl}
-                            controls
-                            autoPlay
-                            loop
-                            playsInline
-                          />
+                        {/* Upload button */}
+                        {uploadedFile && !videoUrl && (
+                          <div className={tikTokStyles.postActions}>
+                            <button 
+                              className={tikTokStyles.postButton}
+                              onClick={handleFileUpload}
+                              disabled={isUploading || !file}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                              </svg> Upload Video
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Upload progress section */}
+                        {currentStep && getActiveProcess() === 'upload' && (
+                          <div className={tikTokStyles.progressSection}>
+                            <div className={tikTokStyles.stepIndicator}>
+                              <div className={tikTokStyles.stepTitle}>
+                                {currentStep === 'validating' && 'Validating file...'}
+                                {currentStep === 'uploading' && 'Uploading file...'}
+                                {currentStep === 'processing' && 'Processing upload...'}
+                                {currentStep === 'completed' && 'Upload completed successfully!'}
+                                {currentStep === 'preparing' && 'Preparing to post...'}
+                                {currentStep === 'posting' && 'Posting to TikTok...'}
+                                {currentStep === 'success' && 'Posted successfully!'}
+                                {currentStep === 'error' && 'Error occurred'}
+                              </div>
+                              
+                              {(currentStep === 'uploading' || currentStep === 'processing') && (
+                                <div className={tikTokStyles.progressBarContainer}>
+                                  <div 
+                                    className={tikTokStyles.progressBar} 
+                                    style={{ 
+                                      width: `${currentStep === 'processing' ? 100 : uploadProgress}%`,
+                                    }}
+                                  ></div>
+                                  <span className={tikTokStyles.progressText}>
+                                    {currentStep === 'processing' ? 'Processing...' : `${uploadProgress}%`}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
+                    ) : (
+                      // Step 2: Preview & Caption
+                      <div className={tikTokStyles.previewSection}>
+                        <div className={tikTokStyles.previewHeader}>
+                          <h4>Preview & Add Caption</h4>
+                          <p className={tikTokStyles.previewDescription}>
+                            Preview your video and add a caption before posting
+                          </p>
+                        </div>
 
-                      <div className={tikTokStyles.captionContainer}>
-                        <textarea
-                          className={tikTokStyles.captionInput}
-                          placeholder="Write a caption for your video..."
-                          value={caption}
-                          onChange={(e) => setCaption(e.target.value)}
-                          maxLength={300}
-                        />
-                        <div className={tikTokStyles.captionCounter}>
-                          {caption.length}/300
+                        <div className={tikTokStyles.videoPreviewContainer}>
+                          {videoUrl && (
+                            <video
+                              ref={videoRef}
+                              className={tikTokStyles.videoPreview}
+                              src={videoUrl}
+                              controls
+                              autoPlay
+                              loop
+                              playsInline
+                            />
+                          )}
+                        </div>
+
+                        <div className={tikTokStyles.captionContainer}>
+                          <textarea
+                            className={tikTokStyles.captionInput}
+                            placeholder="Write a caption for your video..."
+                            value={caption}
+                            onChange={(e) => setCaption(e.target.value)}
+                            maxLength={300}
+                          />
+                          <div className={tikTokStyles.captionCounter}>
+                            {caption.length}/300
+                          </div>
+                        </div>
+
+                        <div className={tikTokStyles.postActions}>
+                          <button
+                            className={`${tikTokStyles.postButton} ${tikTokStyles.backButton}`}
+                            onClick={() => setPostStep(1)}
+                            disabled={isLoading}
+                          >
+                            Back
+                          </button>
+                          <button
+                            className={tikTokStyles.postButton}
+                            onClick={(e) => handlePostVideo(e)}
+                            disabled={isLoading || !videoUrl}
+                          >
+                            <TikTokSimpleIcon width="16" height="16" /> Post to TikTok
+                          </button>
                         </div>
                       </div>
+                    )}
 
-                      <div className={tikTokStyles.postActions}>
-                        <button
-                          className={`${tikTokStyles.postButton} ${tikTokStyles.backButton}`}
-                          onClick={() => setPostStep(1)}
-                          disabled={isLoading}
-                        >
-                          Back
-                        </button>
-                        <button
-                          className={tikTokStyles.postButton}
-                          onClick={(e) => handlePostVideo(e)}
-                          disabled={isLoading || !videoUrl}
-                        >
-                          <TikTokSimpleIcon width="16" height="16" /> Post to TikTok
-                        </button>
+                    {uploadError && (
+                      <div className={tikTokStyles.errorMessage}>
+                        <div className={tikTokStyles.errorIcon}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                          </svg>
+                        </div>
+                        <div className={tikTokStyles.errorContent}>
+                          <h4>Error occurred</h4>
+                          <p>{uploadError}</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-
-                  {uploadError && (
-                    <div className={tikTokStyles.errorMessage}>
-                      <div className={tikTokStyles.errorIcon}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <line x1="12" y1="8" x2="12" y2="12"></line>
-                          <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                        </svg>
-                      </div>
-                      <div className={tikTokStyles.errorContent}>
-                        <h4>Error occurred</h4>
-                        <p>{uploadError}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className={styles.logoutSection}>
-                  <button onClick={handleLogout} className={styles.backButton}>
-                    Disconnect TikTok Account
-                  </button>
-                </div>
+                    )}
+                  </div>
+                )}
               </>
             ) : (
               <div className={styles.connectContainer}>

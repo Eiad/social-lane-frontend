@@ -24,19 +24,69 @@ export default function SocialPosting() {
   const [scheduledTime, setScheduledTime] = useState('');
   const [userId, setUserId] = useState('');
   const fileInputRef = useRef(null);
+  const [tiktokAccounts, setTiktokAccounts] = useState([]);
+  const [selectedTiktokAccounts, setSelectedTiktokAccounts] = useState([]);
 
-  // Generate and store UUID for user if not already present
   useEffect(() => {
     const storedUserId = localStorage?.getItem('userId');
     if (storedUserId) {
       setUserId(storedUserId);
     } else {
-      // Generate UUID v4
       const newUserId = crypto.randomUUID();
       localStorage?.setItem('userId', newUserId);
       setUserId(newUserId);
     }
   }, []);
+
+  useEffect(() => {
+    loadTikTokAccounts();
+  }, []);
+
+  const loadTikTokAccounts = () => {
+    const accounts = [];
+    let i = 1;
+    while (true) {
+      const token = localStorage?.getItem(`tiktok${i}AccessToken`);
+      const openId = localStorage?.getItem(`tiktok${i}OpenId`);
+      const refreshToken = localStorage?.getItem(`tiktok${i}RefreshToken`);
+      const username = localStorage?.getItem(`tiktok${i}Username`);
+      
+      if (!token || !openId) break;
+      
+      accounts.push({
+        accessToken: token,
+        openId,
+        refreshToken,
+        username: username || `TikTok Account ${i}`,
+        index: i
+      });
+      i++;
+    }
+    
+    setTiktokAccounts(accounts);
+  };
+
+  const handleTikTokAccountToggle = (account) => {
+    setSelectedTiktokAccounts(prev => {
+      const isSelected = prev.some(acc => acc.openId === account.openId);
+      if (isSelected) {
+        return prev.filter(acc => acc.openId !== account.openId);
+      }
+      return [...prev, account];
+    });
+  };
+
+  const handlePlatformToggle = (platform) => {
+    setSelectedPlatforms(prev => {
+      if (prev.includes(platform)) {
+        if (platform === 'tiktok') {
+          setSelectedTiktokAccounts([]);
+        }
+        return prev.filter(p => p !== platform);
+      }
+      return [...prev, platform];
+    });
+  };
 
   const handleFileChange = (e) => {
     const selectedFile = e.target?.files?.[0];
@@ -50,16 +100,13 @@ export default function SocialPosting() {
   };
 
   const handleChangeFile = () => {
-    // Reset the file state first
     setFile(null);
     setUploadedFile(null);
     
-    // Reset the file input value to ensure onChange fires even if selecting the same file
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
     
-    // Trigger the file input click after a small delay to ensure the reset has taken effect
     setTimeout(() => {
       fileInputRef.current?.click();
     }, 50);
@@ -137,67 +184,35 @@ export default function SocialPosting() {
     }
   };
 
-  const handlePlatformToggle = (platform) => {
-    setSelectedPlatforms(prev => {
-      if (prev.includes(platform)) {
-        return prev.filter(p => p !== platform);
-      }
-      return [...prev, platform];
-    });
-  };
-
   const handlePost = async () => {
     if (!videoUrl || selectedPlatforms.length === 0) return;
+
+    if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length === 0) {
+      window.showToast?.warning?.('Please select at least one TikTok account to post to');
+      return;
+    }
 
     try {
       setIsPosting(true);
       setUploadError(null);
       setPlatformResults({});
       
-      // Get tokens from localStorage
-      const tiktokAccessToken = localStorage?.getItem('tiktokAccessToken');
-      const tiktokRefreshToken = localStorage?.getItem('tiktokRefreshToken');
       const twitterAccessToken = localStorage?.getItem('twitter_access_token');
-      // Try to get the access token secret from both possible keys
       let twitterAccessTokenSecret = localStorage?.getItem('twitter_access_token_secret');
       if (!twitterAccessTokenSecret) {
-        // If not found, try the refresh token as a fallback
         twitterAccessTokenSecret = localStorage?.getItem('twitter_refresh_token');
         if (twitterAccessTokenSecret) {
-          // If found in refresh_token, store it with the correct name for future use
           localStorage?.setItem('twitter_access_token_secret', twitterAccessTokenSecret);
-          console.log('Copied twitter_refresh_token to twitter_access_token_secret for compatibility');
         }
       }
       
-      // Log the tokens for debugging
-      console.log('Retrieved tokens from localStorage:', {
-        hasTiktokAccessToken: !!tiktokAccessToken,
-        hasTiktokRefreshToken: !!tiktokRefreshToken,
-        hasTwitterAccessToken: !!twitterAccessToken,
-        hasTwitterAccessTokenSecret: !!twitterAccessTokenSecret,
-        twitterAccessToken: twitterAccessToken ? `${twitterAccessToken.substring(0, 5)}...` : null,
-        twitterAccessTokenSecret: twitterAccessTokenSecret ? `${twitterAccessTokenSecret.substring(0, 5)}...` : null,
-        allTwitterKeys: Object.keys(localStorage).filter(key => key.startsWith('twitter_'))
-      });
-      
-      // Check if Twitter is selected but credentials are missing
       if (selectedPlatforms.includes('twitter') && (!twitterAccessToken || !twitterAccessTokenSecret)) {
-        console.warn('Twitter selected but credentials are missing:', {
-          hasAccessToken: !!twitterAccessToken,
-          hasAccessTokenSecret: !!twitterAccessTokenSecret
-        });
         window.showToast?.warning?.('Twitter credentials are missing. Please connect your Twitter account first.');
-        
-        // Don't prevent posting to other platforms, just warn the user
-        // If they continue, Twitter will be skipped in the backend
       }
       
-      // If scheduled, save to database and return
       if (isScheduled && scheduledDate && scheduledTime) {
         const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
         
-        // Check if the scheduled time is in the future
         if (scheduledDateTime <= new Date()) {
           throw new Error('Scheduled time must be in the future');
         }
@@ -205,11 +220,9 @@ export default function SocialPosting() {
         console.log('Scheduling post to:', `${API_BASE_URL}/posts`);
         
         try {
-          // Use AbortController for timeout
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+          const timeoutId = setTimeout(() => controller.abort(), 60000);
           
-          // Prepare the request body
           const requestBody = {
             video_url: videoUrl,
             post_description: caption,
@@ -217,25 +230,18 @@ export default function SocialPosting() {
             userId: userId,
             isScheduled: true,
             scheduledDate: scheduledDateTime.toISOString(),
-            // Include tokens for each selected platform
-            ...(selectedPlatforms.includes('tiktok') && tiktokAccessToken ? {
-              tiktok_access_token: tiktokAccessToken,
-              tiktok_refresh_token: tiktokRefreshToken
+            ...(selectedPlatforms.includes('tiktok') ? {
+              tiktok_accounts: selectedTiktokAccounts.map(account => ({
+                accessToken: account.accessToken,
+                refreshToken: account.refreshToken,
+                openId: account.openId
+              }))
             } : {}),
             ...(selectedPlatforms.includes('twitter') && twitterAccessToken ? {
               twitter_access_token: twitterAccessToken,
               twitter_access_token_secret: twitterAccessTokenSecret
             } : {})
           };
-          
-          // Log the request body for debugging (with sensitive data masked)
-          console.log('Scheduling post with request body:', {
-            ...requestBody,
-            tiktok_access_token: requestBody.tiktok_access_token ? `${requestBody.tiktok_access_token.substring(0, 5)}...` : undefined,
-            tiktok_refresh_token: requestBody.tiktok_refresh_token ? `${requestBody.tiktok_refresh_token.substring(0, 5)}...` : undefined,
-            twitter_access_token: requestBody.twitter_access_token ? `${requestBody.twitter_access_token.substring(0, 5)}...` : undefined,
-            twitter_access_token_secret: requestBody.twitter_access_token_secret ? `${requestBody.twitter_access_token_secret.substring(0, 5)}...` : undefined
-          });
           
           const response = await fetch(`${API_BASE_URL}/posts`, {
             method: 'POST',
@@ -246,260 +252,195 @@ export default function SocialPosting() {
             body: JSON.stringify(requestBody),
           });
           
-          // Clear the timeout
           clearTimeout(timeoutId);
           
-          if (!response?.ok) {
-            const errorText = await response.text();
-            console.error('Server error response:', errorText);
-            throw new Error(`Failed to schedule post: ${response.status} ${response.statusText}`);
+          if (!response.ok) {
+            throw new Error('Failed to schedule post');
           }
           
-          const data = await response.json();
-          console.log('Post scheduled successfully:', data);
-          
-          console.log('Scheduling post with platforms:', selectedPlatforms);
-          
-          const newPlatformResults = {
-            scheduled: { success: true },
-            // Add each selected platform to the results
-            ...selectedPlatforms.reduce((acc, platform) => {
-              acc[platform] = { success: true };
-              return acc;
-            }, {})
-          };
-          
-          console.log('Setting platformResults to:', newPlatformResults);
-          setPlatformResults(newPlatformResults);
-          
-          window.showToast?.success?.('Post scheduled successfully!');
           setPostSuccess(true);
-          setCurrentStep(5);
+          window.showToast?.success?.('Post scheduled successfully!');
+          
+          setVideoUrl('');
+          setUploadedFile(null);
+          setSelectedPlatforms([]);
+          setSelectedTiktokAccounts([]);
+          setCaption('');
+          setCurrentStep(1);
+          setIsScheduled(false);
+          setScheduledDate('');
+          setScheduledTime('');
+          
+          return;
         } catch (error) {
           console.error('Error scheduling post:', error);
-          
-          if (error.name === 'AbortError') {
-            setUploadError('Request timed out. The server took too long to respond. Please try again or use a smaller video file.');
-            window.showToast?.error?.('Request timed out. Please try again.');
-          } else {
-            setUploadError(`Failed to schedule post: ${error.message}`);
-            window.showToast?.error?.(`Failed to schedule post: ${error.message}`);
-          }
-          
-          setPlatformResults({
-            scheduled: { success: false, error: error.message }
-          });
+          throw new Error('Failed to schedule post: ' + error.message);
         }
-        
-        return;
       }
-      
-      const postPromises = [];
+
       const results = {};
-
-      // Post to TikTok if selected
+      
       if (selectedPlatforms.includes('tiktok')) {
-        const tiktokToken = localStorage?.getItem('tiktokAccessToken');
-        
-        if (!tiktokToken) {
-          results.tiktok = { success: false, error: 'Please connect your TikTok account first' };
-        } else {
-          const tiktokPromise = (async () => {
-            try {
-              // Use AbortController for timeout
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-              
-              const response = await fetch(`${API_BASE_URL}/tiktok/post-video`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                mode: 'cors',
-                signal: controller.signal,
-                body: JSON.stringify({
-                  videoUrl,
-                  accessToken: tiktokToken,
-                  refreshToken: localStorage?.getItem('tiktokRefreshToken'),
-                  caption
-                }),
+        results.tiktok = [];
+        for (const account of selectedTiktokAccounts) {
+          try {
+            const response = await fetch(`${API_BASE_URL}/tiktok/post-video`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                videoUrl,
+                accessToken: account.accessToken,
+                refreshToken: account.refreshToken,
+                caption
+              }),
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+              results.tiktok.push({
+                success: true,
+                accountId: account.openId,
+                username: account.username,
+                message: data.message
               });
-              
-              // Clear the timeout
-              clearTimeout(timeoutId);
-              
-              if (!response?.ok) {
-                const errorText = await response.text();
-                console.error('TikTok API error response:', errorText);
-                throw new Error(`Failed to post to TikTok: ${response.status} ${response.statusText}`);
-              }
-              
-              return { success: true };
-            } catch (error) {
-              console.error('TikTok posting error:', error);
-              
-              if (error.name === 'AbortError') {
-                return { success: false, error: 'Request timed out. Please try again.' };
-              }
-              
-              return { success: false, error: error?.message || 'Failed to post to TikTok' };
+            } else {
+              throw new Error(data.error || 'Failed to post to TikTok');
             }
-          })();
-          
-          postPromises.push(tiktokPromise.then(result => {
-            results.tiktok = result;
-          }));
+          } catch (error) {
+            results.tiktok.push({
+              success: false,
+              accountId: account.openId,
+              username: account.username,
+              error: error.message
+            });
+          }
         }
       }
-
-      // Post to Twitter if selected
-      if (selectedPlatforms.includes('twitter')) {
-        const twitterToken = localStorage?.getItem('twitter_access_token');
-        
-        if (!twitterToken) {
-          results.twitter = { success: false, error: 'Please connect your Twitter account first' };
-        } else {
-          const twitterPromise = (async () => {
-            try {
-              // Use AbortController for timeout
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-              
-              const response = await fetch(`${API_BASE_URL}/twitter/post-media`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                mode: 'cors',
-                signal: controller.signal,
-                body: JSON.stringify({
-                  videoUrl,
-                  accessToken: twitterToken,
-                  accessTokenSecret: localStorage?.getItem('twitter_access_token_secret'),
-                  text: caption
-                }),
-              });
-              
-              // Clear the timeout
-              clearTimeout(timeoutId);
-              
-              if (!response?.ok) {
-                const errorText = await response.text();
-                console.error('Twitter API error response:', errorText);
-                throw new Error(`Failed to post to Twitter: ${response.status} ${response.statusText}`);
-              }
-              
-              return { success: true };
-            } catch (error) {
-              console.error('Twitter posting error:', error);
-              
-              if (error.name === 'AbortError') {
-                return { success: false, error: 'Request timed out. Please try again.' };
-              }
-              
-              return { success: false, error: error?.message || 'Failed to post to Twitter' };
-            }
-          })();
-          
-          postPromises.push(twitterPromise.then(result => {
-            results.twitter = result;
-          }));
-        }
-      }
-
-      // Wait for all posting operations to complete
-      if (postPromises.length > 0) {
-        await Promise.all(postPromises);
-      }
       
-      setPlatformResults(results);
-      
-      // Check if any platform was successful
-      const anySuccess = Object.values(results).some(result => result?.success);
-      
-      if (anySuccess) {
-        // Save successful post to database
+      if (selectedPlatforms.includes('twitter') && twitterAccessToken && twitterAccessTokenSecret) {
         try {
-          console.log('Saving post to database...');
-          
-          // Use AbortController for timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-          
-          const response = await fetch(`${API_BASE_URL}/posts`, {
+          const response = await fetch(`${API_BASE_URL}/twitter/post-video`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            signal: controller.signal,
             body: JSON.stringify({
-              video_url: videoUrl,
-              post_description: caption,
-              platforms: selectedPlatforms,
-              userId: userId,
-              isScheduled: false,
-              status: 'completed',
-              // Include tokens for each selected platform
-              ...(selectedPlatforms.includes('tiktok') && tiktokAccessToken ? {
-                tiktok_access_token: tiktokAccessToken,
-                tiktok_refresh_token: tiktokRefreshToken
-              } : {}),
-              ...(selectedPlatforms.includes('twitter') && twitterAccessToken ? {
-                twitter_access_token: twitterAccessToken,
-                twitter_access_token_secret: twitterAccessTokenSecret
-              } : {})
+              videoUrl,
+              accessToken: twitterAccessToken,
+              accessTokenSecret: twitterAccessTokenSecret,
+              text: caption
             }),
           });
           
-          // Clear the timeout
-          clearTimeout(timeoutId);
+          const data = await response.json();
           
-          if (!response?.ok) {
-            console.error('Error saving post to database:', response.status, response.statusText);
-            const errorText = await response.text();
-            console.error('Server error response:', errorText);
+          if (response.ok) {
+            results.twitter = { success: true, message: data.message };
           } else {
-            console.log('Post saved to database successfully');
+            throw new Error(data.error || 'Failed to post to Twitter');
           }
         } catch (error) {
-          console.error('Error saving post to database:', error);
-          
-          if (error.name === 'AbortError') {
-            console.error('Database save timed out, but post was sent to platforms');
-          }
+          results.twitter = { success: false, error: error.message };
         }
-        
-        // Show success message for successful platforms
-        const successPlatforms = Object.entries(results)
-          .filter(([_, result]) => result?.success)
-          .map(([platform]) => platform);
-          
-        window.showToast?.success?.(
-          `Posted successfully to ${successPlatforms.join(' and ')}!`
-        );
-        
+      }
+      
+      setPlatformResults(results);
+      
+      const allSuccess = Object.values(results).every(result => {
+        if (Array.isArray(result)) {
+          return result.every(r => r.success);
+        }
+        return result.success;
+      });
+      
+      if (allSuccess) {
         setPostSuccess(true);
-        setCurrentStep(5);
+        window.showToast?.success?.('Posted successfully to all platforms!');
+        
+        setVideoUrl('');
+        setUploadedFile(null);
+        setSelectedPlatforms([]);
+        setSelectedTiktokAccounts([]);
+        setCaption('');
+        setCurrentStep(1);
       } else {
-        // If all failed, show error for the first platform
-        const firstError = Object.values(results)[0]?.error || 'Error posting content';
-        throw new Error(firstError);
+        window.showToast?.warning?.('Some posts failed. Check the results for details.');
       }
     } catch (error) {
-      setUploadError(error?.message || 'Error posting content');
-      window.showToast?.error?.(error?.message || 'Error posting content');
+      console.error('Error posting:', error);
+      setUploadError(error.message);
+      window.showToast?.error?.(error.message);
     } finally {
       setIsPosting(false);
     }
+  };
+
+  const renderTikTokAccounts = () => {
+    if (!selectedPlatforms.includes('tiktok')) return null;
+    
+    if (tiktokAccounts.length === 0) {
+      return (
+        <div className={styles.noAccountsMessage}>
+          <p>No TikTok accounts connected.</p>
+          <Link href="/tiktok">
+            <button className={styles.connectButton}>
+              <TikTokSimpleIcon width="20" height="20" />
+              Connect TikTok Account
+            </button>
+          </Link>
+        </div>
+      );
+    }
+
+    return (
+      <div className={styles.accountsSection}>
+        <h3>Select TikTok Accounts</h3>
+        <div className={styles.accountsList}>
+          {tiktokAccounts.map(account => (
+            <div 
+              key={account.openId}
+              className={`${styles.accountCard} ${
+                selectedTiktokAccounts.some(acc => acc.openId === account.openId) 
+                  ? styles.selectedAccount 
+                  : ''
+              }`}
+              onClick={() => handleTikTokAccountToggle(account)}
+            >
+              <div className={styles.accountInfo}>
+                <TikTokSimpleIcon width="24" height="24" />
+                <span className={styles.accountName}>{account.username}</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={selectedTiktokAccounts.some(acc => acc.openId === account.openId)}
+                onChange={() => handleTikTokAccountToggle(account)}
+                className={styles.accountCheckbox}
+              />
+            </div>
+          ))}
+        </div>
+        <Link href="/tiktok">
+          <button className={styles.addAccountButton}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="16"></line>
+              <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+            Add Another TikTok Account
+          </button>
+        </Link>
+      </div>
+    );
   };
 
   const renderStep = () => {
     switch (currentStep) {
       case 1:
         return (
-          <div className={styles.step}>
+          <div className={styles.stepContainer}>
             <div className={styles.stepTitle}>
               <h2>Upload Your Video</h2>
               <p className={styles.stepDescription}>
@@ -618,150 +559,84 @@ export default function SocialPosting() {
             </div>
           </div>
         );
-
       case 2:
         return (
-          <div className={styles.step}>
-            <div className={styles.stepTitle}>
-              <h2>Choose Platforms</h2>
-              <p className={styles.stepDescription}>
-                Select where you want to share your content.
-              </p>
+          <div className={styles.stepContainer}>
+            <div className={styles.platformSection}>
+              <h3>Select Platforms</h3>
+              <div className={styles.platformButtons}>
+                <button
+                  className={`${styles.platformButton} ${selectedPlatforms.includes('tiktok') ? styles.selected : ''}`}
+                  onClick={() => handlePlatformToggle('tiktok')}
+                >
+                  <TikTokSimpleIcon width="24" height="24" />
+                  TikTok
+                </button>
+                <button
+                  className={`${styles.platformButton} ${selectedPlatforms.includes('twitter') ? styles.selected : ''}`}
+                  onClick={() => handlePlatformToggle('twitter')}
+                >
+                  <TwitterIcon width="24" height="24" />
+                  Twitter
+                </button>
+              </div>
             </div>
-            <div className={styles.platformsGrid}>
+
+            {renderTikTokAccounts()}
+
+            <div className={styles.postActions}>
               <button
-                className={`${styles.platformButton} ${selectedPlatforms.includes('tiktok') ? styles.selected : ''}`}
-                onClick={() => handlePlatformToggle('tiktok')}
-              >
-                <div className={styles.platformIcon}>
-                  <TikTokSimpleIcon width="32" height="32" />
-                </div>
-                <div className={styles.platformInfo}>
-                  <div className={styles.platformName}>TikTok</div>
-                  <div className={styles.platformDescription}>
-                    Share short-form videos
-                  </div>
-                </div>
-                <div className={styles.platformCheck}>
-                  {selectedPlatforms.includes('tiktok') && (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                  )}
-                </div>
-              </button>
-              
-              <button
-                className={`${styles.platformButton} ${selectedPlatforms.includes('twitter') ? styles.selected : ''}`}
-                onClick={() => handlePlatformToggle('twitter')}
-              >
-                <div className={styles.platformIcon}>
-                  <TwitterIcon width="32" height="32" />
-                </div>
-                <div className={styles.platformInfo}>
-                  <div className={styles.platformName}>Twitter</div>
-                  <div className={styles.platformDescription}>
-                    Share videos with your followers
-                  </div>
-                </div>
-                <div className={styles.platformCheck}>
-                  {selectedPlatforms.includes('twitter') && (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                  )}
-                </div>
-              </button>
-            </div>
-            <div className={styles.stepActions}>
-              <button 
-                className={styles.backButton} 
+                className={styles.backButton}
                 onClick={() => setCurrentStep(1)}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="19" y1="12" x2="5" y2="12"></line>
-                  <polyline points="12 19 5 12 12 5"></polyline>
-                </svg>
                 Back
               </button>
               <button
                 className={styles.nextButton}
                 onClick={() => setCurrentStep(3)}
-                disabled={selectedPlatforms.length === 0}
+                disabled={selectedPlatforms.length === 0 || (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length === 0)}
               >
                 Next
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                  <polyline points="12 5 19 12 12 19"></polyline>
-                </svg>
               </button>
             </div>
           </div>
         );
-
       case 3:
         return (
-          <div className={styles.step}>
-            <div className={styles.stepTitle}>
-              <h2>Add Details</h2>
-              <p className={styles.stepDescription}>
-                Write a caption for your post.
-              </p>
-            </div>
-            <div className={styles.detailsForm}>
-              <div className={styles.formGroup}>
-                <label htmlFor="caption">
-                  Caption
-                  <span className={styles.captionCounter}>
-                    {caption.length}/2200
-                  </span>
-                </label>
-                <div className={styles.captionInputWrapper}>
-                  <textarea
-                    id="caption"
-                    className={styles.captionInput}
-                    value={caption}
-                    onChange={(e) => setCaption(e.target.value)}
-                    placeholder="Write a caption for your post..."
-                    maxLength={2200}
-                  />
-                </div>
+          <div className={styles.stepContainer}>
+            <div className={styles.captionSection}>
+              <h3>Add Caption</h3>
+              <textarea
+                className={styles.captionInput}
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder="Write a caption for your video..."
+                maxLength={2200}
+              />
+              <div className={styles.captionCounter}>
+                {caption.length}/2200
               </div>
             </div>
-            <div className={styles.stepActions}>
-              <button 
-                className={styles.backButton} 
+
+            <div className={styles.postActions}>
+              <button
+                className={styles.backButton}
                 onClick={() => setCurrentStep(2)}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="19" y1="12" x2="5" y2="12"></line>
-                  <polyline points="12 19 5 12 12 5"></polyline>
-                </svg>
                 Back
               </button>
               <button
-                className={styles.reviewButton}
+                className={styles.nextButton}
                 onClick={() => setCurrentStep(4)}
               >
-                Review
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                  <polyline points="12 5 19 12 12 19"></polyline>
-                </svg>
+                Review Post
               </button>
             </div>
           </div>
         );
-
       case 4:
         return (
-          <div className={styles.step}>
-            <div className={styles.stepTitle}>
-              <h2>Review Your Post</h2>
-              <p className={styles.stepDescription}>
-                Take a final look at your content before sharing it with the world.
-              </p>
-            </div>
+          <div className={styles.stepContainer}>
             <div className={styles.reviewSection}>
               <div className={styles.reviewDetails}>
                 <div className={styles.reviewItem}>
@@ -804,13 +679,23 @@ export default function SocialPosting() {
                     Publishing to
                   </h3>
                   <div className={styles.platformsList}>
-                    {selectedPlatforms.map(platform => (
-                      <div key={platform} className={styles.platformBadge}>
-                        {platform === 'tiktok' && <TikTokSimpleIcon width="18" height="18" />}
-                        {platform === 'twitter' && <TwitterIcon width="18" height="18" />}
-                        <span>{platform === 'tiktok' ? 'TikTok' : 'Twitter'}</span>
+                    {selectedPlatforms.includes('tiktok') && (
+                      <div className={styles.platformAccounts}>
+                        <h4>TikTok Accounts</h4>
+                        {selectedTiktokAccounts.map(account => (
+                          <div key={account.openId} className={styles.accountBadge}>
+                            <TikTokSimpleIcon width="18" height="18" />
+                            <span>{account.username}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                    {selectedPlatforms.includes('twitter') && (
+                      <div className={styles.platformBadge}>
+                        <TwitterIcon width="18" height="18" />
+                        <span>Twitter</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -826,186 +711,101 @@ export default function SocialPosting() {
                 </div>
               </div>
             </div>
+
             <div className={styles.schedulingSection}>
-              <div className={styles.schedulingToggle}>
-                <label className={styles.toggleLabel}>
-                  <input
-                    type="checkbox"
-                    checked={isScheduled}
-                    onChange={(e) => setIsScheduled(e.target.checked)}
-                    className={styles.toggleInput}
-                  />
-                  <span className={styles.toggleSlider}></span>
-                  Schedule for later
-                </label>
-              </div>
-              
+              <label className={styles.scheduleToggle}>
+                <input
+                  type="checkbox"
+                  checked={isScheduled}
+                  onChange={(e) => setIsScheduled(e.target.checked)}
+                />
+                Schedule for later
+              </label>
+
               {isScheduled && (
-                <div className={styles.schedulingOptions}>
-                  <div className={styles.formGroup}>
-                    <label htmlFor="scheduledDate">Date</label>
-                    <input
-                      id="scheduledDate"
-                      type="date"
-                      className={styles.dateInput}
-                      value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      required
-                    />
-                  </div>
-                  <div className={styles.formGroup}>
-                    <label htmlFor="scheduledTime">Time</label>
-                    <input
-                      id="scheduledTime"
-                      type="time"
-                      className={styles.timeInput}
-                      value={scheduledTime}
-                      onChange={(e) => setScheduledTime(e.target.value)}
-                      required
-                    />
-                  </div>
+                <div className={styles.dateTimeInputs}>
+                  <input
+                    type="date"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className={styles.dateInput}
+                  />
+                  <input
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    className={styles.timeInput}
+                  />
                 </div>
               )}
             </div>
-            <div className={styles.stepActions}>
-              <button 
-                className={styles.backButton} 
+
+            <div className={styles.postActions}>
+              <button
+                className={styles.backButton}
                 onClick={() => setCurrentStep(3)}
+                disabled={isPosting}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="19" y1="12" x2="5" y2="12"></line>
-                  <polyline points="12 19 5 12 12 5"></polyline>
-                </svg>
                 Edit
               </button>
               <button
-                className={styles.reviewButton}
+                className={styles.postButton}
                 onClick={handlePost}
                 disabled={isPosting || (isScheduled && (!scheduledDate || !scheduledTime))}
               >
-                {isPosting ? (
-                  <>
-                    <svg className={styles.loadingIcon} xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="2" x2="12" y2="6"></line>
-                      <line x1="12" y1="18" x2="12" y2="22"></line>
-                      <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
-                      <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
-                      <line x1="2" y1="12" x2="6" y2="12"></line>
-                      <line x1="18" y1="12" x2="22" y2="12"></line>
-                      <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
-                      <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
-                    </svg>
-                    {isScheduled ? 'Scheduling...' : 'Publishing...'}
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
-                      <polyline points="16 6 12 2 8 6"></polyline>
-                      <line x1="12" y1="2" x2="12" y2="15"></line>
-                    </svg>
-                    {isScheduled ? 'Schedule Post' : 'Post Now'}
-                  </>
-                )}
+                {isPosting ? 'Posting...' : isScheduled ? 'Schedule Post' : 'Post Now'}
               </button>
             </div>
-          </div>
-        );
 
-      case 5:
-        console.log('Rendering success screen with platformResults:', platformResults);
-        return (
-          <div className={styles.step}>
-            <div className={styles.successMessage}>
-              <div className={styles.successIcon}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
+            {uploadError && (
+              <div className={styles.errorMessage}>
+                {uploadError}
               </div>
-              <h2>{platformResults.scheduled ? 'Post Scheduled' : 'Post Published'}</h2>
-              <p>
-                {platformResults.scheduled 
-                  ? 'Your content has been scheduled and will be published at the specified time.' 
-                  : 'Your content has been successfully published.'}
-              </p>
-              {platformResults.scheduled && (
-                <Link href="/scheduled-posts" className={styles.viewScheduledButton}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                  </svg>
-                  View Scheduled Posts
-                </Link>
-              )}
-              {Object.entries(platformResults).length > 0 && (
-                <div className={styles.platformResults}>
-                  {Object.entries(platformResults)
-                    .filter(([platform]) => platform !== 'scheduled') // Filter out the 'scheduled' entry
-                    .map(([platform, result]) => {
-                      console.log('Rendering platform result:', platform, result);
-                      return (
-                        <div 
-                          key={platform} 
-                          className={`${styles.platformResult} ${result.success ? styles.success : styles.error}`}
-                        >
-                          <div className={styles.platformResultIcon}>
-                            {result.success ? (
-                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                              </svg>
+            )}
+
+            {Object.keys(platformResults).length > 0 && (
+              <div className={styles.resultsSection}>
+                <h3>Posting Results</h3>
+                {Object.entries(platformResults).map(([platform, result]) => (
+                  <div key={platform} className={styles.platformResult}>
+                    <h4>{platform.charAt(0).toUpperCase() + platform.slice(1)}</h4>
+                    {Array.isArray(result) ? (
+                      <div className={styles.accountResults}>
+                        {result.map((r, i) => (
+                          <div key={i} className={styles.accountResult}>
+                            <div className={styles.accountResultHeader}>
+                              <TikTokSimpleIcon width="18" height="18" />
+                              <span className={styles.accountName}>{r.username}</span>
+                            </div>
+                            {r.success ? (
+                              <span className={styles.success}>{r.message}</span>
                             ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <line x1="15" y1="9" x2="9" y2="15"></line>
-                                <line x1="9" y1="9" x2="15" y2="15"></line>
-                              </svg>
+                              <span className={styles.error}>{r.error}</span>
                             )}
                           </div>
-                          <div className={styles.platformResultInfo}>
-                            <span className={styles.platformResultName}>
-                              {platform === 'tiktok' ? 'TikTok' : 'Twitter'}
-                            </span>
-                            <span className={styles.platformResultStatus}>
-                              {platformResults.scheduled && result.success 
-                                ? 'Will be posted at scheduled time' 
-                                : result.success 
-                                  ? 'Posted successfully' 
-                                  : result.error || 'Failed to post'}
-                            </span>
-                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={styles.singleResult}>
+                        <div className={styles.resultHeader}>
+                          <TwitterIcon width="18" height="18" />
                         </div>
-                      );
-                    })}
-                </div>
-              )}
-              <button
-                className={styles.newPostButton}
-                onClick={() => {
-                  setCurrentStep(1);
-                  setFile(null);
-                  setUploadedFile(null);
-                  setVideoUrl('');
-                  setSelectedPlatforms([]);
-                  setCaption('');
-                  setPostSuccess(false);
-                  setPlatformResults({});
-                }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="8" x2="12" y2="16"></line>
-                  <line x1="8" y1="12" x2="16" y2="12"></line>
-                </svg>
-                Create Another Post
-              </button>
-            </div>
+                        {result.success ? (
+                          <span className={styles.success}>{result.message}</span>
+                        ) : (
+                          <span className={styles.error}>{result.error}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
+      default:
+        return null;
     }
   };
 
