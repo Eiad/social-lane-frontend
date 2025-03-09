@@ -12,7 +12,7 @@ export const config = {
 };
 
 // Function to retry failed requests
-const axiosWithRetry = async (config, maxRetries = 3, baseDelay = 3000) => {
+const axiosWithRetry = async (config, maxRetries = 7, baseDelay = 3000) => {
   let lastError = null;
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {

@@ -311,10 +311,11 @@ export default function TikTok() {
       });
       
       // Upload function with retry capability
-      const uploadFileWithRetry = async (maxRetries = 3, retryDelay = 3000) => {
+      const uploadFileWithRetry = async (maxRetries = 7, retryDelay = 3000) => {
+        let attempt = 1;
         let lastError = null;
         
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        for (; attempt <= maxRetries; attempt++) {
           try {
             const formData = new FormData();
             formData.append('file', file);
@@ -441,10 +442,11 @@ export default function TikTok() {
       const uploadUrl = urlOverride || videoUrl;
       
       // Function to retry posting if it fails
-      const postVideoWithRetry = async (maxRetries = 3, retryDelay = 2000) => {
+      const postVideoWithRetry = async (maxRetries = 7, retryDelay = 2000) => {
+        let attempt = 1;
         let lastError = null;
         
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        for (; attempt <= maxRetries; attempt++) {
           try {
             console.log(`[POST] Attempt ${attempt}: Posting video to TikTok: ${uploadUrl}`);
             

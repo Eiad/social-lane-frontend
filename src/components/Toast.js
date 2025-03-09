@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import styles from '../../styles/Toast.module.scss';
 
 const Toast = ({ message, type = 'info', duration = 3000, onClose }) => {
   const [isVisible, setIsVisible] = useState(true);
@@ -47,20 +46,32 @@ const Toast = ({ message, type = 'info', duration = 3000, onClose }) => {
         );
     }
   };
+  
+  const toastTypeClasses = {
+    success: "border-l-4 border-green-500",
+    error: "border-l-4 border-red-500",
+    info: "border-l-4 border-blue-500"
+  };
+  
+  const iconColorClasses = {
+    success: "text-green-500",
+    error: "text-red-500",
+    info: "text-blue-500"
+  };
 
   return (
     <div 
-      className={`${styles.toast} ${styles[type]} ${isVisible ? styles.visible : styles.hidden}`}
+      className={`flex items-center p-3 rounded-lg shadow-md bg-white mb-2 transition-all duration-300 overflow-hidden relative ${toastTypeClasses[type]} ${isVisible ? 'transform translate-x-0 opacity-100' : 'transform translate-x-full opacity-0'}`}
       role="alert"
     >
-      <div className={styles.iconContainer}>
+      <div className={`mr-3 flex items-center justify-center ${iconColorClasses[type]}`}>
         {getIcon()}
       </div>
-      <div className={styles.content}>
-        <p>{message}</p>
+      <div className="flex-1">
+        <p className="m-0 text-sm text-gray-800 leading-relaxed">{message}</p>
       </div>
       <button 
-        className={styles.closeButton} 
+        className="bg-transparent border-none text-gray-400 cursor-pointer p-1 flex items-center justify-center ml-2 rounded transition-all duration-200 hover:text-gray-600 hover:bg-gray-100"
         onClick={() => {
           setIsVisible(false);
           if (onClose) setTimeout(onClose, 300);

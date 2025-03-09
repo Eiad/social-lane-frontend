@@ -103,6 +103,22 @@
   object-fit: cover;
 }
 
+.fallbackProfileImage {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: #1DA1F2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.fallbackProfileImage svg {
+  width: 30px;
+  height: 30px;
+}
+
 .userDetails {
   display: flex;
   flex-direction: column;
@@ -116,6 +132,34 @@
 .userHandle {
   color: #666;
   margin: 0;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.refreshButton {
+  background-color: #1DA1F2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.refreshButton:hover {
+  background-color: #0c85d0;
+}
+
+.refreshButton:disabled {
+  background-color: #9ad0f5;
+  cursor: not-allowed;
 }
 
 .logoutButton {

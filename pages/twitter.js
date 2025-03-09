@@ -41,6 +41,7 @@ export default function Twitter() {
   const [postSuccess, setPostSuccess] = useState(false);
   const [tweetText, setTweetText] = useState('');
   const [postStep, setPostStep] = useState(1); // 1: Upload, 2: Preview & Caption
+  const [authError, setAuthError] = useState(null);
 
   // Define the upload process steps
   const uploadSteps = [
@@ -90,6 +91,8 @@ export default function Twitter() {
   // Fetch user info
   const fetchUserInfo = async (token) => {
     try {
+      console.log('Fetching Twitter user info with token:', token ? `${token.substring(0, 10)}...` : 'missing');
+      
       const response = await fetch(`${apiUrl}/twitter/user-info`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -98,10 +101,27 @@ export default function Twitter() {
       });
       
       const data = await response?.json();
+      console.log('Twitter user info response:', {
+        status: response?.status,
+        ok: response?.ok,
+        hasData: !!data?.data,
+        userData: data?.data ? {
+          name: data.data.name,
+          username: data.data.username,
+          has_profile_image: !!data.data.profile_image_url,
+          profile_image_prefix: data.data.profile_image_url ? data.data.profile_image_url.substring(0, 20) + '...' : 'missing'
+        } : 'No user data'
+      });
+      
       if (response?.ok && data?.data) {
         setUserInfo(data.data);
       } else {
         console.error('Failed to fetch user info:', data);
+        // If there's an authentication error, clear stored tokens
+        if (response?.status === 401 || data?.error?.includes('Authentication failed')) {
+          console.log('Authentication failed when fetching user info, clearing stored tokens');
+          handleLogout();
+        }
       }
     } catch (error) {
       console.error('Error fetching user info:', error?.message);
@@ -114,7 +134,20 @@ export default function Twitter() {
     const { access_token, refresh_token, user_id, username, error } = router.query;
     
     if (error) {
-      console.error('Authentication error:', error);
+      console.error('Authentication error from Twitter:', error);
+      // Display a more user-friendly error message
+      let errorMessage = '';
+      if (error === 'invalid_scope') {
+        errorMessage = 'Twitter connection failed due to permission scope issues. Please try again or contact support.';
+      } else {
+        errorMessage = `Twitter authentication failed: ${decodeURIComponent(error)}`;
+      }
+      setAuthError(errorMessage);
+      
+      // Clear any previous auth attempts
+      const twitterKeys = Object.keys(localStorage).filter(key => key.startsWith('twitter_auth_'));
+      twitterKeys.forEach(key => localStorage.removeItem(key));
+      
       return;
     }
     
@@ -186,23 +219,28 @@ export default function Twitter() {
   const handleConnect = async () => {
     try {
       setIsLoading(true);
+      setAuthError(null);
       
       // Get the auth URL from the backend
+      console.log('Requesting Twitter auth URL from:', `${apiUrl}/twitter/auth`);
       const response = await fetch(`${apiUrl}/twitter/auth`);
       const data = await response?.json();
       
       if (response?.ok && data?.authUrl) {
         // Store the state for verification later
         localStorage.setItem('twitter_auth_state', data.state);
+        console.log('Redirecting to Twitter auth URL...');
         
         // Redirect to the Twitter auth URL
         window.location.href = data.authUrl;
       } else {
         console.error('Failed to get auth URL:', data);
+        setAuthError(data?.error || 'Failed to connect to Twitter. Please try again.');
         setIsLoading(false);
       }
     } catch (error) {
       console.error('Error connecting to Twitter:', error?.message);
+      setAuthError('Network error. Please check your connection and try again.');
       setIsLoading(false);
     }
   };
@@ -359,6 +397,57 @@ export default function Twitter() {
     });
   };
 
+  // Refresh Twitter credentials
+  const refreshTwitterCredentials = async () => {
+    try {
+      if (!refreshToken) {
+        const storedRefreshToken = localStorage.getItem('twitter_refresh_token');
+        if (!storedRefreshToken) {
+          window.showToast?.warning?.('No refresh token available. Please reconnect your Twitter account.');
+          return;
+        }
+        setRefreshToken(storedRefreshToken);
+      }
+      
+      setIsLoading(true);
+      
+      const response = await fetch(`${apiUrl}/twitter/refresh-credentials?refreshToken=${encodeURIComponent(refreshToken || localStorage.getItem('twitter_refresh_token'))}`);
+      const data = await response?.json();
+      
+      if (response?.ok && data?.success && data?.data?.access_token) {
+        // Update the stored tokens
+        const newAccessToken = data.data.access_token;
+        localStorage.setItem('twitter_access_token', newAccessToken);
+        setAccessToken(newAccessToken);
+        
+        if (data.data.refresh_token) {
+          const newRefreshToken = data.data.refresh_token;
+          localStorage.setItem('twitter_refresh_token', newRefreshToken);
+          localStorage.setItem('twitter_access_token_secret', newRefreshToken); // For compatibility
+          setRefreshToken(newRefreshToken);
+        }
+        
+        // Fetch updated user info with new token
+        await fetchUserInfo(newAccessToken);
+        
+        window.showToast?.success?.('Twitter credentials refreshed successfully');
+      } else {
+        console.error('Failed to refresh Twitter credentials:', data);
+        window.showToast?.error?.(data?.error || 'Failed to refresh Twitter credentials');
+        
+        // If authentication failed completely, log out
+        if (response?.status === 401 || (data?.error && data.error.includes('authentication'))) {
+          handleLogout();
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing Twitter credentials:', error?.message);
+      window.showToast?.error?.(error?.message || 'Error refreshing Twitter credentials');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Go to home page
   const goToHome = () => {
     router.push('/');
@@ -390,6 +479,11 @@ export default function Twitter() {
             <div className={styles.authSection}>
               <h2>Connect to Twitter</h2>
               <p>Authenticate with Twitter to post videos to your account.</p>
+              {authError && (
+                <div className={styles.errorMessage}>
+                  <p>{authError}</p>
+                </div>
+              )}
               <button 
                 onClick={handleConnect} 
                 className={styles.connectButton}
@@ -402,24 +496,49 @@ export default function Twitter() {
             <div className={styles.authenticatedSection}>
               <div className={styles.userInfo}>
                 <h2>Connected to Twitter</h2>
-                {userInfo && (
+                {userInfo ? (
                   <div className={styles.userProfile}>
-                    {userInfo.profile_image_url && (
+                    {userInfo.profile_image_url ? (
                       <img 
                         src={userInfo.profile_image_url} 
-                        alt={userInfo.name} 
+                        alt={userInfo.name || 'Twitter User'} 
                         className={styles.profileImage}
                       />
+                    ) : (
+                      <div className={styles.fallbackProfileImage}>
+                        <TwitterIcon />
+                      </div>
                     )}
                     <div className={styles.userDetails}>
-                      <p className={styles.userName}>{userInfo.name}</p>
-                      <p className={styles.userHandle}>@{userInfo.username}</p>
+                      <p className={styles.userName}>{userInfo.name || 'Twitter User'}</p>
+                      <p className={styles.userHandle}>
+                        {userInfo.username ? `@${userInfo.username}` : 'Twitter Account'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.userProfile}>
+                    <div className={styles.fallbackProfileImage}>
+                      <TwitterIcon />
+                    </div>
+                    <div className={styles.userDetails}>
+                      <p className={styles.userName}>Twitter User</p>
+                      <p className={styles.userHandle}>Connected Account</p>
                     </div>
                   </div>
                 )}
-                <button onClick={handleLogout} className={styles.logoutButton}>
-                  Disconnect
-                </button>
+                <div className={styles.actionButtons}>
+                  <button 
+                    onClick={refreshTwitterCredentials} 
+                    className={styles.refreshButton}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Refreshing...' : 'Refresh Token'}
+                  </button>
+                  <button onClick={handleLogout} className={styles.logoutButton}>
+                    Disconnect
+                  </button>
+                </div>
               </div>
 
               <div className={styles.uploadSection}>

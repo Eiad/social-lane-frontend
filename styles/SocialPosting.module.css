@@ -899,326 +899,133 @@
 
 /* Scheduling Section */
 .schedulingSection {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
+  background-color: #f9fafb;
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  margin-top: 1.5rem;
+  border: 1px solid #e5e7eb;
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
 }
 
-.schedulingToggle {
-  display: flex;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.toggleLabel {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  font-weight: 500;
-  color: #4b5563;
-  user-select: none;
-}
-
-.toggleInput {
-  position: absolute;
-  opacity: 0;
-  height: 0;
-  width: 0;
-}
-
-.toggleSlider {
-  position: relative;
-  display: inline-block;
-  width: 48px;
-  height: 24px;
-  background-color: #e5e7eb;
-  border-radius: 24px;
-  margin-right: 12px;
-  transition: 0.4s;
-}
-
-.toggleSlider:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  border-radius: 50%;
-  transition: 0.4s;
-}
-
-.toggleInput:checked + .toggleSlider {
-  background-color: #3b82f6;
-}
-
-.toggleInput:checked + .toggleSlider:before {
-  transform: translateX(24px);
-}
-
-.schedulingOptions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-.schedulingOptions .formGroup {
-  flex: 1;
-  min-width: 200px;
-}
-
-.dateInput,
-.timeInput {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 1rem;
-  color: #1f2937;
-  background-color: white;
-  transition: border-color 0.15s ease-in-out;
-}
-
-.dateInput:focus,
-.timeInput:focus {
-  border-color: #3b82f6;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
-}
-
-.stepContainer {
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.platformSection {
-  margin-bottom: 2rem;
-}
-
-.platformButtons {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.platformButton {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 0.5rem;
-  background: white;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.platformButton.selected {
-  border-color: #3b82f6;
-  background: #eff6ff;
-}
-
-.accountsSection {
-  margin: 2rem 0;
-}
-
-.accountsList {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1rem;
-  margin: 1rem 0;
-}
-
-.accountCard {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 0.5rem;
-  background: white;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.accountCard.selectedAccount {
-  border-color: #3b82f6;
-  background: #eff6ff;
-}
-
-.accountInfo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.accountName {
-  font-weight: 500;
-}
-
-.accountCheckbox {
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 0.25rem;
-  cursor: pointer;
-}
-
-.noAccountsMessage {
-  text-align: center;
-  padding: 2rem;
-  background: #f9fafb;
-  border-radius: 0.5rem;
-  margin: 1rem 0;
-}
-
-.connectButton,
-.addAccountButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.5rem;
-  background: #3b82f6;
-  color: white;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  margin-top: 1rem;
-}
-
-.addAccountButton {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-.connectButton:hover,
-.addAccountButton:hover {
-  opacity: 0.9;
-}
-
-.captionSection {
-  margin: 2rem 0;
-}
-
-.captionInput {
-  width: 100%;
-  min-height: 120px;
-  padding: 1rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 0.5rem;
-  margin-top: 0.5rem;
-  resize: vertical;
-}
-
-.captionCounter {
-  text-align: right;
-  color: #6b7280;
-  font-size: 0.875rem;
-  margin-top: 0.5rem;
-}
-
-.schedulingSection {
-  margin: 2rem 0;
+.schedulingSection:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border-color: #d1d5db;
 }
 
 .scheduleToggle {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  font-size: 1rem;
+  color: #4b5563;
+  font-weight: 500;
   cursor: pointer;
 }
 
 .dateTimeInputs {
   display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
 }
 
-.dateInput,
-.timeInput {
-  padding: 0.5rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 0.5rem;
+.dateInput, .timeInput {
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: #4b5563;
+  background-color: white;
+  transition: all 0.2s ease;
+  flex: 1;
 }
 
+.dateInput:focus, .timeInput:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* Post action buttons */
 .postActions {
   display: flex;
   justify-content: space-between;
-  margin-top: 2rem;
-}
-
-.backButton,
-.postButton {
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.5rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+  margin-top: 2.5rem;
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 1rem;
 }
 
 .backButton {
-  background: #f3f4f6;
-  border: none;
-  color: #374151;
+  padding: 0.875rem 1.75rem;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #4b5563;
 }
 
-.postButton {
-  background: #3b82f6;
-  border: none;
-  color: white;
+.backButton:hover {
+  background-color: #e5e7eb;
+  color: #111827;
 }
 
-.backButton:disabled,
-.postButton:disabled {
-  opacity: 0.5;
+.backButton:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
-.errorMessage {
-  color: #ef4444;
-  margin-top: 1rem;
-  padding: 1rem;
-  background: #fef2f2;
-  border-radius: 0.5rem;
+.postButton {
+  padding: 0.875rem 2rem;
+  background-color: #22c55e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
+.postButton:hover {
+  background-color: #16a34a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.postButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Results section */
 .resultsSection {
   margin-top: 2rem;
-  padding: 1rem;
-  background: #f9fafb;
-  border-radius: 0.5rem;
+  background-color: #f9fafb;
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  border: 1px solid #e5e7eb;
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.platformResult {
-  margin: 1rem 0;
-}
-
-.accountResult {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem;
-  background: white;
-  border-radius: 0.25rem;
-  margin: 0.5rem 0;
-}
-
-.success {
-  color: #059669;
-}
-
-.error {
-  color: #ef4444;
+.resultsSection h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 1.5rem;
 }
 
 .platformAccounts {
@@ -1267,4 +1074,1089 @@
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+/* Connect buttons and platform selection styles */
+.connectButtonsContainer {
+  margin-bottom: 2rem;
+}
+
+.platformButtonsRow {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.connectLink {
+  text-decoration: none;
+}
+
+.connectPlatformButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background-color: white;
+  color: #4a5568;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.connectPlatformButton:hover {
+  background-color: #f7fafc;
+  border-color: #cbd5e0;
+}
+
+.platformsContainer {
+  margin: 1.5rem 0;
+}
+
+.platformsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.platformCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.platformCard:hover {
+  border-color: #cbd5e0;
+  background-color: #f7fafc;
+}
+
+.platformCard span {
+  font-weight: 500;
+}
+
+.selectedPlatform {
+  border-color: #4c51bf;
+  background-color: #ebf4ff;
+}
+
+.selectedPlatform:hover {
+  border-color: #4c51bf;
+  background-color: #ebf4ff;
+}
+
+/* Upload progress styles */
+.uploadingState {
+  border-color: #4285f4 !important;
+  background-color: rgba(66, 133, 244, 0.05) !important;
+}
+
+.uploadingContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.progressRing {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progressCircle {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+
+.progressCircleTrack {
+  stroke: #e0e0e0;
+  transition: stroke 0.3s;
+}
+
+.progressCircleIndicator {
+  stroke: #4285f4;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+.processingAnimation {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    stroke-opacity: 1;
+  }
+  50% {
+    stroke-opacity: 0.6;
+  }
+  100% {
+    stroke-opacity: 1;
+  }
+}
+
+.progressPercentage {
+  position: absolute;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #4285f4;
+}
+
+.uploadingText {
+  font-size: 24px;
+  color: #4285f4;
+  font-weight: 500;
+}
+
+.uploadSpecs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  color: #70757A;
+  font-size: 0.875rem;
+}
+
+.selectedFileInfo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.selectedFileInfo svg {
+  color: #4285f4;
+  flex-shrink: 0;
+}
+
+.fileDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.fileName {
+  font-weight: 500;
+  color: #202124;
+  word-break: break-word;
+  max-width: 250px;
+}
+
+.fileSize {
+  color: #70757A;
+  font-size: 0.875rem;
+}
+
+/* Enhance error message styling */
+.errorMessage {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background-color: #fdeded;
+  border: 1px solid #f6d7d7;
+  color: #d93025;
+  border-radius: 0.5rem;
+  margin-top: 1rem;
+}
+
+.errorMessage svg {
+  color: #d93025;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.errorMessage p {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+/* Platform selection styles */
+.platformsContainer {
+  margin: 2rem 0;
+}
+
+.platformCard {
+  border: 2px solid #e8eaed;
+  background-color: #fff;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.platformCard:hover {
+  border-color: #d2e3fc;
+  background-color: #f8faff;
+  box-shadow: 0 1px 3px rgba(66, 133, 244, 0.1);
+}
+
+.selectedPlatform {
+  background-color: #e8f0fe;
+  border-color: #4285f4;
+  box-shadow: 0 1px 3px rgba(66, 133, 244, 0.2);
+}
+
+.selectedPlatform:hover {
+  background-color: #d2e3fc;
+  border-color: #4285f4;
+}
+
+.nextButtonContainer {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+/* Upload area styles */
+.uploadArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 2rem 0;
+}
+
+.dropzone {
+  width: 100%;  
+  height: 300px;
+  border: 2px dashed #e2e8f0;
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dropzone:hover {
+  border-color: #cbd5e0;
+  background-color: #f7fafc;
+}
+
+.fileInput {
+  display: none;
+}
+
+.uploadControls {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 1rem;
+}
+
+.videoPreviewContainer {
+  width: 100%;
+  max-width: 500px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+}
+
+.videoPreview {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.videoControls {
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+  background-color: #f7fafc;
+}
+
+.changeFileButton {
+  padding: 0.5rem 1rem;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.changeFileButton:hover {
+  background-color: #e5e7eb;
+}
+
+.uploadButton {
+  width: 500px;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.uploadButton:hover {
+  background-color: #1a73e8;
+}
+
+.uploadButton:disabled {
+  background-color: #a8c7fa;
+  cursor: not-allowed;
+}
+
+.nextButtonContainer {
+  margin-top: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.nextButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.nextButton:hover {
+  background-color: #1a73e8;
+}
+
+/* Platform section styles for Step 2 */
+.platformsSection {
+  margin: 2rem 0;
+}
+
+.accountsContainer {
+  margin-top: 2rem;
+}
+
+.platformHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.platformIcon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: #f2f2f2;
+}
+
+.platformName {
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: #202124;
+}
+
+.accountsList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.accountCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  border: 1px solid #e8eaed;
+  border-radius: 0.5rem;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.accountCard:hover {
+  border-color: #d2e3fc;
+  background-color: #f8faff;
+}
+
+.selectedAccount {
+  background-color: #e8f0fe;
+  border-color: #4285f4;
+}
+
+.accountInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.accountName {
+  font-weight: 500;
+}
+
+.accountCheckbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  accent-color: #22c55e;
+  transform: scale(1.2);
+  transition: all 0.2s ease;
+}
+
+.accountCheckbox:hover {
+  transform: scale(1.3);
+}
+
+.selectedAccountRow .accountCheckbox {
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+}
+
+.connectButtonsContainer {
+  margin-bottom: 2rem;
+}
+
+.platformButtonsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.refreshButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #f2f2f2;
+  border: 1px solid #e0e0e0;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #5f6368;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.refreshButton:hover {
+  background-color: #e0e0e0;
+}
+
+.stepButtons {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+
+.backButton {
+  padding: 0.75rem 1.5rem;
+  background-color: #f2f2f2;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.backButton:hover {
+  background-color: #e0e0e0;
+}
+
+/* Platform header styles */
+.platformWrapper {
+  margin-bottom: 1.5rem;
+  border: 1px solid #e8eaed;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.platformHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  cursor: pointer;
+  background-color: white;
+  border-bottom: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.platformHeader:hover {
+  background-color: #f8faff;
+}
+
+.selectedPlatformHeader {
+  background-color: #f8faff;
+  border-bottom-color: #e8eaed;
+}
+
+.platformIconWrapper {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.platformIcon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f2f2f2;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.selectedPlatformIcon {
+  background-color: #e8f0fe;
+  color: #4285f4;
+}
+
+.platformSelection {
+  display: flex;
+  align-items: center;
+}
+
+.platformCheckbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: #4285f4;
+}
+
+.noAccountsMessage {
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 0.5rem;
+  margin: 1rem;
+}
+
+.noAccountsMessage p {
+  margin-bottom: 1rem;
+  color: #5f6368;
+}
+
+.connectAccountButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.connectAccountButton:hover {
+  background-color: #1a73e8;
+}
+
+.connectAccountButton svg {
+  stroke: white;
+}
+
+.connectLink {
+  text-decoration: none;
+  display: inline-block;
+}
+
+/* Search Container */
+.searchContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.searchInputWrapper {
+  position: relative;
+  flex: 1;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  width: 20px;
+  height: 20px;
+}
+
+.searchInput {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px 0 48px;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  font-size: 16px;
+  color: #111827;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+}
+
+.searchInput::placeholder {
+  color: #9ca3af;
+}
+
+.filterButton {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filterButton:hover {
+  background: #f9fafb;
+  color: #111827;
+}
+
+/* Platform Grid */
+.platformsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+.platformCard {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.platformHeader {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.platformIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  color: #111827;
+}
+
+.platformName {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Account Rows */
+.accountRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.accountRow:last-child {
+  border-bottom: none;
+}
+
+.accountRow:hover {
+  background-color: #f9fafb;
+}
+
+.accountInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.accountAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #6366f1;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.accountAvatar:nth-child(2n) {
+  background-color: #8b5cf6;
+}
+
+.accountAvatar:nth-child(3n) {
+  background-color: #ec4899;
+}
+
+.accountAvatar:nth-child(4n) {
+  background-color: #f97316;
+}
+
+.accountName {
+  font-size: 16px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.accountCheckbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  accent-color: #22c55e;
+  transform: scale(1.2);
+  transition: all 0.2s ease;
+}
+
+.accountCheckbox:hover {
+  transform: scale(1.3);
+}
+
+.selectedAccountRow .accountCheckbox {
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+}
+
+.selectedAccountRow .accountName {
+  color: #166534;
+  font-weight: 600;
+}
+
+/* New Review Page Styles */
+.reviewHeader {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.reviewHeader h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.75rem;
+}
+
+.reviewHeader p {
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.reviewContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.mediaSectionWrapper {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+}
+
+@media (max-width: 768px) {
+  .mediaSectionWrapper {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mediaSection, .detailsSection, .platformsSection {
+  background-color: #f9fafb;
+  border-radius: 12px;
+  padding: 2rem;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.mediaSection:hover, .detailsSection:hover, .platformsSection:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  border-color: #d1d5db;
+}
+
+.mediaHeader, .detailsHeader, .platformsHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  color: #4b5563;
+}
+
+.mediaHeader h3, .detailsHeader h3, .platformsHeader h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.videoThumbnailContainer {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.videoThumbnail {
+  position: relative;
+  width: 100%;
+  height: 0;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  overflow: hidden;
+  border-radius: 12px;
+  background-color: #111827;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.thumbnailVideo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+}
+
+.videoThumbnailContainer:hover .playOverlay {
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+.playButton {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
+  color: white;
+  transition: all 0.2s ease;
+  transform: scale(1);
+}
+
+.videoThumbnailContainer:hover .playButton {
+  background-color: rgba(255, 255, 255, 0.4);
+  transform: scale(1.1);
+}
+
+.thumbnailCaption {
+  margin-top: 1.25rem;
+}
+
+.captionPreviewContainer {
+  background-color: white;
+  border-radius: 10px;
+  padding: 1.5rem;
+  border: 1px solid #e5e7eb;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.captionPreview {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+  color: #4b5563;
+  white-space: pre-wrap;
+}
+
+.platformsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.platformAccounts {
+  margin-bottom: 1.5rem;
+}
+
+.platformAccounts h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 1rem;
+}
+
+.accountBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.accountBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background-color: white;
+  padding: 0.75rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.accountBadge:hover {
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.accountBadge span {
+  font-size: 0.875rem;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+/* Video Modal */
+.videoModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.videoModalOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(6px);
+}
+
+.videoModalContent {
+  position: relative;
+  width: 90%;
+  max-width: 1100px;
+  background-color: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  z-index: 51;
+}
+
+.videoModalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.videoModalHeader h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+  max-width: 80%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.closeModalButton {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0.75rem;
+  border-radius: 9999px;
+  color: #6b7280;
+  transition: all 0.2s ease;
+}
+
+.closeModalButton:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.videoModalBody {
+  padding: 0;
+  overflow: hidden;
+  flex: 1;
+  background-color: #000;
+}
+
+.modalVideo {
+  width: 100%;
+  height: 100%;
+  max-height: calc(90vh - 80px);
+  object-fit: contain;
 } 
