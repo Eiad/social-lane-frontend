@@ -95,6 +95,119 @@ const MyAccount = () => {
     }
   };
 
+  // Handle cancel subscription
+  const handleCancelSubscription = () => {
+    router.push('/subscription?action=cancel');
+  };
+
+  // Add a subscription plans constant
+  const subscriptionPlans = [
+    {
+      name: 'Launch',
+      price: '$9',
+      description: 'Best for beginner creators',
+      features: [
+        '5 connected social accounts',
+        'Unlimited posts',
+        'Schedule posts',
+        'Carousel posts',
+      ],
+      highlight: false
+    },
+    {
+      name: 'Rise',
+      price: '$18',
+      description: 'Best for growing creators',
+      features: [
+        '15 connected social accounts',
+        'Unlimited posts',
+        'Schedule posts',
+        'Carousel posts',
+        'Content studio access',
+        'Limited growth consulting',
+      ],
+      highlight: true
+    },
+    {
+      name: 'Scale',
+      price: '$27',
+      description: 'Best for scaling brands',
+      features: [
+        'Unlimited connected accounts',
+        'Unlimited posts',
+        'Schedule posts',
+        'Carousel posts',
+        'Content studio access',
+        'Priority growth consulting',
+      ],
+      highlight: false
+    }
+  ];
+
+  // Add a function to render the upgrade box for Starter plan users
+  const renderUpgradeBox = () => {
+    // Find the recommended plan (usually Rise with highlight=true)
+    const recommendedPlan = subscriptionPlans.find(plan => plan.highlight) || subscriptionPlans[1];
+    
+    return (
+      <div className="mt-8 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 shadow-md animate-scale-in">
+        <div className="flex flex-col md:flex-row items-start gap-6">
+          <div className="flex-1">
+            <h3 className="text-xl font-bold text-gray-800 mb-2">
+              Upgrade to {recommendedPlan.name}
+              <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                Recommended
+              </span>
+            </h3>
+            <p className="text-gray-600 mb-4">
+              Take your social media presence to the next level with our most popular plan.
+            </p>
+            <div className="mb-4">
+              <span className="text-3xl font-bold text-gray-900">{recommendedPlan.price}</span>
+              <span className="text-gray-500 ml-1">/month</span>
+            </div>
+            <ul className="space-y-2 mb-6">
+              {recommendedPlan.features.map((feature, index) => (
+                <li key={index} className="flex items-start">
+                  <svg className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-gray-700">{feature}</span>
+                </li>
+              ))}
+            </ul>
+            <Link href="/subscription" className="inline-block">
+              <button className="bg-primary hover:bg-primary-dark text-white font-medium py-2 px-6 rounded-lg transition-all duration-300 shadow-sm hover:shadow-md">
+                View All Plans
+              </button>
+            </Link>
+          </div>
+          <div className="w-full md:w-1/3 bg-white rounded-lg p-4 shadow-sm">
+            <h4 className="font-bold text-gray-800 mb-3">Why upgrade?</h4>
+            <ul className="space-y-3">
+              <li className="flex items-start">
+                <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-600 font-bold text-sm mr-2">1</span>
+                <span className="text-gray-700">Connect to more social platforms</span>
+              </li>
+              <li className="flex items-start">
+                <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-600 font-bold text-sm mr-2">2</span>
+                <span className="text-gray-700">Access exclusive content tools</span>
+              </li>
+              <li className="flex items-start">
+                <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-600 font-bold text-sm mr-2">3</span>
+                <span className="text-gray-700">Get expert growth consulting</span>
+              </li>
+              <li className="flex items-start">
+                <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-600 font-bold text-sm mr-2">4</span>
+                <span className="text-gray-700">7-day money back guarantee</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <Head>
@@ -145,13 +258,13 @@ const MyAccount = () => {
                     </p>
                     <span 
                       className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium transition-all duration-300 animate-slide-up ${
-                        user?.role === 'Pro' 
+                        ['Launch', 'Rise', 'Scale'].includes(user?.role)
                           ? 'bg-primary text-white shadow-sm shadow-primary/30' 
                           : 'bg-gray-200 text-gray-700'
                       }`}
                       style={{animationDelay: '300ms'}}
                     >
-                      {user?.role || 'Free'} Plan
+                      {user?.role || 'Starter'} Plan
                     </span>
                     {redirectAfterLogin && (
                       <p className="mt-3 text-green-600 font-medium animate-pulse">
@@ -161,123 +274,54 @@ const MyAccount = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-                  <div className="bg-white rounded-lg shadow-sm p-6 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 animate-scale-in" style={{animationDelay: '200ms'}}>
-                    <h3 className="text-xl font-semibold text-gray-800 pb-3 mb-4 border-b border-gray-200">
-                      Account Information
+                <div className="grid grid-cols-1 gap-6 mt-8">
+                  <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg shadow-md p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 animate-scale-in" style={{animationDelay: '200ms'}}>
+                    <h3 className="text-2xl font-semibold text-gray-800 pb-3 mb-4 border-b border-gray-200 flex items-center">
+                      Subscription Details
+                      <span className={`ml-auto text-sm font-medium py-1 px-3 rounded-full ${
+                        user?.role === 'Starter' 
+                          ? 'bg-gray-200 text-gray-700' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {user?.role || 'Starter'} Plan
+                      </span>
                     </h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center pb-2 border-b border-dashed border-gray-200 hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200">
-                        <span className="text-gray-600 font-medium">User ID:</span>
-                        <span className="text-gray-800 text-sm break-all">{user?.uid}</span>
+                    
+                    {/* If user has a subscription, show details */}
+                    <SubscriptionStatus />
+                    
+                    {/* If user is on Starter plan or not on Scale yearly, show upgrade button */}
+                    {(user?.role === 'Starter' || (user?.role !== 'Scale' || user?.subscription?.planId?.includes('month'))) && (
+                      <div className="mt-6 flex flex-col sm:flex-row gap-4">
+                        <Link href="/subscription" className="w-full">
+                          <button 
+                            className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+                            </svg>
+                            Upgrade Plan
+                          </button>
+                        </Link>
+                        
+                        {/* Only show Cancel Plan if user is not on Starter plan */}
+                        {user?.role !== 'Starter' && (
+                          <button 
+                            onClick={handleCancelSubscription}
+                            className="w-full border border-red-500 text-red-500 hover:bg-red-50 font-bold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                            Cancel Plan
+                          </button>
+                        )}
                       </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-dashed border-gray-200 hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200">
-                        <span className="text-gray-600 font-medium">Authentication:</span>
-                        <span className="text-gray-800">Google</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-dashed border-gray-200 hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200">
-                        <span className="text-gray-600 font-medium">Subscription:</span>
-                        <span className="text-gray-800">{user?.role || 'Free'}</span>
-                      </div>
-                      {user?.subscriptionStartDate && (
-                        <div className="flex justify-between items-center pb-2 border-b border-dashed border-gray-200 hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200">
-                          <span className="text-gray-600 font-medium">Subscription Start:</span>
-                          <span className="text-gray-800">{formatDate(user?.subscriptionStartDate)}</span>
-                        </div>
-                      )}
-                      {user?.subscriptionEndDate && (
-                        <div className="flex justify-between items-center hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200">
-                          <span className="text-gray-600 font-medium">Subscription End:</span>
-                          <span className="text-gray-800">{formatDate(user?.subscriptionEndDate)}</span>
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                   
-                  <div className="bg-white rounded-lg shadow-sm p-6 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 animate-scale-in" style={{animationDelay: '300ms'}}>
-                    <h3 className="text-xl font-semibold text-gray-800 pb-3 mb-4 border-b border-gray-200">
-                      Quick Links
-                    </h3>
-                    <div className="flex flex-col gap-3">
-                      <Link href="/social-posting" className="group">
-                        <div className="bg-gray-100 hover:bg-primary/10 text-primary font-medium px-4 py-3 rounded-lg transition-all duration-300 flex items-center border border-transparent hover:border-primary/20 shadow-sm hover:shadow">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
-                          Create New Post
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-auto transition-transform duration-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
-                      </Link>
-                      <Link href="/scheduled-posts" className="group">
-                        <div className="bg-gray-100 hover:bg-primary/10 text-primary font-medium px-4 py-3 rounded-lg transition-all duration-300 flex items-center border border-transparent hover:border-primary/20 shadow-sm hover:shadow">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          View Scheduled Posts
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-auto transition-transform duration-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
-                      </Link>
-                    </div>
-                  </div>
-
-                  {user?.role === 'Free' ? (
-                    <div className="bg-white rounded-lg shadow-sm p-6 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 animate-scale-in" style={{animationDelay: '400ms'}}>
-                      <h3 className="text-xl font-semibold text-gray-800 pb-3 mb-4 border-b border-gray-200">
-                        Upgrade to Pro
-                      </h3>
-                      <p className="text-gray-700 mb-4">
-                        Unlock premium features with our Pro plan:
-                      </p>
-                      <ul className="mb-6 space-y-3">
-                        <li className="flex items-center text-gray-700 bg-gray-50 p-2 rounded-lg">
-                          <svg className="w-5 h-5 mr-2 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                          </svg>
-                          <span>Schedule unlimited posts</span>
-                        </li>
-                        <li className="flex items-center text-gray-700 bg-gray-50 p-2 rounded-lg">
-                          <svg className="w-5 h-5 mr-2 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                          </svg>
-                          <span>Analytics and insights</span>
-                        </li>
-                        <li className="flex items-center text-gray-700 bg-gray-50 p-2 rounded-lg">
-                          <svg className="w-5 h-5 mr-2 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                          </svg>
-                          <span>Priority support</span>
-                        </li>
-                      </ul>
-                      <button 
-                        onClick={handleSubscribe}
-                        disabled={isProcessing}
-                        className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-300 relative overflow-hidden group disabled:opacity-70 disabled:cursor-not-allowed"
-                      >
-                        <span className="relative z-10">
-                          {isProcessing ? (
-                            <>
-                              <span className="spinner small mr-2"></span>
-                              Processing...
-                            </>
-                          ) : (
-                            'Subscribe with PayPal'
-                          )}
-                        </span>
-                        <span className="absolute inset-0 bg-gradient-to-r from-primary to-primary-dark opacity-0 group-hover:opacity-30 transition-opacity duration-300"></span>
-                      </button>
-                      {subscriptionError && (
-                        <p className="mt-3 text-red-600 text-sm animate-fade-in">
-                          {subscriptionError}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <SubscriptionStatus />
-                  )}
+                  {/* Upgrade Box (only for Starter plan users) */}
+                  {user?.role === 'Starter' && renderUpgradeBox()}
                 </div>
               </div>
             ) : (

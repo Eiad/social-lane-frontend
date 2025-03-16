@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axiosInstance from './axiosConfig';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
 
@@ -7,10 +7,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.m
  * @param {string} uid - User ID
  * @returns {Promise<Object>} - Subscription details with approval URL
  */
-export const createSubscription = async (uid) => {
+export const createSubscription = async (uid, planTier) => {
   try {
-    console.log(`Creating subscription for user: ${uid}`);
-    const response = await axios.post(`${API_URL}/paypal/create-subscription`, { uid });
+    console.log(`Creating subscription for user: ${uid}, plan: ${planTier || 'default'}`);
+    const response = await axiosInstance.post('/paypal/create-subscription', { uid, planTier });
     console.log('Subscription created successfully:', response?.data);
     return response?.data;
   } catch (error) {
@@ -27,7 +27,7 @@ export const createSubscription = async (uid) => {
 export const getSubscription = async (uid) => {
   try {
     console.log(`Fetching subscription details for user: ${uid}`);
-    const response = await axios.get(`${API_URL}/paypal/${uid}/subscription`);
+    const response = await axiosInstance.get(`/paypal/${uid}/subscription`);
     
     // Log the full response data
     console.log(`Full subscription response for user ${uid}:`, JSON.stringify(response?.data));
@@ -73,7 +73,7 @@ export const cancelSubscription = async (uid, reason = 'Cancelled by user') => {
     }
     
     // Proceed with cancellation
-    const response = await axios.post(`${API_URL}/paypal/${uid}/cancel-subscription`, { reason });
+    const response = await axiosInstance.post(`/paypal/${uid}/cancel-subscription`, { reason });
     console.log(`Subscription cancelled successfully for user: ${uid}`);
     
     // Verify the cancellation by getting the subscription details again
@@ -100,7 +100,7 @@ export const cancelSubscription = async (uid, reason = 'Cancelled by user') => {
 export const checkExpiredSubscriptions = async () => {
   try {
     console.log('Manually checking for expired subscriptions');
-    const response = await axios.post(`${API_URL}/paypal/check-expired-subscriptions`);
+    const response = await axiosInstance.post('/paypal/check-expired-subscriptions');
     console.log('Expired subscription check result:', response?.data);
     return response?.data;
   } catch (error) {
