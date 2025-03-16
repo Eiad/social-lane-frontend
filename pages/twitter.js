@@ -188,30 +188,50 @@ export default function Twitter() {
   useEffect(() => {
     if (accessToken) {
       // Store the standard Twitter tokens
-      localStorage.setItem('twitter_access_token', accessToken);
+      localStorage?.setItem('twitter_access_token', accessToken);
       if (refreshToken) {
-        localStorage.setItem('twitter_refresh_token', refreshToken);
+        localStorage?.setItem('twitter_refresh_token', refreshToken);
         // For Twitter API v1.1 compatibility, we need to store the refresh token as access_token_secret
-        // Note: This is not ideal, but Twitter's API v2 doesn't provide access_token_secret directly
-        localStorage.setItem('twitter_access_token_secret', refreshToken);
-        
-        console.log('Twitter tokens stored with values:', {
-          accessTokenPrefix: accessToken ? accessToken.substring(0, 5) + '...' : 'missing',
-          refreshTokenPrefix: refreshToken ? refreshToken.substring(0, 5) + '...' : 'missing'
-        });
+        localStorage?.setItem('twitter_access_token_secret', refreshToken);
       }
-      if (userId) localStorage.setItem('twitter_user_id', userId);
-      if (username) localStorage.setItem('twitter_username', username);
+      if (userId) localStorage?.setItem('twitter_user_id', userId);
+      if (username) localStorage?.setItem('twitter_username', username);
       
-      // Log the stored tokens for debugging
-      console.log('Twitter tokens stored in localStorage:', {
-        accessToken: !!accessToken,
-        refreshToken: !!refreshToken,
-        accessTokenSecret: !!refreshToken,
-        userId: !!userId,
-        username: !!username,
-        allTwitterKeys: Object.keys(localStorage).filter(key => key.startsWith('twitter_'))
-      });
+      // Also save to user's database record if user is authenticated
+      const firebaseUid = localStorage?.getItem('firebaseUid');
+      if (firebaseUid) {
+        console.log('Saving Twitter tokens to user record with UID:', firebaseUid);
+        
+        const tokenData = {
+          accessToken,
+          refreshToken,
+          userId,
+          username
+        };
+        
+        // Save to backend
+        fetch(`${API_BASE_URL}/users/${firebaseUid}/social/twitter`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(tokenData)
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to save tokens: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('Successfully saved Twitter tokens to user record:', data.success);
+        })
+        .catch(error => {
+          console.error('Error saving Twitter tokens to user record:', error);
+        });
+      } else {
+        console.log('No Firebase UID found, skipping token save to user record');
+      }
     }
   }, [accessToken, refreshToken, userId, username]);
 

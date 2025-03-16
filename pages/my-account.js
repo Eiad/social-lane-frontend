@@ -4,12 +4,36 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useAuth } from '../src/context/AuthContext';
 import Navigation from '../src/components/Navigation';
+import { createSubscription } from '../src/services/subscriptionService';
+import SubscriptionStatus from '../src/components/SubscriptionStatus';
 
 const MyAccount = () => {
   const { user, loading, redirectAfterLogin, setRedirectAfterLogin, signInWithGoogle } = useAuth();
   const router = useRouter();
+  const { subscription, message } = router.query;
   const [isProcessing, setIsProcessing] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [subscriptionError, setSubscriptionError] = useState('');
+  const [subscriptionSuccess, setSubscriptionSuccess] = useState(false);
+
+  // Handle subscription success message from query params
+  useEffect(() => {
+    if (subscription === 'success') {
+      setSubscriptionSuccess(true);
+      // Clear the success message after 5 seconds
+      const timer = setTimeout(() => {
+        setSubscriptionSuccess(false);
+        // Remove the query parameters without refreshing the page
+        const url = new URL(window.location.href);
+        url.searchParams.delete('subscription');
+        url.searchParams.delete('uid');
+        window.history.replaceState({}, '', url);
+      }, 5000);
+      return () => clearTimeout(timer);
+    } else if (subscription === 'error') {
+      setSubscriptionError(message || 'An error occurred with your subscription');
+    }
+  }, [subscription, message]);
 
   const handleGoogleSignIn = async () => {
     setIsProcessing(true);
@@ -51,6 +75,29 @@ const MyAccount = () => {
     });
   };
 
+  // Handle subscription button click
+  const handleSubscribe = async () => {
+    if (!user?.uid) return;
+    
+    setIsProcessing(true);
+    setSubscriptionError('');
+    
+    try {
+      const result = await createSubscription(user?.uid);
+      if (result?.success && result?.data?.approvalUrl) {
+        // Redirect to PayPal approval URL
+        window.location.href = result?.data?.approvalUrl;
+      } else {
+        setSubscriptionError('Failed to create subscription. Please try again.');
+      }
+    } catch (error) {
+      console.error('Subscription error:', error);
+      setSubscriptionError(error?.response?.data?.error || 'An error occurred. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <>
       <Head>
@@ -64,6 +111,16 @@ const MyAccount = () => {
         <div className="md:ml-64 pt-6 px-4 sm:px-6 transition-all duration-300">
           <div className="max-w-6xl mx-auto">
             <h1 className="text-3xl font-bold text-center text-gray-900 mb-8 animate-slide-down">My Account</h1>
+            
+            {/* Subscription Success Message */}
+            {subscriptionSuccess && (
+              <div className="mb-6 bg-green-100 text-green-800 p-4 rounded-lg animate-fade-in flex items-center justify-center">
+                <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span>Your subscription has been activated successfully! You now have access to all premium features.</span>
+              </div>
+            )}
             
             {loading ? (
               <div className="flex flex-col items-center justify-center py-12">
@@ -172,7 +229,7 @@ const MyAccount = () => {
                     </div>
                   </div>
 
-                  {user?.role === 'Free' && (
+                  {user?.role === 'Free' ? (
                     <div className="bg-white rounded-lg shadow-sm p-6 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 animate-scale-in" style={{animationDelay: '400ms'}}>
                       <h3 className="text-xl font-semibold text-gray-800 pb-3 mb-4 border-b border-gray-200">
                         Upgrade to Pro
@@ -201,13 +258,30 @@ const MyAccount = () => {
                         </li>
                       </ul>
                       <button 
-                        disabled
-                        className="w-full bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg cursor-not-allowed transition-colors duration-300 relative overflow-hidden group"
+                        onClick={handleSubscribe}
+                        disabled={isProcessing}
+                        className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-300 relative overflow-hidden group disabled:opacity-70 disabled:cursor-not-allowed"
                       >
-                        <span className="relative z-10">Coming Soon</span>
+                        <span className="relative z-10">
+                          {isProcessing ? (
+                            <>
+                              <span className="spinner small mr-2"></span>
+                              Processing...
+                            </>
+                          ) : (
+                            'Subscribe with PayPal'
+                          )}
+                        </span>
                         <span className="absolute inset-0 bg-gradient-to-r from-primary to-primary-dark opacity-0 group-hover:opacity-30 transition-opacity duration-300"></span>
                       </button>
+                      {subscriptionError && (
+                        <p className="mt-3 text-red-600 text-sm animate-fade-in">
+                          {subscriptionError}
+                        </p>
+                      )}
                     </div>
+                  ) : (
+                    <SubscriptionStatus />
                   )}
                 </div>
               </div>

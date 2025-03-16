@@ -582,6 +582,56 @@ export default function TikTok() {
     router?.push('/');
   };
 
+  // After successfully connecting a TikTok account, save it to the user's record
+  const saveAccountsToUserRecord = () => {
+    const firebaseUid = localStorage?.getItem('firebaseUid');
+    if (!firebaseUid || !connectedAccounts.length) {
+      console.log('Cannot save TikTok accounts to user record:', { 
+        hasFirebaseUid: !!firebaseUid, 
+        accountsCount: connectedAccounts.length 
+      });
+      return;
+    }
+    
+    console.log('Saving TikTok accounts to user record with UID:', firebaseUid);
+    
+    const accountsData = connectedAccounts.map(account => ({
+      accessToken: account.accessToken,
+      openId: account.openId,
+      refreshToken: account.refreshToken,
+      username: account.username || `TikTok Account ${account.index}`,
+      index: account.index
+    }));
+    
+    // Save to backend
+    fetch(`${API_BASE_URL}/users/${firebaseUid}/social/tiktok`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(accountsData)
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Failed to save tokens: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Successfully saved TikTok accounts to user record:', data.success);
+    })
+    .catch(error => {
+      console.error('Error saving TikTok accounts to user record:', error);
+    });
+  };
+
+  // Call this after adding a new account
+  useEffect(() => {
+    if (connectedAccounts.length > 0) {
+      saveAccountsToUserRecord();
+    }
+  }, [connectedAccounts]);
+
   if (!isAuthenticated) {
     return (
       <div className={styles.container}>

@@ -10,9 +10,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.m
 export const createOrUpdateUser = async (userData) => {
   try {
     const response = await axios.post(`${API_URL}/users`, userData);
-    return response.data;
+    return response?.data;
   } catch (error) {
-    console.error('Error creating/updating user:', error?.response?.data || error.message);
+    console.error('Error creating/updating user:', error?.response?.data || error?.message);
     throw error;
   }
 };
@@ -25,9 +25,9 @@ export const createOrUpdateUser = async (userData) => {
 export const getUserByUid = async (uid) => {
   try {
     const response = await axios.get(`${API_URL}/users/${uid}`);
-    return response.data;
+    return response?.data;
   } catch (error) {
-    console.error('Error fetching user:', error?.response?.data || error.message);
+    console.error('Error fetching user:', error?.response?.data || error?.message);
     
     // If user not found, return null instead of throwing
     if (error?.response?.status === 404) {

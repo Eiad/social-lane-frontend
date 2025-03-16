@@ -36,13 +36,20 @@ function SocialPosting() {
   const [showVideoModal, setShowVideoModal] = useState(false);
 
   useEffect(() => {
-    const storedUserId = localStorage?.getItem('userId');
-    if (storedUserId) {
-      setUserId(storedUserId);
+    // Use Firebase UID if available, otherwise fallback to stored userId or generate a new one
+    const firebaseUid = localStorage?.getItem('firebaseUid');
+    if (firebaseUid) {
+      setUserId(firebaseUid);
+      localStorage?.setItem('userId', firebaseUid); // Ensure userId is also set to the Firebase UID
     } else {
-      const newUserId = crypto.randomUUID();
-      localStorage?.setItem('userId', newUserId);
-      setUserId(newUserId);
+      const storedUserId = localStorage?.getItem('userId');
+      if (storedUserId) {
+        setUserId(storedUserId);
+      } else {
+        const newUserId = crypto.randomUUID();
+        localStorage?.setItem('userId', newUserId);
+        setUserId(newUserId);
+      }
     }
     
     // Load TikTok accounts on component mount
@@ -86,6 +93,16 @@ function SocialPosting() {
     }
     
     setTiktokAccounts(accounts);
+    
+    // If we found TikTok accounts, update selectedPlatforms
+    if (accounts.length > 0) {
+      setSelectedPlatforms(prev => {
+        if (!prev.includes('tiktok')) {
+          return [...prev, 'tiktok'];
+        }
+        return prev;
+      });
+    }
   };
 
   const handleTikTokAccountToggle = (account) => {
