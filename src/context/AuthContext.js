@@ -56,6 +56,48 @@ export const AuthProvider = ({ children }) => {
         console.log('No Twitter data found in user object');
       }
       
+      // Check for Twitter accounts in array format
+      const twitterAccounts = userData.providerData.twitter;
+      if (twitterAccounts && Array.isArray(twitterAccounts)) {
+        console.log('Found Twitter accounts:', twitterAccounts.length);
+        
+        // Clear existing Twitter accounts
+        let i = 1;
+        while (localStorage?.getItem(`twitter${i}AccessToken`)) {
+          localStorage?.removeItem(`twitter${i}AccessToken`);
+          localStorage?.removeItem(`twitter${i}RefreshToken`);
+          localStorage?.removeItem(`twitter${i}AccessTokenSecret`);
+          localStorage?.removeItem(`twitter${i}UserId`);
+          localStorage?.removeItem(`twitter${i}Username`);
+          localStorage?.removeItem(`twitter${i}Name`);
+          localStorage?.removeItem(`twitter${i}ProfileImage`);
+          i++;
+        }
+        
+        // Store new Twitter accounts
+        twitterAccounts.forEach((account, index) => {
+          const accountIndex = index + 1;
+          console.log(`Storing Twitter account ${accountIndex}:`, {
+            hasAccessToken: !!account.accessToken,
+            hasUserId: !!account.userId,
+            hasRefreshToken: !!account.refreshToken,
+            username: account.username || `Twitter Account ${accountIndex}`,
+            hasName: !!account.name,
+            hasProfileImage: !!account.profileImageUrl
+          });
+          
+          if (account.accessToken) localStorage?.setItem(`twitter${accountIndex}AccessToken`, account.accessToken);
+          if (account.refreshToken) localStorage?.setItem(`twitter${accountIndex}RefreshToken`, account.refreshToken);
+          if (account.refreshToken) localStorage?.setItem(`twitter${accountIndex}AccessTokenSecret`, account.refreshToken);
+          if (account.userId) localStorage?.setItem(`twitter${accountIndex}UserId`, account.userId);
+          if (account.username) localStorage?.setItem(`twitter${accountIndex}Username`, account.username);
+          if (account.name) localStorage?.setItem(`twitter${accountIndex}Name`, account.name);
+          if (account.profileImageUrl) localStorage?.setItem(`twitter${accountIndex}ProfileImage`, account.profileImageUrl);
+        });
+      } else {
+        console.log('No Twitter accounts found in user object or not an array:', twitterAccounts);
+      }
+      
       // Store TikTok tokens if available
       const tiktokAccounts = userData.providerData.tiktok;
       if (tiktokAccounts && Array.isArray(tiktokAccounts)) {

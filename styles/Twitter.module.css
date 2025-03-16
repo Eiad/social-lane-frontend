@@ -352,4 +352,229 @@
   .postButton, .backButton {
     width: 100%;
   }
+}
+
+/* Twitter account management styles */
+.accountsContainer {
+  margin-top: 0;
+  padding: 1.5rem;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.accountsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #ebeef0;
+  padding-bottom: 1rem;
+}
+
+.accountsActions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.sectionTitle {
+  font-size: 1.25rem;
+  margin: 0;
+  color: #14171a;
+  font-weight: 700;
+}
+
+.accountsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.accountCardNew {
+  display: flex;
+  flex-direction: column;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: 100%;
+  cursor: pointer;
+  position: relative;
+  border: 1px solid #ebeef0;
+}
+
+.accountCardNew:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(29, 161, 242, 0.15);
+  border-color: #1da1f2;
+}
+
+.accountCardHeader {
+  padding: 1.25rem 1rem 0.75rem;
+  display: flex;
+  justify-content: center;
+  background-color: #f7f9fa;
+}
+
+.accountAvatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background-color: #f7f9fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.accountCardBody {
+  padding: 1rem;
+  flex-grow: 1;
+  text-align: center;
+}
+
+.accountCardName {
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+  color: #14171a;
+  font-size: 1.1rem;
+}
+
+.accountCardUsername {
+  color: #657786;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.accountCardFooter {
+  padding: 0.75rem 1rem 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.disconnectButtonNew {
+  background-color: transparent;
+  color: #e0245e;
+  border: 1px solid #e0245e;
+  border-radius: 50px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.disconnectButtonNew:hover {
+  background-color: #ffecf0;
+}
+
+.disconnectAllButton {
+  background-color: transparent;
+  color: #e0245e;
+  border: 1px solid #e0245e;
+  border-radius: 50px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.disconnectAllButton:hover {
+  background-color: #ffecf0;
+}
+
+.refreshButton {
+  background-color: #1da1f2;
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.refreshButton:hover {
+  background-color: #1a91da;
+}
+
+.refreshButton:disabled {
+  background-color: #9ad0f5;
+  cursor: not-allowed;
+}
+
+/* Add account button */
+.addAccountCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  border: 2px dashed #ccd6dd;
+  border-radius: 12px;
+  padding: 2rem 1rem;
+  height: 100%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.addAccountCard:hover {
+  background-color: #f7f9fa;
+  border-color: #1da1f2;
+}
+
+.addAccountIcon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 1rem;
+  color: #1da1f2;
+}
+
+.addAccountText {
+  color: #657786;
+  text-align: center;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .accountsHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .accountsActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .accountsGrid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+  
+  .accountCardBody {
+    padding: 0.75rem;
+  }
+  
+  .accountCardName {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .accountsGrid {
+    grid-template-columns: 1fr 1fr;
+  }
 } 

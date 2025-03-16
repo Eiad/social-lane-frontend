@@ -1,18 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import styles from '../styles/Home.module.scss';
-import tikTokStyles from '../styles/TikTok.module.css';
 import Head from 'next/head';
-import { TikTokSimpleIcon } from '../src/components/icons/SocialIcons';
 import Link from 'next/link';
 import axios from 'axios';
+import { TikTokSimpleIcon } from '../src/components/icons/SocialIcons';
 
-// Replace this line:
-// const API_BASE_URL = typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_API_URL : undefined;
-
-// With this approach that safely handles both server and client environments:
-const API_BASE_URL =  'https://sociallane-backend.mindio.chat';
-
+// API base URL
+const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
 
 export default function TikTok() {
   const [videoUrl, setVideoUrl] = useState('');
@@ -682,7 +676,7 @@ export default function TikTok() {
 
   if (!isAuthenticated) {
     return (
-      <div className={styles.container}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
         <Head>
           <title>TikTok Integration - Social Lane</title>
           <meta name="description" content="Connect your TikTok account with Social Lane" />
@@ -690,439 +684,214 @@ export default function TikTok() {
           <link rel="icon" href="/favicon.ico" />
         </Head>
 
-        <nav className={styles.navbar}>
-          <div className={styles.navContainer}>
-            <div className={styles.logo}>
-              <Link href="/">
-                <span className={styles.logoText}>sociallane</span>
-              </Link>
-            </div>
-            <div className={styles.navLinks}>
-              <Link href="/#features">Features</Link>
-              <Link href="/#pricing">Pricing</Link>
-              <Link href="/#about">About</Link>
-              <Link href="/#faq">FAQ</Link>
-              <Link href="/#blog">Blog</Link>
-            </div>
-            <div className={styles.navButtons}>
-              <button className={styles.loginButton}>Log in</button>
-              <button className={styles.signupButton}>Sign up free</button>
-            </div>
+        <main className="py-8">
+          {/* Header with back button */}
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+              <span className="text-pink-500"><TikTokSimpleIcon className="w-8 h-8" /></span>
+              <span className="bg-gradient-to-r from-pink-500 to-blue-500 bg-clip-text text-transparent">
+                TikTok Integration
+              </span>
+            </h1>
+            <Link 
+              href="/"
+              className="px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center gap-2 transition-colors text-gray-700"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              </svg>
+              Back to Home
+            </Link>
           </div>
-        </nav>
 
-        <main className={tikTokStyles.preLoginContainer}>
-          <div className={tikTokStyles.preLoginContent}>
-            <div className={tikTokStyles.preLoginHeader}>
-              <div className={tikTokStyles.preLoginIcon}>
-                <TikTokSimpleIcon width="48" height="48" />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-8">
+            <div className="flex flex-col items-center py-6 max-w-3xl mx-auto text-center">
+              <div className="w-20 h-20 rounded-full bg-pink-100 flex items-center justify-center mb-6">
+                <TikTokSimpleIcon className="w-10 h-10 text-pink-500" />
               </div>
-              <h1>TikTok Integration</h1>
-              <p>Connect your TikTok account to post videos directly from Social Lane</p>
-            </div>
-
-            <div className={tikTokStyles.preLoginFeatures}>
-              <div className={tikTokStyles.featureItem}>
-                <div className={tikTokStyles.featureIcon}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                    <circle cx="12" cy="13" r="4"></circle>
-                  </svg>
+              
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">Connect to TikTok</h2>
+              <p className="text-gray-600 mb-8 max-w-lg">
+                Authenticate with TikTok to upload and post videos directly from Social Lane. Manage multiple accounts and schedule your content.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full mb-10">
+                <div className="bg-white p-6 rounded-xl border border-gray-200 flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-gray-800 mb-2">Direct Upload</h3>
+                  <p className="text-gray-600 text-sm">Upload videos directly to TikTok from your dashboard</p>
                 </div>
-                <h3>Direct Video Upload</h3>
-                <p>Upload videos directly to TikTok from your dashboard</p>
-              </div>
-
-              <div className={tikTokStyles.featureItem}>
-                <div className={tikTokStyles.featureIcon}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polyline points="12 6 12 12 16 14"></polyline>
-                  </svg>
+                
+                <div className="bg-white p-6 rounded-xl border border-gray-200 flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-gray-800 mb-2">Schedule Posts</h3>
+                  <p className="text-gray-600 text-sm">Plan and schedule your TikTok content in advance</p>
                 </div>
-                <h3>Schedule Posts</h3>
-                <p>Plan and schedule your TikTok content in advance</p>
-              </div>
-
-              <div className={tikTokStyles.featureItem}>
-                <div className={tikTokStyles.featureIcon}>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                  </svg>
+                
+                <div className="bg-white p-6 rounded-xl border border-gray-200 flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-full bg-pink-100 flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-pink-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-gray-800 mb-2">Analytics & Insights</h3>
+                  <p className="text-gray-600 text-sm">Track performance and engagement metrics</p>
                 </div>
-                <h3>Analytics & Insights</h3>
-                <p>Track performance and engagement metrics</p>
               </div>
-            </div>
-
-            <div className={tikTokStyles.preLoginCTA}>
-              <button
-                onClick={handleConnect}
-                className={tikTokStyles.connectButton}
+              
+              <button 
+                onClick={handleConnect} 
+                className="px-6 py-3 rounded-full bg-gradient-to-r from-pink-500 to-blue-500 text-white font-medium flex items-center gap-2 transition-transform transform hover:scale-105 disabled:opacity-70 disabled:pointer-events-none"
                 disabled={isLoading}
               >
-                <TikTokSimpleIcon width="24" height="24" />
-                <span>Connect TikTok Account</span>
-                {isLoading && (
-                  <div className={tikTokStyles.buttonLoader}>
-                    <span className={tikTokStyles.loaderDot}></span>
-                    <span className={tikTokStyles.loaderDot}></span>
-                    <span className={tikTokStyles.loaderDot}></span>
-                  </div>
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Connecting...</span>
+                  </>
+                ) : (
+                  <>
+                    <TikTokSimpleIcon className="w-5 h-5" />
+                    <span>Connect TikTok Account</span>
+                  </>
                 )}
               </button>
-              <p className={tikTokStyles.securityNote}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              
+              <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                Secure OAuth2 authentication with TikTok
-              </p>
+                <span>Secure OAuth2 authentication with TikTok</span>
+              </div>
             </div>
           </div>
         </main>
-
-        <footer className={styles.footer}>
-          <div className={styles.footerContent}>
-            <div className={styles.footerLogo}>
-              <span className={styles.logoText}>sociallane</span>
-            </div>
-            
-            <div className={styles.footerLinks}>
-              <div className={styles.footerColumn}>
-                <h4>Product</h4>
-                <Link href="/" legacyBehavior><a>Features</a></Link>
-                <Link href="/" legacyBehavior><a>Pricing</a></Link>
-                <Link href="/" legacyBehavior><a>Integrations</a></Link>
-              </div>
-              
-              <div className={styles.footerColumn}>
-                <h4>Company</h4>
-                <Link href="/" legacyBehavior><a>About</a></Link>
-                <Link href="/" legacyBehavior><a>Blog</a></Link>
-                <Link href="/" legacyBehavior><a>Careers</a></Link>
-              </div>
-              
-              <div className={styles.footerColumn}>
-                <h4>Resources</h4>
-                <Link href="/" legacyBehavior><a>Help Center</a></Link>
-                <Link href="/" legacyBehavior><a>API</a></Link>
-                <Link href="/" legacyBehavior><a>Status</a></Link>
-              </div>
-              
-              <div className={styles.footerColumn}>
-                <h4>Legal</h4>
-                <Link href="/" legacyBehavior><a>Privacy</a></Link>
-                <Link href="/" legacyBehavior><a>Terms</a></Link>
-                <Link href="/" legacyBehavior><a>Security</a></Link>
-              </div>
-            </div>
-          </div>
-          
-          <div className={styles.footerBottom}>
-            <p>© 2023 Social Lane. All rights reserved.</p>
-          </div>
-        </footer>
       </div>
     );
   }
 
   return (
-    <div className={styles.container}>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
       <Head>
         <title>TikTok Integration - Social Lane</title>
         <meta name="description" content="Post videos to TikTok" />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main className={styles.main}>
-        <section className={styles.tiktokCard}>
-          <div className={styles.connectedContainer}>
-            {isAuthenticated ? (
-              <>
-                <div className={styles.connectedHeader}>
-                  <div className={styles.connectedStatus}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      <main className="py-8">
+        {/* Header with back button */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+            <span className="text-pink-500"><TikTokSimpleIcon className="w-8 h-8" /></span>
+            <span className="bg-gradient-to-r from-pink-500 to-blue-500 bg-clip-text text-transparent">
+              TikTok Integration
+            </span>
+          </h1>
+          <Link 
+            href="/"
+            className="px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center gap-2 transition-colors text-gray-700"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
+            Back to Home
+          </Link>
+        </div>
+
+        {/* Main content */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="divide-y divide-gray-100">
+            {/* Accounts Management Section */}
+            <div className="p-6">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+                <h2 className="text-xl font-semibold text-gray-800">Your TikTok Accounts</h2>
+                <div className="flex flex-wrap gap-3">
+                  <button 
+                    onClick={() => handleLogout()} 
+                    className="px-4 py-2 rounded-full border border-rose-500 text-rose-500 hover:bg-rose-50 flex items-center gap-1.5 text-sm font-medium transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
-                    <h2>TikTok Accounts</h2>
-                  </div>
+                    <span>Disconnect All</span>
+                  </button>
                 </div>
-
-                {/* Accounts Management Section */}
-                <div className={tikTokStyles.accountsContainer}>
-                  <h2 className={tikTokStyles.sectionTitle}>Your TikTok Accounts</h2>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                {connectedAccounts.map(account => {
+                  const profilePic = account?.userInfo?.avatar_url_100 || account?.userInfo?.avatar_url;
+                  const username = account?.userInfo?.username || account.username || `TikTok Account ${account.index}`;
+                  const displayName = account?.userInfo?.display_name || account.displayName || username;
                   
-                  <div className={tikTokStyles.accountsGrid}>
-                    {connectedAccounts.map(account => {
-                      const profilePic = account?.userInfo?.avatar_url_100 || account?.userInfo?.avatar_url;
-                      const username = account?.userInfo?.username || account.username || `TikTok Account ${account.index}`;
-                      const displayName = account?.userInfo?.display_name || account.displayName || username;
-                      
-                      return (
-                        <div 
-                          key={account.openId}
-                          className={tikTokStyles.accountCardNew}
-                          onMouseEnter={() => setIsHovering(account.openId)}
-                          onMouseLeave={() => setIsHovering(null)}
-                        >
-                          <div className={tikTokStyles.accountCardHeader}>
-                            <div className={tikTokStyles.accountAvatar}>
-                              {profilePic ? (
-                                <img 
-                                  src={profilePic} 
-                                  alt={`${username} avatar`}
-                                  className={tikTokStyles.avatarImage}
-                                />
-                              ) : (
-                                <TikTokSimpleIcon width="32" height="32" />
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div className={tikTokStyles.accountCardBody}>
-                            <h3 className={tikTokStyles.accountCardName}>{displayName}</h3>
-                            <p className={tikTokStyles.accountCardUsername}>@{username}</p>
-                          </div>
-                          
-                          <div className={tikTokStyles.accountCardFooter}>
-                            <button 
-                              className={tikTokStyles.disconnectButtonNew}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleLogout(account);
-                              }}
-                              aria-label="Disconnect account"
-                            >
-                              Disconnect
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    
+                  return (
                     <div 
-                      className={tikTokStyles.addAccountCardNew}
-                      onClick={handleConnect}
+                      key={account.openId}
+                      className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                     >
-                      <div className={tikTokStyles.addAccountIconNew}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10"></circle>
-                          <line x1="12" y1="8" x2="12" y2="16"></line>
-                          <line x1="8" y1="12" x2="16" y2="12"></line>
-                        </svg>
-                      </div>
-                      <h3 className={tikTokStyles.addAccountText}>Add New Account</h3>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Post Container - Show if there are any accounts */}
-                {connectedAccounts.length > 0 && (
-                  <div className={tikTokStyles.postContainer}>
-                    {postStep === 1 ? (
-                      // Step 1: Upload Video
-                      <div className={tikTokStyles.uploadSection}>
-                        <div className={tikTokStyles.uploadHeader}>
-                          <h4>Upload Video to TikTok</h4>
-                          <p className={tikTokStyles.uploadDescription}>
-                            Select a video file to upload to TikTok
-                          </p>
-                        </div>
-                        
-                        {!uploadedFile && !isUploading && (
-                          <div 
-                            className={tikTokStyles.uploadDropzone}
-                            onClick={handleUploadClick}
-                          >
-                            <div className={tikTokStyles.uploadPlaceholder}>
-                              <div className={tikTokStyles.uploadIcon}>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                  <polyline points="17 8 12 3 7 8"></polyline>
-                                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                                </svg>
-                              </div>
-                              <div className={tikTokStyles.uploadText}>
-                                Click to upload a video
-                              </div>
-                              <div className={tikTokStyles.uploadHint}>
-                                MP4 or WebM format, max size 50MB
-                              </div>
-                            </div>
-                            <input
-                              type="file"
-                              ref={fileInputRef}
-                              onChange={handleFileChange}
-                              accept="video/mp4,video/webm"
-                              className={tikTokStyles.fileInput}
+                      <div className="bg-gradient-to-r from-pink-500 to-blue-400 p-4 flex justify-center">
+                        <div className="w-16 h-16 rounded-full bg-white p-1 flex items-center justify-center overflow-hidden">
+                          {profilePic ? (
+                            <img 
+                              src={profilePic} 
+                              alt={`${displayName} profile`}
+                              className="w-full h-full rounded-full object-cover"
                             />
-                          </div>
-                        )}
-
-                        {uploadedFile && !isLoading && !postSuccess && (
-                          <div className={tikTokStyles.uploadedFileCard}>
-                            <div className={tikTokStyles.uploadedFileHeader}>
-                              <div className={tikTokStyles.videoIcon}>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                                </svg>
-                              </div>
-                              <div className={tikTokStyles.uploadedFileInfo}>
-                                <h5>{uploadedFile?.name}</h5>
-                                <div className={tikTokStyles.uploadedFileDetails}>
-                                  {formatFileSize(uploadedFile?.size)} • {uploadedFile?.type}
-                                </div>
-                              </div>
+                          ) : (
+                            <div className="w-14 h-14 rounded-full bg-pink-100 flex items-center justify-center text-pink-500">
+                              <TikTokSimpleIcon className="w-8 h-8" />
                             </div>
-                            
-                            <button 
-                              className={tikTokStyles.changeFileButton}
-                              onClick={handleChangeFile}
-                              disabled={isUploading}
-                            >
-                              Change File
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Upload button */}
-                        {uploadedFile && !videoUrl && (
-                          <div className={tikTokStyles.postActions}>
-                            <button 
-                              className={tikTokStyles.postButton}
-                              onClick={handleFileUpload}
-                              disabled={isUploading || !file}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                              </svg> Upload Video
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Upload progress section */}
-                        {currentStep && getActiveProcess() === 'upload' && (
-                          <div className={tikTokStyles.progressSection}>
-                            <div className={tikTokStyles.stepIndicator}>
-                              <div className={tikTokStyles.stepTitle}>
-                                {currentStep === 'validating' && 'Validating file...'}
-                                {currentStep === 'uploading' && 'Uploading file...'}
-                                {currentStep === 'processing' && 'Processing upload...'}
-                                {currentStep === 'completed' && 'Upload completed successfully!'}
-                                {currentStep === 'preparing' && 'Preparing to post...'}
-                                {currentStep === 'posting' && 'Posting to TikTok...'}
-                                {currentStep === 'success' && 'Posted successfully!'}
-                                {currentStep === 'error' && 'Error occurred'}
-                              </div>
-                              
-                              {(currentStep === 'uploading' || currentStep === 'processing') && (
-                                <div className={tikTokStyles.progressBarContainer}>
-                                  <div 
-                                    className={tikTokStyles.progressBar} 
-                                    style={{ 
-                                      width: `${currentStep === 'processing' ? 100 : uploadProgress}%`,
-                                    }}
-                                  ></div>
-                                  <span className={tikTokStyles.progressText}>
-                                    {currentStep === 'processing' ? 'Processing...' : `${uploadProgress}%`}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      // Step 2: Preview & Caption
-                      <div className={tikTokStyles.previewSection}>
-                        <div className={tikTokStyles.previewHeader}>
-                          <h4>Preview & Add Caption</h4>
-                          <p className={tikTokStyles.previewDescription}>
-                            Preview your video and add a caption before posting
-                          </p>
-                        </div>
-
-                        <div className={tikTokStyles.videoPreviewContainer}>
-                          {videoUrl && (
-                            <video
-                              ref={videoRef}
-                              className={tikTokStyles.videoPreview}
-                              src={videoUrl}
-                              controls
-                              autoPlay
-                              loop
-                              playsInline
-                            />
                           )}
                         </div>
-
-                        <div className={tikTokStyles.captionContainer}>
-                          <textarea
-                            className={tikTokStyles.captionInput}
-                            placeholder="Write a caption for your video..."
-                            value={caption}
-                            onChange={(e) => setCaption(e.target.value)}
-                            maxLength={300}
-                          />
-                          <div className={tikTokStyles.captionCounter}>
-                            {caption.length}/300
-                          </div>
-                        </div>
-
-                        <div className={tikTokStyles.postActions}>
-                          <button
-                            className={`${tikTokStyles.postButton} ${tikTokStyles.backButton}`}
-                            onClick={() => setPostStep(1)}
-                            disabled={isLoading}
-                          >
-                            Back
-                          </button>
-                          <button
-                            className={tikTokStyles.postButton}
-                            onClick={(e) => handlePostVideo(e)}
-                            disabled={isLoading || !videoUrl}
-                          >
-                            <TikTokSimpleIcon width="16" height="16" /> Post to TikTok
-                          </button>
-                        </div>
                       </div>
-                    )}
-
-                    {uploadError && (
-                      <div className={tikTokStyles.errorMessage}>
-                        <div className={tikTokStyles.errorIcon}>
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="12" y1="8" x2="12" y2="12"></line>
-                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                          </svg>
-                        </div>
-                        <div className={tikTokStyles.errorContent}>
-                          <h4>Error occurred</h4>
-                          <p>{uploadError}</p>
-                        </div>
+                      
+                      <div className="p-4 text-center">
+                        <h3 className="font-bold text-gray-800 mb-1">{displayName}</h3>
+                        <p className="text-gray-500 text-sm">@{username}</p>
                       </div>
-                    )}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className={styles.connectContainer}>
-                <button
+                      
+                      <div className="border-t border-gray-100 p-3 flex justify-center">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLogout(account);
+                          }}
+                          className="w-full py-1.5 rounded-full border border-rose-500 text-rose-500 hover:bg-rose-50 text-sm font-medium transition-colors"
+                        >
+                          Disconnect
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {/* Add new account card */}
+                <div 
                   onClick={handleConnect}
-                  disabled={isLoading}
-                  className={styles.connectButton}
+                  className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center gap-3 hover:border-pink-400 hover:bg-pink-50 cursor-pointer transition-colors text-center h-full"
                 >
-                  <TikTokSimpleIcon width="24" height="24" />
-                  Connect TikTok Account
-                </button>
+                  <div className="w-12 h-12 rounded-full bg-pink-100 flex items-center justify-center text-pink-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-600 font-medium">Connect another account</p>
+                </div>
               </div>
-            )}
+            </div>
           </div>
-        </section>
+        </div>
       </main>
     </div>
   );
