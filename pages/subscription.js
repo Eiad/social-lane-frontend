@@ -3,8 +3,8 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useAuth } from '../src/context/AuthContext';
-import Navigation from '../src/components/Navigation';
 import { getSubscription } from '../src/services/subscriptionService';
+import ProtectedRoute from '../src/components/ProtectedRoute';
 
 const Subscription = () => {
   const { user, loading } = useAuth();
@@ -105,8 +105,6 @@ const Subscription = () => {
       </Head>
 
       <div className="min-h-screen bg-background">
-        <Navigation />
-        
         <div className="md:ml-64 pt-6 px-4 sm:px-6 transition-all duration-300">
           <div className="max-w-6xl mx-auto">
             <h1 className="text-3xl font-bold text-center text-gray-900 mb-8 animate-slide-down">Subscription</h1>
@@ -307,4 +305,10 @@ const Subscription = () => {
   );
 };
 
-export default Subscription; 
+export default function SubscriptionPage() {
+  return (
+    <ProtectedRoute>
+      <Subscription />
+    </ProtectedRoute>
+  );
+} 

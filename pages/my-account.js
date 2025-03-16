@@ -3,7 +3,6 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useAuth } from '../src/context/AuthContext';
-import Navigation from '../src/components/Navigation';
 import { createSubscription } from '../src/services/subscriptionService';
 import SubscriptionStatus from '../src/components/SubscriptionStatus';
 
@@ -15,6 +14,16 @@ const MyAccount = () => {
   const [authError, setAuthError] = useState('');
   const [subscriptionError, setSubscriptionError] = useState('');
   const [subscriptionSuccess, setSubscriptionSuccess] = useState(false);
+
+  // Redirect to dashboard if user is already logged in
+  useEffect(() => {
+    if (user && !loading) {
+      if (redirectAfterLogin) {
+        setRedirectAfterLogin(false);
+        router.push('/social-posting');
+      }
+    }
+  }, [user, loading, redirectAfterLogin, router, setRedirectAfterLogin]);
 
   // Handle subscription success message from query params
   useEffect(() => {
@@ -51,18 +60,6 @@ const MyAccount = () => {
       setIsProcessing(false);
     }
   };
-
-  // Redirect to social-posting page only if user just logged in
-  useEffect(() => {
-    if (!loading && user && redirectAfterLogin) {
-      const redirectTimeout = setTimeout(() => {
-        router.push('/social-posting');
-        setRedirectAfterLogin?.(false); // Reset the flag after redirect
-      }, 2000); // Give the user a moment to see they're logged in
-      
-      return () => clearTimeout(redirectTimeout);
-    }
-  }, [user, loading, router, redirectAfterLogin, setRedirectAfterLogin]);
 
   // Format date function
   const formatDate = (dateString) => {
@@ -106,9 +103,7 @@ const MyAccount = () => {
       </Head>
 
       <div className="min-h-screen bg-background">
-        <Navigation />
-        
-        <div className="md:ml-64 pt-6 px-4 sm:px-6 transition-all duration-300">
+        <div className="pt-6 px-4 sm:px-6 transition-all duration-300">
           <div className="max-w-6xl mx-auto">
             <h1 className="text-3xl font-bold text-center text-gray-900 mb-8 animate-slide-down">My Account</h1>
             

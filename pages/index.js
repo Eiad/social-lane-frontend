@@ -1,476 +1,480 @@
 import { useState, useEffect } from 'react';
-import styles from '../styles/Home.module.scss';
 import Head from 'next/head';
-import { TikTokIcon } from '../src/components/icons/Icons';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { useAuth } from '../src/context/AuthContext';
 import { 
   LinkedInIcon, 
   TwitterIcon, 
   FacebookIcon, 
   InstagramIcon, 
   YouTubeIcon, 
-  PinterestIcon, 
-  RedditIcon,
   TikTokSimpleIcon
 } from '../src/components/icons/SocialIcons';
-import Link from 'next/link';
-import Navigation from '../src/components/Navigation';
-import TailwindTest from '../src/components/TailwindTest';
-
-// Use environment variable for API URL
-const API_BASE_URL = typeof window !== 'undefined' 
-  ? process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat'
-  : 'https://sociallane-backend.mindio.chat';
 
 export default function Home() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [videoUrl, setVideoUrl] = useState('');
-  const [apiUrl, setApiUrl] = useState(API_BASE_URL);
-  const [accessToken, setAccessToken] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [expandedFaq, setExpandedFaq] = useState(null);
-
-  // Set API URL on component mount and check for existing token
+  const { user, signInWithGoogle } = useAuth();
+  const router = useRouter();
+  
+  // Redirect authenticated users to dashboard
   useEffect(() => {
-    // Use the API_BASE_URL constant instead of accessing process.env directly
-    setApiUrl(API_BASE_URL);
-    
-    // Check if we have a token in localStorage
-    const savedToken = localStorage?.getItem('tiktokAccessToken');
-    if (savedToken) {
-      setAccessToken(savedToken);
-      setIsConnected(true);
-      window.showToast?.success?.('Connected to your TikTok account.');
+    if (user) {
+      router.push('/social-posting');
     }
-  }, []);
+  }, [user, router]);
 
-  // Connect to TikTok
-  const handleConnect = () => {
-    // Redirect to the TikTok page for proper authentication
-    window.location.href = '/tiktok';
-  };
-
-  // Submit video URL to the backend
-  const handleSubmit = async (e) => {
-    e?.preventDefault();
-    setIsLoading(true);
-    window.showToast?.info?.('Posting video...');
-
-    // Get the token from state or localStorage
-    const token = accessToken || localStorage?.getItem('tiktokAccessToken');
-    
-    if (!token) {
-      window.showToast?.error?.('No access token available. Please connect your TikTok account first.');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const res = await fetch(`${apiUrl}/tiktok/post-video`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          videoUrl,
-          accessToken: token
-        })
-      });
-      
-      const data = await res?.json?.();
-      if (res?.ok) {
-        window.showToast?.success?.('Video posted successfully!');
-        setVideoUrl('');
-      } else {
-        window.showToast?.error?.(data?.error || 'Failed to post video');
-      }
-    } catch (error) {
-      window.showToast?.error?.(error?.message || 'Unknown error occurred');
-      console.error('Post error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Disconnect from TikTok
-  const handleDisconnect = () => {
-    localStorage?.removeItem('tiktokAccessToken');
-    setAccessToken(null);
-    setIsConnected(false);
-    window.showToast?.info?.('Disconnected from TikTok.');
-  };
-
-  // Toggle FAQ item
-  const toggleFaq = (index) => {
-    if (expandedFaq === index) {
-      setExpandedFaq(null);
-    } else {
-      setExpandedFaq(index);
-    }
-  };
-
-  // FAQ data
-  const faqItems = [
+  // Features data
+  const features = [
     {
-      question: "What platforms does Social Lane support?",
-      answer: "Social Lane supports all major social media platforms including TikTok, Instagram, Facebook, Twitter, LinkedIn, YouTube, Pinterest, and Reddit. We're constantly adding more platforms to our ecosystem."
+      title: "Post Once, Share Everywhere",
+      description: "Schedule and publish content to multiple social networks from a single dashboard.",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+        </svg>
+      )
     },
     {
-      question: "How does the scheduling feature work?",
-      answer: "Our scheduling feature allows you to plan and schedule your content in advance. You can create posts, set specific dates and times for them to be published, and our system will automatically post them to your selected platforms at the scheduled time."
+      title: "Intelligent Scheduling",
+      description: "AI-powered scheduling suggests the best times to post for maximum engagement.",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
     },
     {
-      question: "Can I use Social Lane for multiple accounts?",
-      answer: "Yes! Depending on your plan, you can connect multiple accounts from different platforms. Our Free plan supports up to 3 social accounts, Pro plan supports up to 10 accounts, and Business plan offers unlimited social accounts."
+      title: "Comprehensive Analytics",
+      description: "Track performance metrics across all platforms in one centralized dashboard.",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      )
     },
     {
-      question: "Is there a free trial available?",
-      answer: "Yes, we offer a free plan that allows you to try out our core features. You can use the free plan for as long as you want, and upgrade to a paid plan when you need more features or capacity."
+      title: "Content Library",
+      description: "Store and organize all your media assets in one place for easy access.",
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      )
+    }
+  ];
+
+  // Platforms data
+  const platforms = [
+    { name: "TikTok", icon: <TikTokSimpleIcon className="w-8 h-8" />, href: "/tiktok", available: true },
+    { name: "Twitter", icon: <TwitterIcon className="w-8 h-8" />, href: "/twitter", available: true },
+    { name: "Instagram", icon: <InstagramIcon className="w-8 h-8" />, href: "#", available: false },
+    { name: "Facebook", icon: <FacebookIcon className="w-8 h-8" />, href: "#", available: false },
+    { name: "LinkedIn", icon: <LinkedInIcon className="w-8 h-8" />, href: "#", available: false },
+    { name: "YouTube", icon: <YouTubeIcon className="w-8 h-8" />, href: "#", available: false }
+  ];
+
+  // Pricing plans
+  const pricingPlans = [
+    {
+      name: "Free",
+      price: "$0",
+      period: "/month",
+      features: [
+        "3 social accounts",
+        "30 scheduled posts per month",
+        "Basic analytics",
+        "Single user"
+      ],
+      cta: "Start for free",
+      popular: false
     },
     {
-      question: "How does the AI content suggestion work?",
-      answer: "Our AI analyzes your content and audience engagement patterns to suggest optimizations for each platform. It helps you tailor your content to match the specific requirements and best practices of each social network, increasing your reach and engagement."
+      name: "Pro",
+      price: "$10",
+      period: "/month",
+      features: [
+        "10 social accounts",
+        "Unlimited scheduled posts",
+        "Advanced analytics",
+        "AI content suggestions",
+        "Priority support"
+      ],
+      cta: "Start Pro Trial",
+      popular: true
+    },
+    {
+      name: "Business",
+      price: "$25",
+      period: "/month",
+      features: [
+        "Unlimited social accounts",
+        "Unlimited scheduled posts",
+        "Premium analytics",
+        "AI content creation",
+        "Team collaboration",
+        "Dedicated account manager"
+      ],
+      cta: "Contact Sales",
+      popular: false
     }
   ];
 
   return (
-    <div className={styles.container}>
+    <>
       <Head>
-        <title>Social Lane - Social Media Management</title>
-        <meta name="description" content="Manage your social media accounts in one place" />
+        <title>Social Lane - Social Media Management Platform</title>
+        <meta name="description" content="Manage all your social media accounts in one place. Schedule, post, and analyze your content across multiple platforms." />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <Navigation />
-      
-      <div className="md:ml-64 transition-all duration-300">
-        <TailwindTest />
-        
-        <main className={styles.main}>
-          <div className={styles.landingPage}>
+      {/* Hero Section */}
+      <div className="relative bg-gradient-to-br from-indigo-600 to-purple-700 overflow-hidden">
             {/* Navigation */}
-            <nav className={styles.navbar}>
-              <div className={styles.navContainer}>
-                <div className={styles.logo}>
-                  <span className={styles.logoText}>sociallane</span>
+        <header className="relative z-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div className="flex items-center">
+                <span className="text-2xl font-bold text-white">Social Lane</span>
                 </div>
-                <div className={styles.navLinks}>
-                  <a href="#features">Features</a>
-                  <a href="#pricing">Pricing</a>
-                  <a href="#about">About</a>
-                  <a href="#faq">FAQ</a>
-                  <a href="#blog">Blog</a>
+              <div className="hidden md:flex space-x-10">
+                <a href="#features" className="text-base font-medium text-white hover:text-indigo-100 transition">Features</a>
+                <a href="#platforms" className="text-base font-medium text-white hover:text-indigo-100 transition">Platforms</a>
+                <a href="#pricing" className="text-base font-medium text-white hover:text-indigo-100 transition">Pricing</a>
                 </div>
-                <div className={styles.navButtons}>
-                  <button className={styles.loginButton}>Log in</button>
-                  <button className={styles.signupButton}>Sign up free</button>
-                </div>
+              <div className="flex items-center space-x-4">
+                <Link href="/my-account" className="text-base font-medium text-white hover:text-indigo-100 transition">Sign In</Link>
+                <Link href="/my-account" className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-indigo-600 bg-white hover:bg-indigo-50 transition">
+                  Get Started
+                </Link>
               </div>
-            </nav>
+            </div>
+          </div>
+        </header>
 
-            {/* Hero Section */}
-            <section className={styles.heroSection}>
-              <div className={styles.heroContent}>
-                <h1>Schedule your content everywhere in seconds</h1>
-                <p className={styles.heroSubtitle}>Plan, schedule and automatically post your content across all social media platforms with just a few clicks.</p>
-                
-                <div className={styles.ctaButtons}>
-                  <button className={styles.primaryCta}>Start for free</button>
-                  <button className={styles.secondaryCta}>See how it works</button>
-                </div>
-                
-                <div className={styles.socialIcons}>
-                  <div className={styles.iconGrid}>
-                    <div className={styles.socialIcon}><TikTokSimpleIcon /></div>
-                    <div className={styles.socialIcon}><LinkedInIcon /></div>
-                    <div className={styles.socialIcon}><TwitterIcon /></div>
-                    <div className={styles.socialIcon}><FacebookIcon /></div>
-                    <div className={styles.socialIcon}><InstagramIcon /></div>
-                    <div className={styles.socialIcon}><YouTubeIcon /></div>
+        {/* Hero Content */}
+        <div className="relative pt-16 pb-32">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="lg:grid lg:grid-cols-12 lg:gap-8">
+              <div className="sm:text-center md:mx-auto lg:col-span-6 lg:text-left lg:flex lg:items-center">
+                <div>
+                  <h1 className="mt-4 text-4xl tracking-tight font-extrabold text-white sm:mt-5 sm:text-5xl lg:mt-6 xl:text-6xl">
+                    <span className="block">Schedule and post</span>
+                    <span className="block text-indigo-200">to all social platforms</span>
+                  </h1>
+                  <p className="mt-3 text-base text-indigo-100 sm:mt-5 sm:text-xl lg:text-lg xl:text-xl">
+                    Streamline your social media workflow. Plan, schedule, and automatically post your content across all platforms with one powerful tool.
+                  </p>
+                  <div className="mt-8 sm:mx-auto sm:max-w-lg sm:text-center lg:mx-0 lg:text-left">
+                    <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
+                      <div className="col-span-1">
+                        <TikTokSimpleIcon className="h-8 text-white" />
+                      </div>
+                      <div className="col-span-1">
+                        <TwitterIcon className="h-8 text-white" />
+                      </div>
+                      <div className="col-span-1">
+                        <InstagramIcon className="h-8 text-white" />
+                      </div>
+                      <div className="col-span-1">
+                        <FacebookIcon className="h-8 text-white" />
+                      </div>
+                      <div className="col-span-1">
+                        <LinkedInIcon className="h-8 text-white" />
+                      </div>
+                      <div className="col-span-1">
+                        <YouTubeIcon className="h-8 text-white" />
+                      </div>
+                    </div>
                   </div>
-                  <p>Supported platforms</p>
+                  <div className="mt-10 sm:flex sm:justify-center lg:justify-start">
+                    <div className="rounded-md shadow">
+                      <Link href="/my-account" className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 md:py-4 md:text-lg md:px-10 transition">
+                        Get started
+                      </Link>
+                    </div>
+                    <div className="mt-3 sm:mt-0 sm:ml-3">
+                      <a href="#features" className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-500 bg-opacity-60 hover:bg-opacity-70 md:py-4 md:text-lg md:px-10 transition">
+                        Learn more
+                      </a>
+                </div>
+                  </div>
                 </div>
               </div>
-            </section>
+              <div className="mt-16 sm:mt-24 lg:mt-0 lg:col-span-6">
+                <div className="bg-white sm:max-w-md sm:w-full sm:mx-auto sm:rounded-lg sm:overflow-hidden">
+                  <div className="px-4 py-8 sm:px-10">
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300"></div>
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-white text-gray-500">Sign up in seconds</span>
+                      </div>
+                    </div>
 
-            {/* Features Section */}
-            <section className={styles.featuresSection} id="features">
-              <h2>Posting content shouldn&apos;t be this hard</h2>
-              
-              <div className={styles.featureGrid}>
-                <div className={styles.featureCard}>
-                  <div className={styles.featureIcon}>🔄</div>
-                  <h3>Never re-posting</h3>
-                  <p>Schedule your content once and let it post automatically across all platforms.</p>
+                    <div className="mt-6">
+                      <form action="#" method="POST" className="space-y-6">
+                        <div>
+                          <label htmlFor="name" className="sr-only">Full name</label>
+                          <input
+                            type="text"
+                            name="name"
+                            id="name"
+                            autoComplete="name"
+                            placeholder="Full name"
+                            className="block w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md"
+                          />
                 </div>
                 
-                <div className={styles.featureCard}>
-                  <div className={styles.featureIcon}>📅</div>
-                  <h3>Simple calendar</h3>
-                  <p>Easily plan and visualize your content schedule with our intuitive calendar.</p>
+                        <div>
+                          <label htmlFor="email" className="sr-only">Email</label>
+                          <input
+                            type="text"
+                            name="email"
+                            id="email"
+                            autoComplete="email"
+                            placeholder="Email"
+                            className="block w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md"
+                          />
                 </div>
                 
-                <div className={styles.featureCard}>
-                  <div className={styles.featureIcon}>📊</div>
-                  <h3>Track performance</h3>
-                  <p>Get insights on how your content is performing across different platforms.</p>
+                        <div>
+                          <label htmlFor="password" className="sr-only">Password</label>
+                          <input
+                            id="password"
+                            name="password"
+                            type="password"
+                            placeholder="Password"
+                            autoComplete="current-password"
+                            className="block w-full shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300 rounded-md"
+                          />
                 </div>
                 
-                <div className={styles.featureCard}>
-                  <div className={styles.featureIcon}>🔍</div>
-                  <h3>AI suggestions</h3>
-                  <p>Get AI-powered suggestions to optimize your content for each platform.</p>
+                        <div>
+                          <button
+                            type="submit"
+                            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          >
+                            Create your free account
+                          </button>
+                        </div>
+                      </form>
+                      
+                      <div className="mt-6">
+                        <div className="relative">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-gray-300"></div>
+                          </div>
+                          <div className="relative flex justify-center text-sm">
+                            <span className="px-2 bg-white text-gray-500">Or continue with</span>
                 </div>
               </div>
-            </section>
-
-            {/* Social Reach Section */}
-            <section className={styles.socialReachSection}>
-              <h2>Grow your social reach with less effort</h2>
-              <p>Our platform helps you maintain a consistent presence across all social media channels</p>
-              
-              <div className={styles.demoContainer}>
-                <div className={styles.demoContent}>
-                  <div className={styles.demoFeature}>
-                    <h3>Schedule once, post everywhere</h3>
-                    <p>Create content once and schedule it to post across all your social media accounts.</p>
+                        
+                        <div className="mt-6">
+                          <button
+                            type="button"
+                            onClick={() => signInWithGoogle()}
+                            className="w-full flex items-center justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          >
+                            <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+                              <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
+                                <path fill="#4285F4" d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z" />
+                                <path fill="#34A853" d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z" />
+                                <path fill="#FBBC05" d="M -21.484 53.529 C -21.734 52.809 -21.864 52.039 -21.864 51.239 C -21.864 50.439 -21.724 49.669 -21.484 48.949 L -21.484 45.859 L -25.464 45.859 C -26.284 47.479 -26.754 49.299 -26.754 51.239 C -26.754 53.179 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z" />
+                                <path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z" />
+                              </g>
+                            </svg>
+                            Sign up with Google
+                          </button>
+                        </div>
+                  </div>
+                  </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+                </div>
                   </div>
                   
-                  <div className={styles.demoFeature}>
-                    <h3>Optimize for each platform</h3>
-                    <p>Our AI helps you tailor your content for each platform&apos;s unique requirements.</p>
+      {/* Features Section */}
+      <div className="py-16 bg-white" id="features">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="lg:text-center">
+            <p className="text-base text-indigo-600 font-semibold tracking-wide uppercase">Features</p>
+            <h2 className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+              A better way to manage your social presence
+            </h2>
+            <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
+              Streamline your social media workflow with powerful tools designed for content creators and marketers.
+            </p>
                   </div>
                   
-                  <div className={styles.demoFeature}>
-                    <h3>Analytics dashboard</h3>
-                    <p>Track performance metrics across all platforms in one centralized dashboard.</p>
+          <div className="mt-16">
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
+              {features.map((feature, index) => (
+                <div key={index} className="relative bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition">
+                  <div className="rounded-md p-3 inline-flex items-center justify-center bg-indigo-50">
+                    {feature.icon}
                   </div>
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">{feature.title}</h3>
+                  <p className="mt-2 text-base text-gray-500">{feature.description}</p>
                 </div>
-                
-                <div className={styles.demoImage}>
-                  {/* Placeholder for dashboard image */}
-                  <div className={styles.dashboardImage}></div>
-                </div>
-              </div>
-            </section>
-
-            {/* Video Creation Section */}
-            <section className={styles.videoSection}>
-              <h2>Create Viral Videos in Seconds</h2>
-              
-              <div className={styles.videoDemo}>
-                <div className={styles.videoDemoImage}>
-                  {/* Placeholder for app screenshot */}
-                </div>
-                
-                <div className={styles.videoDemoFeatures}>
-                  <div className={styles.videoDemoFeature}>
-                    <h3>AI-powered video creation</h3>
-                    <p>Generate engaging videos with our AI tools in just a few clicks.</p>
-                  </div>
-                  
-                  <div className={styles.videoDemoFeature}>
-                    <h3>Custom templates</h3>
-                    <p>Choose from hundreds of templates or create your own to match your brand.</p>
-                  </div>
-                  
-                  <div className={styles.videoDemoFeature}>
-                    <h3>One-click publishing</h3>
-                    <p>Publish your videos to multiple platforms with a single click.</p>
+              ))}
                   </div>
                 </div>
               </div>
-            </section>
-
-            {/* User Testimonials */}
-            <section className={styles.testimonialsSection}>
-              <h2>25000+ users growing on all platforms</h2>
-              
-              <div className={styles.testimonialGrid}>
-                {/* This would be a grid of testimonial cards */}
-                {/* Placeholder for testimonial cards */}
               </div>
-            </section>
 
             {/* Platforms Section */}
-            <section className={styles.platformsSection} id="platforms">
-              <h2>Connect Your Social Media Accounts</h2>
-              <p>Easily connect and manage all your social media accounts in one place</p>
-              
-              <div className={styles.platformsGrid}>
-                <Link href="/tiktok" className={styles.platformCard}>
-                  <div className={styles.platformIcon}><TikTokSimpleIcon /></div>
-                  <h3>TikTok</h3>
-                  <p>Post videos directly to TikTok</p>
+      <div className="py-16 bg-gray-50" id="platforms">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="lg:text-center">
+            <p className="text-base text-indigo-600 font-semibold tracking-wide uppercase">Platforms</p>
+            <h2 className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+              Connect all your social accounts
+            </h2>
+            <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
+              Manage all your social media presence from a single dashboard.
+            </p>
+          </div>
+
+          <div className="mt-16">
+            <div className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-6">
+              {platforms.map((platform, index) => (
+                <Link 
+                  key={index} 
+                  href={platform.available ? platform.href : "#"}
+                  className={`relative flex flex-col items-center justify-center p-6 rounded-lg bg-white ${platform.available 
+                    ? 'border border-gray-200 hover:border-indigo-300 hover:shadow-md cursor-pointer' 
+                    : 'border border-gray-200 opacity-60 cursor-not-allowed'
+                  } transition`}
+                >
+                  <div className="text-gray-900">{platform.icon}</div>
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">{platform.name}</h3>
+                  {!platform.available && (
+                    <span className="absolute top-2 right-2 text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                      Coming Soon
+                    </span>
+                  )}
                 </Link>
-                
-                <Link href="/twitter" className={styles.platformCard}>
-                  <div className={styles.platformIcon}><TwitterIcon /></div>
-                  <h3>Twitter</h3>
-                  <p>Post media tweets with ease</p>
-                </Link>
-                
-                {/* Other platforms (coming soon) */}
-                <div className={`${styles.platformCard} ${styles.comingSoon}`}>
-                  <div className={styles.platformIcon}><InstagramIcon /></div>
-                  <h3>Instagram</h3>
-                  <p>Coming soon</p>
-                  <div className={styles.comingSoonBadge}>Coming Soon</div>
+              ))}
                 </div>
-                
-                <div className={`${styles.platformCard} ${styles.comingSoon}`}>
-                  <div className={styles.platformIcon}><FacebookIcon /></div>
-                  <h3>Facebook</h3>
-                  <p>Coming soon</p>
-                  <div className={styles.comingSoonBadge}>Coming Soon</div>
                 </div>
-                
-                <div className={`${styles.platformCard} ${styles.comingSoon}`}>
-                  <div className={styles.platformIcon}><LinkedInIcon /></div>
-                  <h3>LinkedIn</h3>
-                  <p>Coming soon</p>
-                  <div className={styles.comingSoonBadge}>Coming Soon</div>
-                </div>
-                
-                <div className={`${styles.platformCard} ${styles.comingSoon}`}>
-                  <div className={styles.platformIcon}><YouTubeIcon /></div>
-                  <h3>YouTube</h3>
-                  <p>Coming soon</p>
-                  <div className={styles.comingSoonBadge}>Coming Soon</div>
                 </div>
               </div>
-            </section>
 
             {/* Pricing Section */}
-            <section className={styles.pricingSection} id="pricing">
-              <h2>Get more views, with less effort</h2>
-              
-              <div className={styles.pricingCards}>
-                <div className={styles.pricingCard}>
-                  <div className={styles.pricingHeader}>
-                    <h3>Free</h3>
-                    <div className={styles.price}>$0<span>/mo</span></div>
-                  </div>
-                  <ul className={styles.pricingFeatures}>
-                    <li>3 social accounts</li>
-                    <li>30 scheduled posts</li>
-                    <li>Basic analytics</li>
-                  </ul>
-                  <button className={styles.pricingButton}>Get started</button>
+      <div className="py-16 bg-white" id="pricing">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="lg:text-center">
+            <p className="text-base text-indigo-600 font-semibold tracking-wide uppercase">Pricing</p>
+            <h2 className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+              Simple, transparent pricing
+            </h2>
+            <p className="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
+              No contracts. No hidden fees. Start for free and upgrade when you need more.
+            </p>
                 </div>
                 
-                <div className={`${styles.pricingCard} ${styles.popularPlan}`}>
-                  <div className={styles.popularTag}>Most popular</div>
-                  <div className={styles.pricingHeader}>
-                    <h3>Pro</h3>
-                    <div className={styles.price}>$10<span>/mo</span></div>
-                  </div>
-                  <ul className={styles.pricingFeatures}>
-                    <li>10 social accounts</li>
-                    <li>Unlimited scheduled posts</li>
-                    <li>Advanced analytics</li>
-                    <li>AI content suggestions</li>
+          <div className="mt-16 space-y-12 lg:space-y-0 lg:grid lg:grid-cols-3 lg:gap-8">
+            {pricingPlans.map((plan, index) => (
+              <div key={index} className={`relative p-8 bg-white ${plan.popular 
+                ? 'ring-2 ring-indigo-600 rounded-lg shadow-xl' 
+                : 'border border-gray-200 rounded-lg shadow-sm'
+              } flex flex-col`}>
+                {plan.popular && (
+                  <span className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-sm font-medium">
+                    Most Popular
+                  </span>
+                )}
+                <div className="flex-1">
+                  <h3 className="text-xl font-semibold text-gray-900">{plan.name}</h3>
+                  <p className="mt-4 flex items-baseline text-gray-900">
+                    <span className="text-4xl font-extrabold tracking-tight">{plan.price}</span>
+                    <span className="ml-1 text-xl font-semibold">{plan.period}</span>
+                  </p>
+                  <ul className="mt-6 space-y-4">
+                    {plan.features.map((feature, idx) => (
+                      <li key={idx} className="flex">
+                        <svg className="flex-shrink-0 h-5 w-5 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="ml-3 text-gray-500">{feature}</span>
+                      </li>
+                    ))}
                   </ul>
-                  <button className={styles.pricingButton}>Get started</button>
                 </div>
-                
-                <div className={styles.pricingCard}>
-                  <div className={styles.pricingHeader}>
-                    <h3>Business</h3>
-                    <div className={styles.price}>$25<span>/mo</span></div>
-                  </div>
-                  <ul className={styles.pricingFeatures}>
-                    <li>Unlimited social accounts</li>
-                    <li>Unlimited scheduled posts</li>
-                    <li>Premium analytics</li>
-                    <li>Team collaboration</li>
-                    <li>Priority support</li>
-                  </ul>
-                  <button className={styles.pricingButton}>Get started</button>
-                </div>
-              </div>
-            </section>
-
-            {/* FAQ Section */}
-            <section className={styles.faqSection} id="faq">
-              <h2>Frequently Asked Questions</h2>
-              
-              <div className={styles.faqList}>
-                {faqItems.map((item, index) => (
-                  <div 
-                    key={index} 
-                    className={`${styles.faqItem} ${expandedFaq === index ? styles.expanded : ''}`}
+                <div className="mt-8">
+                  <button
+                    className={`w-full ${plan.popular 
+                      ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                      : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                    } border border-transparent rounded-md py-3 px-5 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition`}
                   >
-                    <div 
-                      className={styles.faqQuestion}
-                      onClick={() => toggleFaq(index)}
-                    >
-                      <h3>{item.question}</h3>
-                      <span className={styles.faqToggle}>
-                        {expandedFaq === index ? '−' : '+'}
-                      </span>
-                    </div>
-                    {expandedFaq === index && (
-                      <div className={styles.faqAnswer}>
-                        <p>{item.answer}</p>
-                      </div>
-                    )}
+                    {plan.cta}
+                  </button>
+                </div>
                   </div>
                 ))}
               </div>
-            </section>
-
-            {/* Final CTA */}
-            <section className={styles.finalCta}>
-              <h2>Get more views, with less effort</h2>
-              <p>Join thousands of content creators who are growing their audience with Social Lane</p>
-              <button className={styles.primaryCta}>Start for free</button>
-            </section>
-
-            {/* Footer */}
-            <footer className={styles.footer}>
-              <div className={styles.footerContent}>
-                <div className={styles.footerLogo}>
-                  <span className={styles.logoText}>sociallane</span>
                 </div>
-                
-                <div className={styles.footerLinks}>
-                  <div className={styles.footerColumn}>
-                    <h4>Product</h4>
-                    <a href="#features">Features</a>
-                    <a href="#pricing">Pricing</a>
-                    <a href="#">Integrations</a>
                   </div>
                   
-                  <div className={styles.footerColumn} id="about">
-                    <h4>Company</h4>
-                    <a href="#">About</a>
-                    <a href="#" id="blog">Blog</a>
-                    <a href="#">Careers</a>
+      {/* CTA Section */}
+      <div className="bg-indigo-600">
+        <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:py-16 lg:px-8 lg:flex lg:items-center lg:justify-between">
+          <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+            <span className="block">Ready to get started?</span>
+            <span className="block text-indigo-200">Start your free trial today.</span>
+          </h2>
+          <div className="mt-8 flex lg:mt-0 lg:flex-shrink-0">
+            <div className="inline-flex rounded-md shadow">
+              <Link
+                href="/my-account"
+                className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-indigo-600 bg-white hover:bg-indigo-50 transition"
+              >
+                Get started
+              </Link>
                   </div>
-                  
-                  <div className={styles.footerColumn}>
-                    <h4>Resources</h4>
-                    <a href="#">Help Center</a>
-                    <a href="#">API</a>
-                    <a href="#">Status</a>
+            <div className="ml-3 inline-flex rounded-md shadow">
+              <Link
+                href="#features"
+                className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-500 hover:bg-indigo-600 transition"
+              >
+                Learn more
+              </Link>
                   </div>
-                  
-                  <div className={styles.footerColumn}>
-                    <h4>Legal</h4>
-                    <a href="#">Privacy</a>
-                    <a href="#">Terms</a>
-                    <a href="#">Security</a>
                   </div>
                 </div>
               </div>
               
-              <div className={styles.footerBottom}>
-                <p>© 2023 Social Lane. All rights reserved.</p>
-              </div>
-            </footer>
+      {/* Footer */}
+      <footer className="bg-gray-800">
+        <div className="max-w-7xl mx-auto py-12 px-4 overflow-hidden sm:px-6 lg:px-8">
+          <div className="mt-8 flex justify-center space-x-6">
+            <a href="#" className="text-gray-400 hover:text-gray-300">
+              <span className="sr-only">Twitter</span>
+              <TwitterIcon className="h-6 w-6" />
+            </a>
+            <a href="#" className="text-gray-400 hover:text-gray-300">
+              <span className="sr-only">Facebook</span>
+              <FacebookIcon className="h-6 w-6" />
+            </a>
+            <a href="#" className="text-gray-400 hover:text-gray-300">
+              <span className="sr-only">Instagram</span>
+              <InstagramIcon className="h-6 w-6" />
+            </a>
+            <a href="#" className="text-gray-400 hover:text-gray-300">
+              <span className="sr-only">LinkedIn</span>
+              <LinkedInIcon className="h-6 w-6" />
+            </a>
           </div>
-        </main>
+          <p className="mt-8 text-center text-base text-gray-400">
+            &copy; {new Date().getFullYear()} Social Lane. All rights reserved.
+          </p>
       </div>
-    </div>
+      </footer>
+    </>
   );
 }

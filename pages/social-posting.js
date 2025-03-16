@@ -4,7 +4,6 @@ import Link from 'next/link';
 import styles from '../styles/SocialPosting.module.css';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 import ProtectedRoute from '../src/components/ProtectedRoute';
-import Navigation from '../src/components/Navigation';
 import axios from 'axios';
 
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
@@ -1128,31 +1127,27 @@ function SocialPosting() {
         <meta name="description" content="Post to social media platforms" />
       </Head>
       
-      <Navigation />
-      
-      <div className={`${styles.container} md:ml-64 transition-all duration-300`}>
-      <div className={styles.header}>
-            <h1>Create Your Post</h1>
-            <div className={styles.steps}>
-              {[1, 2, 3, 4].map((step) => (
-                <div
-                  key={step}
-                  className={`${styles.step} ${currentStep >= step ? styles.active : ''} ${currentStep === step ? styles.current : ''}`}
-                >
-                  <div className={styles.stepNumber}>{step}</div>
-                  <div className={styles.stepLabel}>
-                    {step === 1 && 'UPLOAD'}
-                    {step === 2 && 'PLATFORMS'}
-                    {step === 3 && 'DETAILS'}
-                    {step === 4 && 'PUBLISH'}
-                  </div>
+      <div className={styles.container}>
+        <div className={styles.header}>
+          <h1>Create Your Post</h1>
+          <div className={styles.steps}>
+            {[1, 2, 3, 4].map((step) => (
+              <div
+                key={step}
+                className={`${styles.step} ${currentStep >= step ? styles.active : ''} ${currentStep === step ? styles.current : ''}`}
+              >
+                <div className={styles.stepNumber}>{step}</div>
+                <div className={styles.stepLabel}>
+                  {step === 1 && 'UPLOAD'}
+                  {step === 2 && 'PLATFORMS'}
+                  {step === 3 && 'DETAILS'}
+                  {step === 4 && 'PUBLISH'}
                 </div>
-              ))}
-            </div>
-          </div>        
+              </div>
+            ))}
+          </div>
+        </div>        
         <main className={styles.main}>
-
-
           <div className={styles.content}>
             {renderStep()}
           </div>

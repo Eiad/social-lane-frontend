@@ -139,11 +139,6 @@ input[type="submit"] {
   font-size: 1rem;
   transition: all var(--transition-fast) ease;
   
-  &:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.3);
-  }
-  
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -261,3 +256,14 @@ input, textarea, select {
     color-scheme: dark;
   }
 } 
+
+*{
+  outline: none !important;
+}
+
+.accounts-menu {
+  svg {    
+    width: 20px;
+    height: 20px;
+  }
+}

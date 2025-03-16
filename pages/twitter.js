@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
 import axios from 'axios';
+import ProtectedRoute from '../src/components/ProtectedRoute';
 
 // API base URL
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
@@ -15,7 +16,15 @@ const TwitterIcon = ({ className = "w-6 h-6" }) => (
   </svg>
 );
 
-export default function Twitter() {
+export default function TwitterPage() {
+  return (
+    <ProtectedRoute>
+      <Twitter />
+    </ProtectedRoute>
+  );
+}
+
+function Twitter() {
   const [videoUrl, setVideoUrl] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessToken, setAccessToken] = useState(null);

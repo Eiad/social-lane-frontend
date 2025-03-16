@@ -8,7 +8,7 @@ const ProtectedRoute = ({ children }) => {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/my-account');
+      router.push('/');
     }
   }, [user, loading, router]);
 

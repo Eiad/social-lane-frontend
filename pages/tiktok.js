@@ -4,11 +4,20 @@ import Head from 'next/head';
 import Link from 'next/link';
 import axios from 'axios';
 import { TikTokSimpleIcon } from '../src/components/icons/SocialIcons';
+import ProtectedRoute from '../src/components/ProtectedRoute';
 
 // API base URL
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
 
-export default function TikTok() {
+export default function TikTokPage() {
+  return (
+    <ProtectedRoute>
+      <TikTok />
+    </ProtectedRoute>
+  );
+}
+
+function TikTok() {
   const [videoUrl, setVideoUrl] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessToken, setAccessToken] = useState(null);
