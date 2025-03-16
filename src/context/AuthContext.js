@@ -68,6 +68,8 @@ export const AuthProvider = ({ children }) => {
           localStorage?.removeItem(`tiktok${i}OpenId`);
           localStorage?.removeItem(`tiktok${i}RefreshToken`);
           localStorage?.removeItem(`tiktok${i}Username`);
+          localStorage?.removeItem(`tiktok${i}DisplayName`);
+          localStorage?.removeItem(`tiktok${i}AvatarUrl100`);
           i++;
         }
         
@@ -78,17 +80,27 @@ export const AuthProvider = ({ children }) => {
             hasAccessToken: !!account.accessToken,
             hasOpenId: !!account.openId,
             hasRefreshToken: !!account.refreshToken,
-            username: account.username || `TikTok Account ${accountIndex}`
+            username: account.username || `TikTok Account ${accountIndex}`,
+            hasDisplayName: !!account.displayName,
+            hasAvatarUrl: !!account.avatar_url,
+            hasAvatarUrl100: !!account.avatar_url_100
           });
           
           if (account.accessToken) localStorage?.setItem(`tiktok${accountIndex}AccessToken`, account.accessToken);
           if (account.openId) localStorage?.setItem(`tiktok${accountIndex}OpenId`, account.openId);
           if (account.refreshToken) localStorage?.setItem(`tiktok${accountIndex}RefreshToken`, account.refreshToken);
           if (account.username) localStorage?.setItem(`tiktok${accountIndex}Username`, account.username);
+          if (account.displayName) localStorage?.setItem(`tiktok${accountIndex}DisplayName`, account.displayName);
+          if (account.avatar_url_100) localStorage?.setItem(`tiktok${accountIndex}AvatarUrl100`, account.avatar_url_100);
+          else if (account.avatar_url) localStorage?.setItem(`tiktok${accountIndex}AvatarUrl100`, account.avatar_url);
         });
       } else {
         console.log('No TikTok accounts found in user object or not an array:', tiktokAccounts);
       }
+      
+      // Set a flag to indicate social media data is loaded
+      localStorage?.setItem('socialMediaLoaded', 'true');
+      localStorage?.setItem('socialMediaLoadTime', Date.now().toString());
     } catch (error) {
       console.error('Error storing social media tokens:', error);
     }
@@ -158,6 +170,11 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       await firebaseSignOut(auth);
+      
+      // Clear social media loaded flag
+      localStorage?.removeItem('socialMediaLoaded');
+      localStorage?.removeItem('socialMediaLoadTime');
+      
       return { success: true };
     } catch (error) {
       console.error('Error signing out:', error);

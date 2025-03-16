@@ -99,89 +99,74 @@ export default function TikTok() {
     return null;
   };
 
-  // Load connected accounts from localStorage
+  // Load stored tokens on component mount
   useEffect(() => {
     setApiUrl(API_BASE_URL);
     
-    // First check for legacy token (no number)
-    const legacyToken = localStorage?.getItem('tiktokAccessToken');
-    const legacyOpenId = localStorage?.getItem('tiktokOpenId');
-    const legacyRefreshToken = localStorage?.getItem('tiktokRefreshToken');
-
-    if (legacyToken && legacyOpenId) {
-      const account = {
-        accessToken: legacyToken,
-        openId: legacyOpenId,
-        refreshToken: legacyRefreshToken,
-        index: 1  // Set legacy account as first
-      };
+    // Check if tokens have already been loaded from the database
+    const socialMediaLoaded = localStorage?.getItem('socialMediaLoaded') === 'true';
+    const socialMediaLoadTime = parseInt(localStorage?.getItem('socialMediaLoadTime') || '0', 10);
+    const oneHourInMs = 60 * 60 * 1000;
+    const isTokenFresh = Date.now() - socialMediaLoadTime < oneHourInMs;
+    
+    // Only proceed with local token loading, not fetching from DB again
+    const accounts = [];
+    const tokens = {};
+    let i = 1;
+    
+    // Look for tokens in numbered format (tiktok1AccessToken, tiktok2AccessToken...)
+    while (true) {
+      const token = localStorage?.getItem(`tiktok${i}AccessToken`);
+      const openId = localStorage?.getItem(`tiktok${i}OpenId`);
       
-      // Migrate legacy tokens to new format
-      localStorage?.setItem('tiktok1AccessToken', legacyToken);
-      localStorage?.setItem('tiktok1OpenId', legacyOpenId);
-      if (legacyRefreshToken) localStorage?.setItem('tiktok1RefreshToken', legacyRefreshToken);
+      if (!token || !openId) break; // Stop when no more tokens found
       
-      // Remove legacy tokens
-      localStorage?.removeItem('tiktokAccessToken');
-      localStorage?.removeItem('tiktokOpenId');
-      localStorage?.removeItem('tiktokRefreshToken');
+      const refreshToken = localStorage?.getItem(`tiktok${i}RefreshToken`);
+      const username = localStorage?.getItem(`tiktok${i}Username`) || `TikTok Account ${i}`;
+      const displayName = localStorage?.getItem(`tiktok${i}DisplayName`) || username;
+      const avatarUrl100 = localStorage?.getItem(`tiktok${i}AvatarUrl100`);
       
-      setConnectedAccounts([account]);
-      // Initialize with the first account for backward compatibility
-      setAccessToken(legacyToken);
-      setOpenId(legacyOpenId);
-      setIsAuthenticated(true);
+      // Create userInfo object if we have any user data
+      const userInfo = username || displayName || avatarUrl100 ? {
+        username,
+        display_name: displayName,
+        avatar_url_100: avatarUrl100
+      } : null;
       
-      // Set account tokens
-      setAccountTokens({
-        [legacyOpenId]: {
-          accessToken: legacyToken,
-          openId: legacyOpenId,
-          refreshToken: legacyRefreshToken
-        }
+      accounts.push({
+        accessToken: token,
+        username,
+        displayName,
+        openId,
+        refreshToken,
+        index: i,
+        userInfo
       });
       
-      fetchUserInfo(legacyToken, legacyOpenId);
-    } else {
-      // Load all accounts with numbered keys
-      const accounts = [];
-      const tokens = {};
-      let i = 1;
+      tokens[openId] = {
+        accessToken: token,
+        openId,
+        refreshToken
+      };
       
-      while (true) {
-        const token = localStorage?.getItem(`tiktok${i}AccessToken`);
-        const openId = localStorage?.getItem(`tiktok${i}OpenId`);
-        const refreshToken = localStorage?.getItem(`tiktok${i}RefreshToken`);
-        
-        if (!token || !openId) break;
-        
-        accounts.push({
-          accessToken: token,
-          openId,
-          refreshToken,
-          index: i
-        });
-        
-        tokens[openId] = {
-          accessToken: token,
-          openId,
-          refreshToken
-        };
-        
-        i++;
-      }
+      i++;
+    }
+    
+    if (accounts.length > 0) {
+      setConnectedAccounts(accounts);
+      // Initialize with the first account for backward compatibility
+      setAccessToken(accounts[0].accessToken);
+      setOpenId(accounts[0].openId);
+      setIsAuthenticated(true);
+      setAccountTokens(tokens);
       
-      if (accounts.length > 0) {
-        setConnectedAccounts(accounts);
-        // Initialize with the first account for backward compatibility
-        setAccessToken(accounts[0].accessToken);
-        setOpenId(accounts[0].openId);
-        setIsAuthenticated(true);
-        setAccountTokens(tokens);
-        
-        // Fetch user info for all accounts
+      // Fetch user info for all accounts only if needed
+      // This avoids unnecessary API calls to TikTok on every page load
+      if (!socialMediaLoaded || !isTokenFresh) {
         accounts.forEach(account => {
-          fetchUserInfo(account.accessToken, account.openId);
+          if (!account.userInfo) {
+            fetchUserInfo(account.accessToken, account.openId);
+          }
         });
       }
     }
@@ -189,7 +174,7 @@ export default function TikTok() {
 
   // Update token handling in the callback effect
   useEffect(() => {
-    const { access_token, open_id, refresh_token, error: urlError } = router?.query || {};
+    const { access_token, open_id, refresh_token, username, display_name, avatar_url, avatar_url_100, error: urlError } = router?.query || {};
     
     if (urlError) {
       window.showToast?.error?.(decodeURIComponent(urlError));
@@ -201,16 +186,33 @@ export default function TikTok() {
       // Find the next available index for the new account
       const nextIndex = connectedAccounts.length + 1; // Start from 1
       
-      // Save token to localStorage with numbered index
+      // Save token to localStorage with numbered format
       localStorage?.setItem(`tiktok${nextIndex}AccessToken`, access_token);
       if (refresh_token) localStorage?.setItem(`tiktok${nextIndex}RefreshToken`, refresh_token);
       if (open_id) localStorage?.setItem(`tiktok${nextIndex}OpenId`, open_id);
+      if (username) localStorage?.setItem(`tiktok${nextIndex}Username`, username);
+      
+      // Store additional user info in localStorage
+      if (avatar_url_100) localStorage?.setItem(`tiktok${nextIndex}AvatarUrl100`, avatar_url_100);
+      else if (avatar_url) localStorage?.setItem(`tiktok${nextIndex}AvatarUrl100`, avatar_url);
+      if (display_name) localStorage?.setItem(`tiktok${nextIndex}DisplayName`, display_name);
+      
+      // Create user info object from URL parameters if available
+      const userInfoFromParams = username || display_name || avatar_url || avatar_url_100 ? {
+        username: username || `TikTok Account ${nextIndex}`,
+        display_name: display_name || username || `TikTok Account ${nextIndex}`,
+        avatar_url: avatar_url || null,
+        avatar_url_100: avatar_url_100 || avatar_url || null
+      } : null;
       
       const newAccount = {
         accessToken: access_token,
         openId: open_id,
         refreshToken: refresh_token,
-        index: nextIndex
+        username: username || `TikTok Account ${nextIndex}`,
+        displayName: display_name || username || `TikTok Account ${nextIndex}`,
+        index: nextIndex,
+        userInfo: userInfoFromParams
       };
       
       setConnectedAccounts(prev => [...prev, newAccount]);
@@ -220,8 +222,10 @@ export default function TikTok() {
       
       window.showToast?.success?.('Successfully connected new TikTok account!');
       
-      // Fetch user info for the new account
-      fetchUserInfo(access_token, open_id);
+      // Only fetch user info if we don't already have it from URL parameters
+      if (!userInfoFromParams) {
+        fetchUserInfo(access_token, open_id);
+      }
       
       router?.replace('/tiktok');
     }
@@ -515,13 +519,38 @@ export default function TikTok() {
   };
 
   // Update handleLogout to use new localStorage key format
-  const handleLogout = (accountToRemove) => {
+  const handleLogout = async (accountToRemove) => {
     if (!accountToRemove) return;
+    
+    try {
+      // Get user ID
+      const firebaseUid = localStorage?.getItem('firebaseUid');
+      if (firebaseUid && accountToRemove.openId) {
+        // Call the backend to remove the TikTok account
+        const response = await fetch(`${API_BASE_URL}/users/${firebaseUid}/social/tiktok?openId=${accountToRemove.openId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to remove TikTok account from database:', await response.text());
+        } else {
+          console.log('Successfully removed TikTok account from database');
+        }
+      }
+    } catch (error) {
+      console.error('Error removing TikTok account from database:', error);
+    }
     
     // Remove account from localStorage using numbered format
     localStorage?.removeItem(`tiktok${accountToRemove.index}AccessToken`);
     localStorage?.removeItem(`tiktok${accountToRemove.index}RefreshToken`);
     localStorage?.removeItem(`tiktok${accountToRemove.index}OpenId`);
+    localStorage?.removeItem(`tiktok${accountToRemove.index}Username`);
+    localStorage?.removeItem(`tiktok${accountToRemove.index}DisplayName`);
+    localStorage?.removeItem(`tiktok${accountToRemove.index}AvatarUrl100`);
     
     // Update connected accounts
     setConnectedAccounts(prev => prev.filter(acc => acc.index !== accountToRemove.index));
@@ -539,6 +568,9 @@ export default function TikTok() {
       setAccessToken(null);
       setOpenId(null);
     }
+    
+    // Show success message
+    window.showToast?.success?.('TikTok account disconnected successfully');
   };
 
   // Update fetchUserInfo to use new localStorage key format
@@ -557,19 +589,31 @@ export default function TikTok() {
       
       const data = await response?.json();
       if (response?.ok && data?.data) {
-        // Update the user info in the connected accounts array
-        setConnectedAccounts(prev => {
-          const accountIndex = prev?.findIndex(acc => acc?.openId === accountOpenId);
-          if (accountIndex !== -1) {
+        // Find the account index
+        const accountIndex = connectedAccounts.findIndex(acc => acc?.openId === accountOpenId);
+        
+        if (accountIndex !== -1) {
+          const accountObj = connectedAccounts[accountIndex];
+          const userInfo = data.data;
+          
+          // Store user info in localStorage
+          localStorage?.setItem(`tiktok${accountObj.index}Username`, userInfo.username || `TikTok Account ${accountObj.index}`);
+          if (userInfo.display_name) localStorage?.setItem(`tiktok${accountObj.index}DisplayName`, userInfo.display_name);
+          if (userInfo.avatar_url_100) localStorage?.setItem(`tiktok${accountObj.index}AvatarUrl100`, userInfo.avatar_url_100);
+          else if (userInfo.avatar_url) localStorage?.setItem(`tiktok${accountObj.index}AvatarUrl100`, userInfo.avatar_url);
+          
+          // Update the user info in the connected accounts array
+          setConnectedAccounts(prev => {
             const updatedAccounts = [...prev];
             updatedAccounts[accountIndex] = {
               ...updatedAccounts[accountIndex],
+              username: userInfo.username || updatedAccounts[accountIndex].username,
+              displayName: userInfo.display_name || userInfo.username || updatedAccounts[accountIndex].displayName,
               userInfo: data.data
             };
             return updatedAccounts;
-          }
-          return prev;
-        });
+          });
+        }
       } else {
         console.error('Failed to fetch user info:', data?.error);
       }
@@ -600,7 +644,11 @@ export default function TikTok() {
       openId: account.openId,
       refreshToken: account.refreshToken,
       username: account.username || `TikTok Account ${account.index}`,
-      index: account.index
+      displayName: account.displayName || account.username || `TikTok Account ${account.index}`,
+      index: account.index,
+      // Include profile information
+      avatar_url: account.userInfo?.avatar_url || null,
+      avatar_url_100: account.userInfo?.avatar_url_100 || null
     }));
     
     // Save to backend
@@ -806,9 +854,9 @@ export default function TikTok() {
                   
                   <div className={tikTokStyles.accountsGrid}>
                     {connectedAccounts.map(account => {
-                      const profilePic = account?.userInfo?.avatar_url;
-                      const username = account?.userInfo?.username || `TikTok Account ${account.index}`;
-                      const displayName = account?.userInfo?.display_name || username;
+                      const profilePic = account?.userInfo?.avatar_url_100 || account?.userInfo?.avatar_url;
+                      const username = account?.userInfo?.username || account.username || `TikTok Account ${account.index}`;
+                      const displayName = account?.userInfo?.display_name || account.displayName || username;
                       
                       return (
                         <div 

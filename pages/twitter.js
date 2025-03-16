@@ -130,6 +130,9 @@ export default function Twitter() {
 
   // Check for authentication on page load
   useEffect(() => {
+    // Set API URL
+    setApiUrl(API_BASE_URL || 'https://sociallane-backend.mindio.chat');
+    
     // Check if we have query parameters from the OAuth callback
     const { access_token, refresh_token, user_id, username, error } = router.query;
     
@@ -178,8 +181,16 @@ export default function Twitter() {
         setUsername(storedUsername);
         setIsAuthenticated(true);
         
-        // Fetch user info
-        fetchUserInfo(storedAccessToken);
+        // Check if social media data is already loaded from database
+        const socialMediaLoaded = localStorage?.getItem('socialMediaLoaded') === 'true';
+        const socialMediaLoadTime = parseInt(localStorage?.getItem('socialMediaLoadTime') || '0', 10);
+        const oneHourInMs = 60 * 60 * 1000;
+        const isTokenFresh = Date.now() - socialMediaLoadTime < oneHourInMs;
+        
+        // Fetch user info only if needed (not already loaded or not fresh)
+        if (!socialMediaLoaded || !isTokenFresh) {
+          fetchUserInfo(storedAccessToken);
+        }
       }
     }
   }, [router.query, router]);
