@@ -38,20 +38,83 @@ export const AuthProvider = ({ children }) => {
       // Store Twitter tokens if available
       const twitterData = userData.providerData.twitter;
       if (twitterData) {
-        console.log('Found Twitter data:', {
-          hasAccessToken: !!twitterData.accessToken,
-          hasRefreshToken: !!twitterData.refreshToken,
-          hasUserId: !!twitterData.userId,
-          hasUsername: !!twitterData.username
-        });
+        // Mark that social media data was loaded from DB
+        localStorage?.setItem('socialMediaLoaded', 'true');
+        localStorage?.setItem('socialMediaLoadTime', Date.now().toString());
         
-        if (twitterData.accessToken) localStorage?.setItem('twitter_access_token', twitterData.accessToken);
-        if (twitterData.refreshToken) {
-          localStorage?.setItem('twitter_refresh_token', twitterData.refreshToken);
-          localStorage?.setItem('twitter_access_token_secret', twitterData.refreshToken);
+        if (Array.isArray(twitterData)) {
+          console.log('Found Twitter accounts array:', twitterData.length);
+          
+          // Clear existing Twitter accounts
+          let i = 1;
+          while (localStorage?.getItem(`twitter${i}AccessToken`)) {
+            localStorage?.removeItem(`twitter${i}AccessToken`);
+            localStorage?.removeItem(`twitter${i}UserId`);
+            localStorage?.removeItem(`twitter${i}RefreshToken`);
+            localStorage?.removeItem(`twitter${i}AccessTokenSecret`);
+            localStorage?.removeItem(`twitter${i}Username`);
+            localStorage?.removeItem(`twitter${i}Name`);
+            localStorage?.removeItem(`twitter${i}ProfileImage`);
+            i++;
+          }
+          
+          // Store new Twitter accounts
+          twitterData.forEach((account, index) => {
+            const accountIndex = index + 1;
+            console.log(`Storing Twitter account ${accountIndex}:`, {
+              hasAccessToken: !!account.accessToken,
+              hasUserId: !!account.userId,
+              hasRefreshToken: !!account.refreshToken,
+              username: account.username || `Twitter Account ${accountIndex}`
+            });
+            
+            if (account.accessToken) localStorage?.setItem(`twitter${accountIndex}AccessToken`, account.accessToken);
+            if (account.userId) localStorage?.setItem(`twitter${accountIndex}UserId`, account.userId);
+            if (account.refreshToken) {
+              localStorage?.setItem(`twitter${accountIndex}RefreshToken`, account.refreshToken);
+              localStorage?.setItem(`twitter${accountIndex}AccessTokenSecret`, account.refreshToken);
+            }
+            if (account.username) localStorage?.setItem(`twitter${accountIndex}Username`, account.username);
+            if (account.name) localStorage?.setItem(`twitter${accountIndex}Name`, account.name);
+            if (account.profileImageUrl) localStorage?.setItem(`twitter${accountIndex}ProfileImage`, account.profileImageUrl);
+            
+            // If this is the first account, also store in legacy format for backwards compatibility
+            if (index === 0) {
+              if (account.accessToken) localStorage?.setItem('twitter_access_token', account.accessToken);
+              if (account.refreshToken) {
+                localStorage?.setItem('twitter_refresh_token', account.refreshToken);
+                localStorage?.setItem('twitter_access_token_secret', account.refreshToken);
+              }
+              if (account.userId) localStorage?.setItem('twitter_user_id', account.userId);
+              if (account.username) localStorage?.setItem('twitter_username', account.username);
+            }
+          });
+        } else {
+          // Handle legacy single object format
+          console.log('Found Twitter data (single object):', {
+            hasAccessToken: !!twitterData.accessToken,
+            hasRefreshToken: !!twitterData.refreshToken,
+            hasUserId: !!twitterData.userId,
+            hasUsername: !!twitterData.username
+          });
+          
+          if (twitterData.accessToken) localStorage?.setItem('twitter_access_token', twitterData.accessToken);
+          if (twitterData.refreshToken) {
+            localStorage?.setItem('twitter_refresh_token', twitterData.refreshToken);
+            localStorage?.setItem('twitter_access_token_secret', twitterData.refreshToken);
+          }
+          if (twitterData.userId) localStorage?.setItem('twitter_user_id', twitterData.userId);
+          if (twitterData.username) localStorage?.setItem('twitter_username', twitterData.username);
+          
+          // Also store in numbered format for consistency
+          if (twitterData.accessToken) localStorage?.setItem('twitter1AccessToken', twitterData.accessToken);
+          if (twitterData.userId) localStorage?.setItem('twitter1UserId', twitterData.userId);
+          if (twitterData.refreshToken) {
+            localStorage?.setItem('twitter1RefreshToken', twitterData.refreshToken);
+            localStorage?.setItem('twitter1AccessTokenSecret', twitterData.refreshToken);
+          }
+          if (twitterData.username) localStorage?.setItem('twitter1Username', twitterData.username);
         }
-        if (twitterData.userId) localStorage?.setItem('twitter_user_id', twitterData.userId);
-        if (twitterData.username) localStorage?.setItem('twitter_username', twitterData.username);
       } else {
         console.log('No Twitter data found in user object');
       }
@@ -60,6 +123,10 @@ export const AuthProvider = ({ children }) => {
       const tiktokAccounts = userData.providerData.tiktok;
       if (tiktokAccounts && Array.isArray(tiktokAccounts)) {
         console.log('Found TikTok accounts:', tiktokAccounts.length);
+        
+        // Mark that social media data was loaded from DB
+        localStorage?.setItem('socialMediaLoaded', 'true');
+        localStorage?.setItem('socialMediaLoadTime', Date.now().toString());
         
         // Clear existing TikTok accounts
         let i = 1;

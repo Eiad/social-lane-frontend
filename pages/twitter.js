@@ -627,7 +627,38 @@ function Twitter() {
   const handleLogout = async (accountToRemove) => {
     try {
       if (!accountToRemove) {
-        // Clear all accounts
+        // Get Firebase UID for API calls
+        const firebaseUid = localStorage?.getItem('firebaseUid');
+        
+        // Remove all Twitter accounts from the database first
+        if (firebaseUid && connectedAccounts?.length > 0) {
+          // Create a copy of the array to avoid modification during iteration
+          const accountsToRemove = [...connectedAccounts];
+          
+          // Remove each account from the database
+          for (const account of accountsToRemove) {
+            if (account?.userId) {
+              try {
+                const response = await fetch(`${API_BASE_URL}/users/${firebaseUid}/social/twitter?userId=${account.userId}`, {
+                  method: 'DELETE',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  }
+                });
+                
+                if (!response.ok) {
+                  console.error(`Failed to remove Twitter account ${account.username} (${account.userId}) from database:`, await response.text());
+                } else {
+                  console.log(`Successfully removed Twitter account ${account.username} (${account.userId}) from database`);
+                }
+              } catch (error) {
+                console.error(`Error removing Twitter account ${account.username} (${account.userId}) from database:`, error);
+              }
+            }
+          }
+        }
+        
+        // Clear all accounts from localStorage
         // Clear legacy format
         localStorage?.removeItem('twitter_access_token');
         localStorage?.removeItem('twitter_refresh_token');
@@ -739,47 +770,58 @@ function Twitter() {
   };
 
   // Refresh Twitter credentials
-  const refreshTwitterCredentials = async () => {
+  const refreshTwitterCredentials = async (specificUserId = null) => {
     try {
-      if (!refreshToken) {
-        const storedRefreshToken = localStorage.getItem('twitter_refresh_token');
-        if (!storedRefreshToken) {
-          window.showToast?.warning?.('No refresh token available. Please reconnect your Twitter account.');
-          return;
-        }
-        setRefreshToken(storedRefreshToken);
-      }
-      
       setIsLoading(true);
       
-      const response = await fetch(`${apiUrl}/twitter/refresh-credentials?refreshToken=${encodeURIComponent(refreshToken || localStorage.getItem('twitter_refresh_token'))}`);
-      const data = await response?.json();
+      // If we have a specific account to refresh
+      if (specificUserId) {
+        const account = connectedAccounts.find(acc => acc.userId === specificUserId);
+        if (!account?.refreshToken) {
+          window.showToast?.warning?.('No refresh token available for this account. Please reconnect it.');
+          setIsLoading(false);
+          return;
+        }
+        
+        await refreshSingleAccount(account);
+        return;
+      }
       
-      if (response?.ok && data?.success && data?.data?.access_token) {
-        // Update the stored tokens
-        const newAccessToken = data.data.access_token;
-        localStorage.setItem('twitter_access_token', newAccessToken);
-        setAccessToken(newAccessToken);
-        
-        if (data.data.refresh_token) {
-          const newRefreshToken = data.data.refresh_token;
-          localStorage.setItem('twitter_refresh_token', newRefreshToken);
-          localStorage.setItem('twitter_access_token_secret', newRefreshToken); // For compatibility
-          setRefreshToken(newRefreshToken);
+      // If no specific account, refresh all connected accounts
+      if (connectedAccounts.length === 0) {
+        window.showToast?.warning?.('No Twitter accounts connected.');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Refresh all accounts
+      let successCount = 0;
+      let failureCount = 0;
+      
+      for (const account of connectedAccounts) {
+        try {
+          if (!account?.refreshToken) {
+            console.log(`Skipping account ${account.username} (${account.userId}) - no refresh token`);
+            failureCount++;
+            continue;
+          }
+          
+          const success = await refreshSingleAccount(account);
+          if (success) successCount++;
+          else failureCount++;
+        } catch (accountError) {
+          console.error(`Error refreshing account ${account.username} (${account.userId}):`, accountError);
+          failureCount++;
         }
-        
-        // Fetch updated user info with new token
-        await fetchUserInfo(newAccessToken);
-        
-        window.showToast?.success?.('Twitter credentials refreshed successfully');
+      }
+      
+      // Show summary message
+      if (successCount > 0 && failureCount === 0) {
+        window.showToast?.success?.(`Successfully refreshed ${successCount} Twitter account${successCount !== 1 ? 's' : ''}`);
+      } else if (successCount > 0 && failureCount > 0) {
+        window.showToast?.warning?.(`Refreshed ${successCount} account${successCount !== 1 ? 's' : ''}, but ${failureCount} failed`);
       } else {
-        console.error('Failed to refresh Twitter credentials:', data);
-        window.showToast?.error?.(data?.error || 'Failed to refresh Twitter credentials');
-        
-        // If authentication failed completely, log out
-        if (response?.status === 401 || (data?.error && data.error.includes('authentication'))) {
-          handleLogout();
-        }
+        window.showToast?.error?.(`Failed to refresh any Twitter accounts`);
       }
     } catch (error) {
       console.error('Error refreshing Twitter credentials:', error?.message);
@@ -787,6 +829,131 @@ function Twitter() {
     } finally {
       setIsLoading(false);
     }
+  };
+  
+  // Helper function to refresh a single account
+  const refreshSingleAccount = async (account) => {
+    try {
+      const response = await fetch(`${apiUrl}/twitter/refresh-credentials?refreshToken=${encodeURIComponent(account.refreshToken)}`);
+      const data = await response?.json();
+      
+      if (response?.ok && data?.success && data?.data?.access_token) {
+        // Update the stored tokens for this account
+        const newAccessToken = data.data.access_token;
+        const newRefreshToken = data.data.refresh_token;
+        
+        // Update in state
+        setConnectedAccounts(prev => prev.map(acc => {
+          if (acc.userId === account.userId) {
+            return {
+              ...acc,
+              accessToken: newAccessToken,
+              refreshToken: newRefreshToken,
+              accessTokenSecret: newRefreshToken
+            };
+          }
+          return acc;
+        }));
+        
+        // Update account tokens state
+        setAccountTokens(prev => ({
+          ...prev,
+          [account.userId]: {
+            ...prev[account.userId],
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken,
+            accessTokenSecret: newRefreshToken
+          }
+        }));
+        
+        // Update localStorage
+        localStorage?.setItem(`twitter${account.index}AccessToken`, newAccessToken);
+        if (newRefreshToken) {
+          localStorage?.setItem(`twitter${account.index}RefreshToken`, newRefreshToken);
+          localStorage?.setItem(`twitter${account.index}AccessTokenSecret`, newRefreshToken);
+        }
+        
+        // If this is the current active account, also update legacy format and state
+        if (account.userId === userId) {
+          localStorage?.setItem('twitter_access_token', newAccessToken);
+          if (newRefreshToken) {
+            localStorage?.setItem('twitter_refresh_token', newRefreshToken);
+            localStorage?.setItem('twitter_access_token_secret', newRefreshToken);
+          }
+          
+          setAccessToken(newAccessToken);
+          setRefreshToken(newRefreshToken);
+        }
+        
+        // Update the database
+        const firebaseUid = localStorage?.getItem('firebaseUid');
+        if (firebaseUid) {
+          // Get all updated account data
+          const updatedAccounts = connectedAccounts.map(acc => {
+            if (acc.userId === account.userId) {
+              return {
+                accessToken: newAccessToken,
+                refreshToken: newRefreshToken,
+                userId: acc.userId,
+                username: acc.username,
+                name: acc.name || acc.username,
+                profileImageUrl: acc.profileImageUrl || acc.userInfo?.profile_image_url
+              };
+            }
+            return {
+              accessToken: acc.accessToken,
+              refreshToken: acc.refreshToken,
+              userId: acc.userId,
+              username: acc.username,
+              name: acc.name || acc.username,
+              profileImageUrl: acc.profileImageUrl || acc.userInfo?.profile_image_url
+            };
+          });
+          
+          // Save to backend
+          try {
+            const dbResponse = await fetch(`${API_BASE_URL}/users/${firebaseUid}/social/twitter`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(updatedAccounts)
+            });
+            
+            if (!dbResponse.ok) {
+              console.error('Failed to update Twitter tokens in database:', await dbResponse.text());
+            } else {
+              console.log('Successfully updated Twitter tokens in database');
+            }
+          } catch (dbError) {
+            console.error('Error updating Twitter tokens in database:', dbError);
+          }
+        }
+        
+        // Fetch updated user info with new token
+        await fetchUserInfo(newAccessToken, account.userId);
+        
+        return true;
+      } else {
+        console.error(`Failed to refresh Twitter credentials for account ${account.username} (${account.userId}):`, data);
+        
+        // If authentication failed completely for this account, consider removing it
+        if (response?.status === 401 || (data?.error && data.error.includes('authentication'))) {
+          console.log(`Authentication failed for account ${account.username} (${account.userId}), might need to reconnect`);
+          // Don't automatically remove, let user decide
+        }
+        
+        return false;
+      }
+    } catch (error) {
+      console.error(`Error refreshing account ${account.username} (${account.userId}):`, error);
+      return false;
+    }
+  };
+
+  // Refresh all Twitter tokens - used by the Refresh Tokens button
+  const refreshAllTokens = () => {
+    refreshTwitterCredentials();
   };
 
   // Go to home page
@@ -860,11 +1027,11 @@ function Twitter() {
             <div className="divide-y divide-gray-100">
               {/* Accounts Management Section */}
               <div className="p-6">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-                  <h2 className="text-xl font-semibold text-gray-800">Your Twitter Accounts</h2>
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6">
+                  <h2 className="text-2xl font-semibold text-gray-800 mb-4 md:mb-0">Your Twitter Accounts</h2>
                   <div className="flex flex-wrap gap-3">
                     <button 
-                      onClick={refreshTwitterCredentials} 
+                      onClick={refreshAllTokens} 
                       className="px-4 py-2 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-70"
                       disabled={isLoading}
                     >
@@ -885,6 +1052,7 @@ function Twitter() {
                         </>
                       )}
                     </button>
+                    
                     <button 
                       onClick={() => handleLogout()} 
                       className="px-4 py-2 rounded-full border border-rose-500 text-rose-500 hover:bg-rose-50 flex items-center gap-1.5 text-sm font-medium transition-colors"
