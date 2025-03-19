@@ -38,11 +38,8 @@ export default function TikTok() {
   const [postSuccess, setPostSuccess] = useState(false);
   const [caption, setCaption] = useState('');
   const [postStep, setPostStep] = useState(1); // 1: Upload, 2: Preview & Caption
-  // Add new state for multiple accounts
   const [connectedAccounts, setConnectedAccounts] = useState([]);
-  // Remove selectedAccount state and replace with an array of tokens/openIds
   const [accountTokens, setAccountTokens] = useState({});
-  // Add new state for UI improvements
   const [isHovering, setIsHovering] = useState(null);
 
   // Format file size function
@@ -107,6 +104,10 @@ export default function TikTok() {
     const legacyToken = localStorage?.getItem('tiktokAccessToken');
     const legacyOpenId = localStorage?.getItem('tiktokOpenId');
     const legacyRefreshToken = localStorage?.getItem('tiktokRefreshToken');
+    const legacyUsername = localStorage?.getItem('tiktokUsername');
+    const legacyDisplayName = localStorage?.getItem('tiktokDisplayName');
+    const legacyAvatarUrl = localStorage?.getItem('tiktokAvatarUrl');
+    const legacyAvatarUrl100 = localStorage?.getItem('tiktokAvatarUrl100');
 
     // Track unique openIds to prevent duplicates
     const uniqueOpenIds = new Set();
@@ -121,18 +122,32 @@ export default function TikTok() {
         accessToken: legacyToken,
         openId: legacyOpenId,
         refreshToken: legacyRefreshToken,
-        index: 1  // Set legacy account as first
+        index: 1,  // Set legacy account as first
+        userInfo: {
+          username: legacyUsername || '',
+          display_name: legacyDisplayName || '',
+          avatar_url: legacyAvatarUrl || '',
+          avatar_url_100: legacyAvatarUrl100 || ''
+        }
       };
       
       // Migrate legacy tokens to new format
       localStorage?.setItem('tiktok1AccessToken', legacyToken);
       localStorage?.setItem('tiktok1OpenId', legacyOpenId);
       if (legacyRefreshToken) localStorage?.setItem('tiktok1RefreshToken', legacyRefreshToken);
+      if (legacyUsername) localStorage?.setItem('tiktok1Username', legacyUsername);
+      if (legacyDisplayName) localStorage?.setItem('tiktok1DisplayName', legacyDisplayName);
+      if (legacyAvatarUrl) localStorage?.setItem('tiktok1AvatarUrl', legacyAvatarUrl);
+      if (legacyAvatarUrl100) localStorage?.setItem('tiktok1AvatarUrl100', legacyAvatarUrl100);
       
       // Remove legacy tokens
       localStorage?.removeItem('tiktokAccessToken');
       localStorage?.removeItem('tiktokOpenId');
       localStorage?.removeItem('tiktokRefreshToken');
+      localStorage?.removeItem('tiktokUsername');
+      localStorage?.removeItem('tiktokDisplayName');
+      localStorage?.removeItem('tiktokAvatarUrl');
+      localStorage?.removeItem('tiktokAvatarUrl100');
       
       accounts.push(account);
       
@@ -151,6 +166,10 @@ export default function TikTok() {
       const token = localStorage?.getItem(`tiktok${i}AccessToken`);
       const openId = localStorage?.getItem(`tiktok${i}OpenId`);
       const refreshToken = localStorage?.getItem(`tiktok${i}RefreshToken`);
+      const username = localStorage?.getItem(`tiktok${i}Username`);
+      const displayName = localStorage?.getItem(`tiktok${i}DisplayName`);
+      const avatarUrl = localStorage?.getItem(`tiktok${i}AvatarUrl`);
+      const avatarUrl100 = localStorage?.getItem(`tiktok${i}AvatarUrl100`);
       
       if (!token || !openId) break;
       
@@ -166,7 +185,13 @@ export default function TikTok() {
         accessToken: token,
         openId,
         refreshToken,
-        index: i
+        index: i,
+        userInfo: {
+          username: username || '',
+          display_name: displayName || '',
+          avatar_url: avatarUrl || '',
+          avatar_url_100: avatarUrl100 || ''
+        }
       });
       
       tokens[openId] = {
@@ -222,10 +247,14 @@ export default function TikTok() {
       // Find the next available index for the new account
       const nextIndex = connectedAccounts.length + 1; // Start from 1
       
-      // Save token to localStorage with numbered index
+      // Save token and user info to localStorage with numbered index
       localStorage?.setItem(`tiktok${nextIndex}AccessToken`, access_token);
       if (refresh_token) localStorage?.setItem(`tiktok${nextIndex}RefreshToken`, refresh_token);
       localStorage?.setItem(`tiktok${nextIndex}OpenId`, open_id);
+      if (username) localStorage?.setItem(`tiktok${nextIndex}Username`, username);
+      if (display_name) localStorage?.setItem(`tiktok${nextIndex}DisplayName`, display_name);
+      if (avatar_url) localStorage?.setItem(`tiktok${nextIndex}AvatarUrl`, avatar_url);
+      if (avatar_url_100) localStorage?.setItem(`tiktok${nextIndex}AvatarUrl100`, avatar_url_100);
       
       const newAccount = {
         accessToken: access_token,
@@ -266,7 +295,6 @@ export default function TikTok() {
         query: {}
       }, undefined, { shallow: true });
     }
-  // Remove connectedAccounts from the dependency array to prevent infinite loops
   }, [router?.query]);
 
   const handleConnect = async () => {
@@ -556,30 +584,49 @@ export default function TikTok() {
     }
   };
 
-  // Update handleLogout to use new localStorage key format
-  const handleLogout = (accountToRemove) => {
+  // Update handleLogout to remove account from localStorage and database
+  const handleLogout = async (accountToRemove) => {
     if (!accountToRemove) return;
     
-    // Remove account from localStorage using numbered format
-    localStorage?.removeItem(`tiktok${accountToRemove?.index}AccessToken`);
-    localStorage?.removeItem(`tiktok${accountToRemove?.index}RefreshToken`);
-    localStorage?.removeItem(`tiktok${accountToRemove?.index}OpenId`);
-    
-    // Update connected accounts
-    setConnectedAccounts(prev => prev?.filter(acc => acc?.index !== accountToRemove?.index));
-    
-    // Update accountTokens
-    setAccountTokens(prev => {
-      const newTokens = {...prev};
-      delete newTokens[accountToRemove?.openId];
-      return newTokens;
-    });
-    
-    // If this was the last account, reset authentication state
-    if (connectedAccounts?.length <= 1) {
-      setIsAuthenticated(false);
-      setAccessToken(null);
-      setOpenId(null);
+    try {
+      // Remove account from localStorage using numbered format
+      localStorage?.removeItem(`tiktok${accountToRemove?.index}AccessToken`);
+      localStorage?.removeItem(`tiktok${accountToRemove?.index}RefreshToken`);
+      localStorage?.removeItem(`tiktok${accountToRemove?.index}OpenId`);
+      localStorage?.removeItem(`tiktok${accountToRemove?.index}Username`);
+      localStorage?.removeItem(`tiktok${accountToRemove?.index}DisplayName`);
+      localStorage?.removeItem(`tiktok${accountToRemove?.index}AvatarUrl`);
+      localStorage?.removeItem(`tiktok${accountToRemove?.index}AvatarUrl100`);
+      
+      // Remove account from database
+      const firebaseUid = localStorage?.getItem('firebaseUid');
+      if (firebaseUid) {
+        await fetch(`/api/users/${firebaseUid}/social/tiktok?openId=${accountToRemove.openId}`, {
+          method: 'DELETE'
+        });
+      }
+      
+      // Update connected accounts
+      setConnectedAccounts(prev => prev?.filter(acc => acc?.index !== accountToRemove?.index));
+      
+      // Update accountTokens
+      setAccountTokens(prev => {
+        const newTokens = {...prev};
+        delete newTokens[accountToRemove?.openId];
+        return newTokens;
+      });
+      
+      // If this was the last account, reset authentication state
+      if (connectedAccounts?.length <= 1) {
+        setIsAuthenticated(false);
+        setAccessToken(null);
+        setOpenId(null);
+      }
+      
+      window.showToast?.success?.('Successfully disconnected TikTok account');
+    } catch (error) {
+      console.error('Error removing TikTok account:', error);
+      window.showToast?.error?.('Failed to disconnect TikTok account');
     }
   };
 
@@ -848,7 +895,7 @@ export default function TikTok() {
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                 {connectedAccounts.map(account => {
-                  const profilePic = account?.userInfo?.avatar_url;
+                  const profilePic = account?.userInfo?.avatar_url_100 || account?.userInfo?.avatar_url;
                   const username = account?.userInfo?.username || `TikTok Account ${account.index}`;
                   const displayName = account?.userInfo?.display_name || username;
                   
@@ -864,49 +911,47 @@ export default function TikTok() {
                           {profilePic ? (
                             <img 
                               src={profilePic} 
-                              alt={`${username} avatar`}
+                              alt={`${username}'s profile`}
                               className="w-full h-full rounded-full object-cover"
                             />
                           ) : (
-                            <div className="w-14 h-14 rounded-full bg-pink-100 flex items-center justify-center text-pink-500">
-                              <TikTokSimpleIcon width="32" height="32" />
-                            </div>
+                            <TikTokSimpleIcon className="w-8 h-8 text-gray-400" />
                           )}
                         </div>
                       </div>
                       
                       <div className="p-4 text-center">
-                        <h3 className="font-bold text-gray-800 mb-1">{displayName}</h3>
-                        <p className="text-gray-500 text-sm">@{username}</p>
-                      </div>
-                      
-                      <div className="border-t border-gray-100 p-3 flex justify-center">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleLogout(account);
-                          }}
-                          className="w-full py-1.5 rounded-full border border-rose-500 text-rose-500 hover:bg-rose-50 text-sm font-medium transition-colors"
+                        <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                          {displayName}
+                        </h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                          @{username}
+                        </p>
+                        
+                        <button
+                          onClick={() => handleLogout(account)}
+                          className="w-full px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                         >
-                          Disconnect
+                          Disconnect Account
                         </button>
                       </div>
                     </div>
                   );
                 })}
                 
-                {/* Add new account card */}
-                <div 
+                {/* Add Account Button */}
+                <button
                   onClick={handleConnect}
-                  className="bg-gray-50 border border-dashed border-gray-300 rounded-xl overflow-hidden hover:bg-gray-100 transition-colors cursor-pointer flex flex-col items-center justify-center p-8 h-full"
+                  disabled={isLoading}
+                  className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-pink-400 hover:bg-pink-50 transition-colors"
                 >
-                  <div className="w-14 h-14 rounded-full bg-pink-100 flex items-center justify-center text-pink-500 mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="w-16 h-16 rounded-full bg-pink-100 flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
                   </div>
-                  <h3 className="font-medium text-gray-800">Add New Account</h3>
-                </div>
+                  <span className="text-sm font-medium text-gray-900">Add TikTok Account</span>
+                </button>
               </div>
             </div>
 

@@ -128,18 +128,43 @@ export const AuthProvider = ({ children }) => {
         localStorage?.setItem('socialMediaLoaded', 'true');
         localStorage?.setItem('socialMediaLoadTime', Date.now().toString());
         
-        // Clear existing TikTok accounts
+        // Get existing accounts from localStorage
+        const existingAccounts = [];
         let i = 1;
-        while (localStorage?.getItem(`tiktok${i}AccessToken`)) {
-          localStorage?.removeItem(`tiktok${i}AccessToken`);
-          localStorage?.removeItem(`tiktok${i}OpenId`);
-          localStorage?.removeItem(`tiktok${i}RefreshToken`);
-          localStorage?.removeItem(`tiktok${i}Username`);
+        while (true) {
+          const token = localStorage?.getItem(`tiktok${i}AccessToken`);
+          const openId = localStorage?.getItem(`tiktok${i}OpenId`);
+          if (!token || !openId) break;
+          
+          existingAccounts.push({
+            accessToken: token,
+            openId,
+            refreshToken: localStorage?.getItem(`tiktok${i}RefreshToken`),
+            username: localStorage?.getItem(`tiktok${i}Username`),
+            displayName: localStorage?.getItem(`tiktok${i}DisplayName`),
+            avatarUrl: localStorage?.getItem(`tiktok${i}AvatarUrl`),
+            avatarUrl100: localStorage?.getItem(`tiktok${i}AvatarUrl100`),
+            index: i
+          });
           i++;
         }
         
-        // Store new TikTok accounts
-        tiktokAccounts.forEach((account, index) => {
+        // Merge backend accounts with existing accounts
+        const mergedAccounts = [...existingAccounts];
+        const existingOpenIds = new Set(existingAccounts.map(acc => acc.openId));
+        
+        tiktokAccounts.forEach(account => {
+          if (!existingOpenIds.has(account.openId)) {
+            const nextIndex = mergedAccounts.length + 1;
+            mergedAccounts.push({
+              ...account,
+              index: nextIndex
+            });
+          }
+        });
+        
+        // Store merged accounts in localStorage
+        mergedAccounts.forEach((account, index) => {
           const accountIndex = index + 1;
           console.log(`Storing TikTok account ${accountIndex}:`, {
             hasAccessToken: !!account.accessToken,
@@ -152,6 +177,9 @@ export const AuthProvider = ({ children }) => {
           if (account.openId) localStorage?.setItem(`tiktok${accountIndex}OpenId`, account.openId);
           if (account.refreshToken) localStorage?.setItem(`tiktok${accountIndex}RefreshToken`, account.refreshToken);
           if (account.username) localStorage?.setItem(`tiktok${accountIndex}Username`, account.username);
+          if (account.displayName) localStorage?.setItem(`tiktok${accountIndex}DisplayName`, account.displayName);
+          if (account.avatarUrl) localStorage?.setItem(`tiktok${accountIndex}AvatarUrl`, account.avatarUrl);
+          if (account.avatarUrl100) localStorage?.setItem(`tiktok${accountIndex}AvatarUrl100`, account.avatarUrl100);
         });
       } else {
         console.log('No TikTok accounts found in user object or not an array:', tiktokAccounts);
