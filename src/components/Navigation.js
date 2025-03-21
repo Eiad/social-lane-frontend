@@ -88,9 +88,8 @@ export default function Navigation() {
 
   const handleLogout = async () => {
     try {
-      console.log('Signing out...');
+      localStorage?.clear();
       const result = await signOut();
-      console.log('Sign out result:', result);
       if (result?.success) {
         router.push('/');
       } else {
