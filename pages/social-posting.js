@@ -255,9 +255,18 @@ function SocialPosting() {
   const handlePost = async () => {
     if (!videoUrl || selectedPlatforms?.length === 0) return;
     
+    // Check if TikTok is selected but no accounts are selected and it's the only platform
     if (selectedPlatforms?.includes('tiktok') && selectedTiktokAccounts?.length === 0) {
-      window.showToast?.warning?.('Please select at least one TikTok account to post to');
-      return;
+      // Check if there are other platforms selected
+      const otherPlatformsSelected = selectedPlatforms?.filter(p => p !== 'tiktok')?.length > 0;
+      
+      if (!otherPlatformsSelected) {
+        window.showToast?.warning?.('Please select at least one TikTok account to post to');
+        return;
+      }
+      
+      // If we have other platforms, remove TikTok from the selected platforms
+      setSelectedPlatforms(prev => prev?.filter(p => p !== 'tiktok'));
     }
     
     try {
@@ -293,21 +302,32 @@ function SocialPosting() {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 60000);
           
+          // Get the actual platforms we'll be posting to
+          const activePlatforms = [...selectedPlatforms];
+          
+          // Remove TikTok from platforms if no accounts selected
+          if (activePlatforms?.includes('tiktok') && selectedTiktokAccounts?.length === 0) {
+            const index = activePlatforms?.indexOf('tiktok');
+            if (index !== -1) {
+              activePlatforms?.splice(index, 1);
+            }
+          }
+          
           const requestBody = {
             video_url: videoUrl,
             post_description: caption,
-            platforms: selectedPlatforms,
+            platforms: activePlatforms,
             userId: userId,
             isScheduled: true,
-            scheduledDate: scheduledDateTime.toISOString(),
-            ...(selectedPlatforms?.includes('tiktok') ? {
+            scheduledDate: scheduledDateTime?.toISOString(),
+            ...(activePlatforms?.includes('tiktok') && selectedTiktokAccounts?.length > 0 ? {
               tiktok_accounts: selectedTiktokAccounts?.map(account => ({
                 accessToken: account?.accessToken,
                 refreshToken: account?.refreshToken,
                 openId: account?.openId
               }))
             } : {}),
-            ...(selectedPlatforms?.includes('twitter') && twitterAccessToken ? {
+            ...(activePlatforms?.includes('twitter') && twitterAccessToken ? {
               twitter_access_token: twitterAccessToken,
               twitter_access_token_secret: twitterAccessTokenSecret,
               twitter_refresh_token: twitterRefreshToken
@@ -351,10 +371,21 @@ function SocialPosting() {
       
       const results = {};
       
-      if (selectedPlatforms?.includes('tiktok')) {
+      // Get the actual platforms we'll be posting to
+      const activePlatforms = [...selectedPlatforms];
+      
+      // Remove TikTok from platforms if no accounts selected
+      if (activePlatforms?.includes('tiktok') && selectedTiktokAccounts?.length === 0) {
+        const index = activePlatforms?.indexOf('tiktok');
+        if (index !== -1) {
+          activePlatforms?.splice(index, 1);
+        }
+      }
+      
+      if (activePlatforms?.includes('tiktok')) {
         results.tiktok = [];
         
-        for (const account of selectedTiktokAccounts) {
+        for (const account of selectedTiktokAccounts || []) {
           try {
             const response = await fetch(`${API_BASE_URL}/tiktok/post-video`, {
               method: 'POST',
@@ -369,7 +400,7 @@ function SocialPosting() {
               }),
             });
             
-            const data = await response?.json();
+            const data = await response?.json?.();
             
             if (response?.ok) {
               results.tiktok.push({
@@ -392,7 +423,7 @@ function SocialPosting() {
         }
       }
       
-      if (selectedPlatforms?.includes('twitter') && twitterAccessToken && twitterAccessTokenSecret) {
+      if (activePlatforms?.includes('twitter') && twitterAccessToken && twitterAccessTokenSecret) {
         try {
           const response = await fetch(`${API_BASE_URL}/twitter/post-video`, {
             method: 'POST',
@@ -407,7 +438,7 @@ function SocialPosting() {
             }),
           });
           
-          const data = await response?.json();
+          const data = await response?.json?.();
           
           if (response?.ok) {
             results.twitter = { success: true, message: data?.message };
@@ -421,9 +452,9 @@ function SocialPosting() {
       
       setPlatformResults(results);
       
-      const allSuccess = Object.values(results).every(result => {
-        if (Array.isArray(result)) {
-          return result.every(r => r?.success);
+      const allSuccess = Object?.values(results)?.every(result => {
+        if (Array?.isArray(result)) {
+          return result?.every(r => r?.success);
         }
         return result?.success;
       });
@@ -989,7 +1020,7 @@ function SocialPosting() {
               <button
                 className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={handlePost}
-                disabled={isPosting || (isScheduled && (!scheduledDate || !scheduledTime))}
+                disabled={isPosting || !hasValidPlatforms() || (isScheduled && (!scheduledDate || !scheduledTime))}
               >
                 {isPosting ? 'Posting...' : isScheduled ? 'Schedule Post' : 'Post Now'}
               </button>
@@ -1118,6 +1149,26 @@ function SocialPosting() {
         </div>
       </div>
     );
+  };
+
+  const hasValidPlatforms = () => {
+    // If Twitter is selected and has credentials, it's valid
+    if (selectedPlatforms?.includes('twitter')) {
+      const twitterAccessToken = localStorage?.getItem('twitter_access_token');
+      const twitterAccessTokenSecret = localStorage?.getItem('twitter_access_token_secret') || 
+                                      localStorage?.getItem('twitter_refresh_token');
+      if (twitterAccessToken && twitterAccessTokenSecret) {
+        return true;
+      }
+    }
+    
+    // If TikTok is selected and has accounts selected, it's valid
+    if (selectedPlatforms?.includes('tiktok') && selectedTiktokAccounts?.length > 0) {
+      return true;
+    }
+    
+    // No valid platforms
+    return false;
   };
 
   return (
