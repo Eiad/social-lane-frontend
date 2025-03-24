@@ -88,36 +88,40 @@ function SocialPosting() {
   }, []);
 
   const loadTikTokAccounts = useCallback(() => {
-    const accounts = [];
-    let i = 1;
-    while (true) {
-      const token = localStorage?.getItem(`tiktok${i}AccessToken`);
-      const openId = localStorage?.getItem(`tiktok${i}OpenId`);
-      const refreshToken = localStorage?.getItem(`tiktok${i}RefreshToken`);
-      const username = localStorage?.getItem(`tiktok${i}Username`);
-      
-      if (!token || !openId) break;
-      
-      accounts.push({
-        accessToken: token,
-        openId,
-        refreshToken,
-        username: username || `TikTok Account ${i}`,
-        index: i
-      });
-      i++;
-    }
-    
-    setTiktokAccounts(accounts);
-    
-    // If we found TikTok accounts, update selectedPlatforms
-    if (accounts.length > 0) {
-      setSelectedPlatforms(prev => {
-        if (!prev.includes('tiktok')) {
-          return [...prev, 'tiktok'];
+    // Load exclusively from socialMediaData
+    try {
+      const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+      if (socialMediaDataStr) {
+        const socialMediaData = JSON.parse(socialMediaDataStr);
+        if (socialMediaData?.tiktok && Array.isArray(socialMediaData.tiktok) && socialMediaData.tiktok.length > 0) {
+          // Filter out accounts without required fields
+          const validAccounts = socialMediaData.tiktok.filter(account => 
+            account?.accessToken && 
+            account?.openId
+          );
+          
+          if (validAccounts.length > 0) {
+            console.log(`Loaded ${validAccounts.length} TikTok accounts from socialMediaData`);
+            setTiktokAccounts(validAccounts);
+            
+            // If we found TikTok accounts, update selectedPlatforms
+            setSelectedPlatforms(prev => {
+              if (!prev.includes('tiktok')) {
+                return [...prev, 'tiktok'];
+              }
+              return prev;
+            });
+            
+            return; // Exit early since we found accounts
+          }
         }
-        return prev;
-      });
+      }
+      
+      console.log('No valid TikTok accounts found in socialMediaData');
+      setTiktokAccounts([]);
+    } catch (e) {
+      console.error('Error loading TikTok accounts from socialMediaData:', e);
+      setTiktokAccounts([]);
     }
   }, []);
 
@@ -387,20 +391,22 @@ function SocialPosting() {
           // Create TikTok payload - specifically for TikTok API
           const tiktokPayload = {
             userId: firebaseUid,
-            video_url: videoUrl,
-            description: caption,
+            videoUrl: videoUrl,
+            caption: caption,
             accounts: selectedTiktokAccounts.map(account => ({
               accessToken: account.accessToken,
               openId: account.openId,
-              refreshToken: account.refreshToken,
-              username: account.username
+              refreshToken: account.refreshToken || '',
+              username: account.username || '',
+              displayName: account.displayName || account.userInfo?.display_name || account.username || ''
             })),
             scheduled: isScheduled,
             scheduledAt: isScheduled ? scheduledAt.toISOString() : null
           };
           
           console.log('TikTok payload:', {
-            ...tiktokPayload,
+            videoUrl: tiktokPayload.videoUrl,
+            caption: tiktokPayload.caption,
             accounts: `${tiktokPayload.accounts.length} accounts`
           });
           
@@ -408,6 +414,7 @@ function SocialPosting() {
           
           if (isScheduled) {
             // Handle scheduled posts
+            console.log('Scheduling TikTok post for', tiktokPayload.scheduledAt);
             const scheduleResponse = await fetch(`${API_BASE_URL}/schedules`, {
               method: 'POST',
               headers: {
@@ -415,43 +422,70 @@ function SocialPosting() {
               },
               body: JSON.stringify({
                 userId: firebaseUid,
-                platforms: { tiktok: tiktokPayload.accounts },
-                content: {
-                  caption,
-                  mediaUrl: videoUrl,
-                },
-                scheduledAt: tiktokPayload.scheduledAt
+                video_url: tiktokPayload.videoUrl,
+                post_description: tiktokPayload.caption,
+                platforms: ['tiktok'],
+                tiktok_accounts: tiktokPayload.accounts,
+                isScheduled: true,
+                scheduledDate: tiktokPayload.scheduledAt
               }),
             });
             
             let scheduleData;
+            let scheduleError = null;
+            
             try {
               // First check if the response is valid
-              const contentType = scheduleResponse.headers.get("content-type");
+              const contentType = scheduleResponse?.headers?.get("content-type");
               if (contentType && contentType.includes("application/json")) {
-                scheduleData = await scheduleResponse.json();
+                try {
+                  scheduleData = await scheduleResponse.json();
+                } catch (jsonError) {
+                  console.error('Error parsing JSON from schedule API:', jsonError);
+                  scheduleError = 'Invalid JSON in schedule server response';
+                  scheduleData = { error: scheduleError };
+                }
               } else {
                 // Handle non-JSON responses (like HTML error pages)
-                const text = await scheduleResponse.text();
-                console.error('Non-JSON response from TikTok schedule API:', text.substring(0, 500));
-                throw new Error(`Invalid response from schedule server (${scheduleResponse.status})`);
+                try {
+                  const text = await scheduleResponse.text();
+                  console.error('Non-JSON response from TikTok schedule API:', text.substring(0, 500));
+                  scheduleError = `Invalid response from schedule server (${scheduleResponse?.status || 'unknown status'})`;
+                  scheduleData = { error: scheduleError };
+                } catch (textError) {
+                  console.error('Error reading schedule response text:', textError);
+                  scheduleError = 'Failed to read schedule server response';
+                  scheduleData = { error: scheduleError };
+                }
               }
             } catch (error) {
-              console.error('Error parsing TikTok schedule API response:', error);
-              throw new Error('Failed to parse schedule server response');
+              console.error('Error processing schedule API response:', error);
+              scheduleError = 'Failed to process schedule server response';
+              scheduleData = { error: scheduleError };
             }
             
-            if (scheduleResponse?.ok) {
+            if (scheduleResponse?.ok && !scheduleError) {
               tiktokResults = selectedTiktokAccounts.map(account => ({
-                username: account.username, 
+                displayName: account?.displayName || account?.userInfo?.display_name || account?.username || '',
+                username: account?.username || '', 
                 success: true, 
                 message: 'Post scheduled successfully'
               }));
             } else {
-              throw new Error(scheduleData?.error || 'Failed to schedule TikTok post');
+              throw new Error(scheduleData?.error || scheduleError || 'Failed to schedule TikTok post');
             }
           } else {
             // Handle immediate posts
+            console.log('Sending immediate TikTok post with payload:', {
+              videoUrl: tiktokPayload.videoUrl,
+              caption: tiktokPayload.caption,
+              accountsCount: tiktokPayload.accounts.length,
+              firstAccount: tiktokPayload.accounts[0] ? {
+                hasAccessToken: !!tiktokPayload.accounts[0].accessToken,
+                hasOpenId: !!tiktokPayload.accounts[0].openId
+              } : 'no accounts'
+            });
+            
             const response = await fetch(`${API_BASE_URL}/social/tiktok/post`, {
               method: 'POST',
               headers: {
@@ -461,34 +495,51 @@ function SocialPosting() {
             });
             
             let data;
+            let responseError = null;
+            
             try {
               // First check if the response is valid
-              const contentType = response.headers.get("content-type");
+              const contentType = response?.headers?.get("content-type");
               if (contentType && contentType.includes("application/json")) {
-                data = await response.json();
+                try {
+                  data = await response.json();
+                } catch (jsonError) {
+                  console.error('Error parsing JSON from TikTok API:', jsonError);
+                  responseError = 'Invalid JSON in server response';
+                  data = { error: responseError };
+                }
               } else {
                 // Handle non-JSON responses (like HTML error pages)
-                const text = await response.text();
-                console.error('Non-JSON response from TikTok API:', text.substring(0, 500));
-                throw new Error(`Invalid response from server (${response.status})`);
+                try {
+                  const text = await response.text();
+                  console.error('Non-JSON response from TikTok API:', text.substring(0, 500));
+                  responseError = `Invalid response from server (${response?.status || 'unknown status'})`;
+                  data = { error: responseError };
+                } catch (textError) {
+                  console.error('Error reading response text:', textError);
+                  responseError = 'Failed to read server response';
+                  data = { error: responseError };
+                }
               }
             } catch (error) {
-              console.error('Error parsing TikTok API response:', error);
-              throw new Error('Failed to parse server response');
+              console.error('Error processing TikTok API response:', error);
+              responseError = 'Failed to process server response';
+              data = { error: responseError };
             }
             
-            if (response?.ok) {
-              if (data.results && Array.isArray(data.results)) {
+            if (response?.ok && !responseError) {
+              if (data?.results && Array.isArray(data.results)) {
                 tiktokResults = data.results;
               } else {
                 tiktokResults = selectedTiktokAccounts.map(account => ({
-                  username: account.username, 
+                  displayName: account?.displayName || account?.userInfo?.display_name || account?.username || '',
+                  username: account?.username || '', 
                   success: true, 
-                  message: data.message || 'Posted successfully'
+                  message: data?.message || 'Posted successfully'
                 }));
               }
             } else {
-              throw new Error(data?.error || 'Failed to post to TikTok');
+              throw new Error(data?.error || responseError || 'Failed to post to TikTok');
             }
           }
           
@@ -496,7 +547,8 @@ function SocialPosting() {
         } catch (error) {
           console.error('Error posting to TikTok:', error);
           results.tiktok = selectedTiktokAccounts.map(account => ({
-            username: account.username, 
+            displayName: account?.displayName || account?.userInfo?.display_name || account?.username || '',
+            username: account?.username || '', 
             success: false, 
             error: error?.message || 'Unknown error'
           }));
@@ -512,6 +564,7 @@ function SocialPosting() {
           
           if (isScheduled) {
             // Handle scheduled Twitter posts
+            console.log('Scheduling Twitter post for', scheduledAt.toISOString());
             const scheduleResponse = await fetch(`${API_BASE_URL}/schedules`, {
               method: 'POST',
               headers: {
@@ -519,47 +572,61 @@ function SocialPosting() {
               },
               body: JSON.stringify({
                 userId: firebaseUid,
-                platforms: { 
-                  twitter: selectedTwitterAccounts.map(account => ({
-                    accessToken: account.accessToken,
-                    accessTokenSecret: account.accessTokenSecret,
-                    userId: account.userId,
-                    username: account.username
-                  }))
-                },
-                content: {
-                  caption,
-                  mediaUrl: videoUrl,
-                },
-                scheduledAt: isScheduled ? scheduledAt.toISOString() : null
+                video_url: videoUrl,
+                post_description: caption,
+                platforms: ['twitter'],
+                twitter_accounts: selectedTwitterAccounts.map(account => ({
+                  accessToken: account.accessToken,
+                  accessTokenSecret: account.accessTokenSecret,
+                  userId: account.userId,
+                  username: account.username
+                })),
+                isScheduled: true,
+                scheduledDate: scheduledAt.toISOString()
               }),
             });
             
             let scheduleData;
+            let scheduleError = null;
+            
             try {
               // First check if the response is valid
-              const contentType = scheduleResponse.headers.get("content-type");
+              const contentType = scheduleResponse?.headers?.get("content-type");
               if (contentType && contentType.includes("application/json")) {
-                scheduleData = await scheduleResponse.json();
+                try {
+                  scheduleData = await scheduleResponse.json();
+                } catch (jsonError) {
+                  console.error('Error parsing JSON from Twitter schedule API:', jsonError);
+                  scheduleError = 'Invalid JSON in schedule server response';
+                  scheduleData = { error: scheduleError };
+                }
               } else {
                 // Handle non-JSON responses (like HTML error pages)
-                const text = await scheduleResponse.text();
-                console.error('Non-JSON response from schedule API:', text.substring(0, 500));
-                throw new Error(`Invalid response from schedule server (${scheduleResponse.status})`);
+                try {
+                  const text = await scheduleResponse.text();
+                  console.error('Non-JSON response from schedule API:', text.substring(0, 500));
+                  scheduleError = `Invalid response from schedule server (${scheduleResponse?.status || 'unknown status'})`;
+                  scheduleData = { error: scheduleError };
+                } catch (textError) {
+                  console.error('Error reading schedule response text:', textError);
+                  scheduleError = 'Failed to read schedule server response';
+                  scheduleData = { error: scheduleError };
+                }
               }
             } catch (error) {
-              console.error('Error parsing schedule API response:', error);
-              throw new Error('Failed to parse schedule server response');
+              console.error('Error processing Twitter schedule API response:', error);
+              scheduleError = 'Failed to process schedule server response';
+              scheduleData = { error: scheduleError };
             }
             
-            if (scheduleResponse?.ok) {
+            if (scheduleResponse?.ok && !scheduleError) {
               twitterResults = selectedTwitterAccounts.map(account => ({
-                username: account.username, 
+                username: account.username || account.userId, 
                 success: true, 
                 message: 'Post scheduled successfully'
               }));
             } else {
-              throw new Error(scheduleData?.error || 'Failed to schedule Twitter post');
+              throw new Error(scheduleData?.error || scheduleError || 'Failed to schedule Twitter post');
             }
           } else {
             // Handle immediate posts to multiple Twitter accounts
@@ -733,7 +800,7 @@ function SocialPosting() {
             >
               <div className={styles.accountInfo}>
                 <TikTokSimpleIcon width="24" height="24" />
-                <span className={styles.accountName}>{account.username}</span>
+                <span className={styles.accountName}>{account.displayName || account.userInfo?.display_name || account.username || (account.openId ? `@${account.openId.substring(0, 10)}...` : 'TikTok Account')}</span>
               </div>
               <input
                 type="checkbox"
@@ -988,9 +1055,9 @@ function SocialPosting() {
                           className="mr-3"
                         />
                         <div>
-                          <p className="font-medium">{account.displayName || account.username || '@' + account.openId}</p>
-                          {account.username && account.openId && account.username !== account.openId && (
-                            <p className="text-xs text-gray-500">ID: {account.openId}</p>
+                          <p className="font-medium">{account.displayName || account.userInfo?.display_name || account.username || (account.openId ? `@${account.openId.substring(0, 10)}...` : 'TikTok Account')}</p>
+                          {account.username && (
+                            <p className="text-xs text-gray-500">@{account.username}</p>
                           )}
                         </div>
                       </div>
@@ -1137,7 +1204,7 @@ function SocialPosting() {
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M19.6099 6.90989C17.9366 6.90989 16.5731 5.54646 16.5731 3.87312H12.1379V15.9837C12.1379 17.6477 10.7837 19.0019 9.11969 19.0019C7.45569 19.0019 6.1015 17.6477 6.1015 15.9837C6.1015 14.3197 7.45569 12.9655 9.11969 12.9655C9.51114 12.9655 9.88351 13.0447 10.2276 13.1855V8.69296C9.88351 8.65228 9.5301 8.63213 9.18077 8.63213C5.04351 8.63213 1.67578 12.0091 1.67578 16.1356C1.67578 20.2728 5.05271 23.639 9.18077 23.639C13.3088 23.639 16.6858 20.2728 16.6858 16.1356V9.93228C18.0322 10.9064 19.6743 11.445 21.427 11.445V7.10217C21.4178 7.10217 19.6191 7.10217 19.6099 6.90989Z" fill="black"/>
                         </svg>
-                        <span className="text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded">{account?.username}</span>
+                        <span className="text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded">{account?.displayName || account?.userInfo?.display_name || account?.username || (account?.openId ? `@${account?.openId.substring(0, 10)}...` : 'TikTok Account')}</span>
                       </div>
                     ))}
                   </div>
@@ -1282,7 +1349,7 @@ function SocialPosting() {
                           <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                             <div className="flex items-center gap-2">
                               <TikTokSimpleIcon width="18" height="18" />
-                              <span className="font-medium text-gray-700">{r?.username}</span>
+                              <span className="font-medium text-gray-700">{r?.displayName || r?.username}</span>
                             </div>
                             {r?.success ? (
                               <span className="text-green-600">{r?.message}</span>

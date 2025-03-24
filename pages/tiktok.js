@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import styles from '../styles/Home.module.scss';
 import tikTokStyles from '../styles/TikTok.module.css';
@@ -96,131 +96,191 @@ export default function TikTok() {
     return null;
   };
 
+  // Get TikTok accounts from socialMediaData
+  const getTikTokAccounts = () => {
+    try {
+      const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+      if (!socialMediaDataStr) {
+        return [];
+      }
+      
+      const socialMediaData = JSON.parse(socialMediaDataStr);
+      if (!socialMediaData?.tiktok || !Array.isArray(socialMediaData.tiktok)) {
+        return [];
+      }
+      
+      return socialMediaData.tiktok.filter(account => 
+        account && account.accessToken && account.openId
+      );
+    } catch (error) {
+      console.error('Error getting TikTok accounts from socialMediaData:', error);
+      return [];
+    }
+  };
+
+  // Save TikTok accounts to socialMediaData
+  const saveTikTokAccounts = (accounts) => {
+    try {
+      const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+      let socialMediaData = {};
+      
+      if (socialMediaDataStr) {
+        socialMediaData = JSON.parse(socialMediaDataStr);
+      }
+      
+      socialMediaData.tiktok = accounts;
+      localStorage.setItem('socialMediaData', JSON.stringify(socialMediaData));
+      localStorage.setItem('socialMediaDataUpdated', Date.now().toString());
+      
+      console.log('Saved TikTok accounts to socialMediaData:', accounts);
+    } catch (error) {
+      console.error('Error saving TikTok accounts to socialMediaData:', error);
+    }
+  };
+
+  // Add a function to migrate existing TikTok tokens to socialMediaData format
+  const migrateTikTokTokensToSocialMediaData = useCallback(() => {
+    try {
+      // Check if we already have accounts in socialMediaData
+      const existingAccounts = getTikTokAccounts();
+      if (existingAccounts.length > 0) {
+        console.log('TikTok accounts already exist in socialMediaData, skipping migration');
+        return;
+      }
+      
+      // Load accounts from legacy storage
+      const accounts = [];
+      let i = 1;
+      const migratedIndices = []; // Track which indices were migrated for cleanup
+      
+      while (true) {
+        const token = localStorage?.getItem(`tiktok${i}AccessToken`);
+        const openId = localStorage?.getItem(`tiktok${i}OpenId`);
+        const refreshToken = localStorage?.getItem(`tiktok${i}RefreshToken`);
+        const username = localStorage?.getItem(`tiktok${i}Username`);
+        const displayName = localStorage?.getItem(`tiktok${i}DisplayName`);
+        const avatarUrl = localStorage?.getItem(`tiktok${i}AvatarUrl`);
+        const avatarUrl100 = localStorage?.getItem(`tiktok${i}AvatarUrl100`);
+        
+        if (!token || !openId) break;
+        
+        accounts.push({
+          accessToken: token,
+          openId,
+          refreshToken,
+          index: i,
+          username: username || `TikTok Account ${i}`,
+          displayName: displayName || '',
+          avatarUrl: avatarUrl || '',
+          avatarUrl100: avatarUrl100 || ''
+        });
+        
+        migratedIndices.push(i);
+        i++;
+      }
+      
+      if (accounts.length > 0) {
+        // Save to socialMediaData
+        saveTikTokAccounts(accounts);
+        console.log(`Migrated ${accounts.length} TikTok accounts to socialMediaData`);
+        
+        // Clean up legacy storage after successful migration
+        migratedIndices.forEach(index => {
+          console.log(`Cleaning up legacy storage for TikTok account ${index}`);
+          localStorage?.removeItem(`tiktok${index}AccessToken`);
+          localStorage?.removeItem(`tiktok${index}RefreshToken`);
+          localStorage?.removeItem(`tiktok${index}OpenId`);
+          localStorage?.removeItem(`tiktok${index}Username`);
+          localStorage?.removeItem(`tiktok${index}DisplayName`);
+          localStorage?.removeItem(`tiktok${index}AvatarUrl`);
+          localStorage?.removeItem(`tiktok${index}AvatarUrl100`);
+        });
+        console.log('Legacy TikTok storage cleaned up after migration');
+      } else {
+        console.log('No TikTok accounts found to migrate');
+      }
+    } catch (error) {
+      console.error('Error migrating TikTok tokens:', error);
+    }
+  }, []);
+  
+  // Add a useEffect hook to run the migration when the component mounts
+  useEffect(() => {
+    migrateTikTokTokensToSocialMediaData();
+  }, []);
+
   // Load connected accounts from localStorage
   useEffect(() => {
     setApiUrl(API_BASE_URL);
     
-    // First check for legacy token (no number)
-    const legacyToken = localStorage?.getItem('tiktokAccessToken');
-    const legacyOpenId = localStorage?.getItem('tiktokOpenId');
-    const legacyRefreshToken = localStorage?.getItem('tiktokRefreshToken');
-    const legacyUsername = localStorage?.getItem('tiktokUsername');
-    const legacyDisplayName = localStorage?.getItem('tiktokDisplayName');
-    const legacyAvatarUrl = localStorage?.getItem('tiktokAvatarUrl');
-    const legacyAvatarUrl100 = localStorage?.getItem('tiktokAvatarUrl100');
-
-    // Track unique openIds to prevent duplicates
-    const uniqueOpenIds = new Set();
-    const accounts = [];
-    const tokens = {};
-    
-    // Handle legacy account if it exists
-    if (legacyToken && legacyOpenId) {
-      uniqueOpenIds.add(legacyOpenId);
-      
-      const account = {
-        accessToken: legacyToken,
-        openId: legacyOpenId,
-        refreshToken: legacyRefreshToken,
-        index: 1,  // Set legacy account as first
-        userInfo: {
-          username: legacyUsername || '',
-          display_name: legacyDisplayName || '',
-          avatar_url: legacyAvatarUrl || '',
-          avatar_url_100: legacyAvatarUrl100 || ''
-        }
-      };
-      
-      // Migrate legacy tokens to new format
-      localStorage?.setItem('tiktok1AccessToken', legacyToken);
-      localStorage?.setItem('tiktok1OpenId', legacyOpenId);
-      if (legacyRefreshToken) localStorage?.setItem('tiktok1RefreshToken', legacyRefreshToken);
-      if (legacyUsername) localStorage?.setItem('tiktok1Username', legacyUsername);
-      if (legacyDisplayName) localStorage?.setItem('tiktok1DisplayName', legacyDisplayName);
-      if (legacyAvatarUrl) localStorage?.setItem('tiktok1AvatarUrl', legacyAvatarUrl);
-      if (legacyAvatarUrl100) localStorage?.setItem('tiktok1AvatarUrl100', legacyAvatarUrl100);
-      
-      // Remove legacy tokens
-      localStorage?.removeItem('tiktokAccessToken');
-      localStorage?.removeItem('tiktokOpenId');
-      localStorage?.removeItem('tiktokRefreshToken');
-      localStorage?.removeItem('tiktokUsername');
-      localStorage?.removeItem('tiktokDisplayName');
-      localStorage?.removeItem('tiktokAvatarUrl');
-      localStorage?.removeItem('tiktokAvatarUrl100');
-      
-      accounts.push(account);
+    // First, try to load from socialMediaData (new method)
+    const socialMediaAccounts = getTikTokAccounts();
+    if (socialMediaAccounts.length > 0) {
+      console.log(`Loaded ${socialMediaAccounts.length} TikTok accounts from socialMediaData`);
+      setConnectedAccounts(socialMediaAccounts);
+      setAccessToken(socialMediaAccounts[0].accessToken);
+      setOpenId(socialMediaAccounts[0].openId);
+      setIsAuthenticated(true);
       
       // Set account tokens
-      tokens[legacyOpenId] = {
-        accessToken: legacyToken,
-        openId: legacyOpenId,
-        refreshToken: legacyRefreshToken
-      };
-    }
-    
-    // Load all accounts with numbered keys
-    let i = 1;
-    
-    while (true) {
-      const token = localStorage?.getItem(`tiktok${i}AccessToken`);
-      const openId = localStorage?.getItem(`tiktok${i}OpenId`);
-      const refreshToken = localStorage?.getItem(`tiktok${i}RefreshToken`);
-      const username = localStorage?.getItem(`tiktok${i}Username`);
-      const displayName = localStorage?.getItem(`tiktok${i}DisplayName`);
-      const avatarUrl = localStorage?.getItem(`tiktok${i}AvatarUrl`);
-      const avatarUrl100 = localStorage?.getItem(`tiktok${i}AvatarUrl100`);
-      
-      if (!token || !openId) break;
-      
-      // Skip if we already have this openId (prevent duplicates)
-      if (uniqueOpenIds.has(openId)) {
-        i++;
-        continue;
-      }
-      
-      uniqueOpenIds.add(openId);
-      
-      accounts.push({
-        accessToken: token,
-        openId,
-        refreshToken,
-        index: i,
-        userInfo: {
-          username: username || '',
-          display_name: displayName || '',
-          avatar_url: avatarUrl || '',
-          avatar_url_100: avatarUrl100 || ''
-        }
+      const tokens = {};
+      socialMediaAccounts.forEach(account => {
+        tokens[account.openId] = {
+          accessToken: account.accessToken,
+          openId: account.openId,
+          refreshToken: account.refreshToken || ''
+        };
       });
-      
-      tokens[openId] = {
-        accessToken: token,
-        openId,
-        refreshToken
-      };
-      
-      i++;
-    }
-    
-    if (accounts.length > 0) {
-      setConnectedAccounts(accounts);
-      // Initialize with the first account for backward compatibility
-      setAccessToken(accounts[0].accessToken);
-      setOpenId(accounts[0].openId);
-      setIsAuthenticated(true);
       setAccountTokens(tokens);
       
       // Fetch user info for all accounts
-      accounts.forEach(account => {
+      socialMediaAccounts.forEach(account => {
         fetchUserInfo(account.accessToken, account.openId);
       });
       
-      // Save accounts to user record once on initial load
-      setTimeout(() => {
-        saveAccountsToUserRecord();
-      }, 1000);
+      // Verify no legacy storage exists - if it does, clean it up
+      migrateTikTokTokensToSocialMediaData();
+      
+      return; // Exit early since we found accounts in socialMediaData
     }
+    
+    // If no accounts in socialMediaData, fall back to legacy method and migrate immediately
+    console.log('No accounts in socialMediaData, attempting to migrate legacy accounts');
+    migrateTikTokTokensToSocialMediaData();
+    
+    // Check again after migration
+    const migratedAccounts = getTikTokAccounts();
+    if (migratedAccounts.length > 0) {
+      console.log(`Using ${migratedAccounts.length} migrated TikTok accounts`);
+      setConnectedAccounts(migratedAccounts);
+      setAccessToken(migratedAccounts[0].accessToken);
+      setOpenId(migratedAccounts[0].openId);
+      setIsAuthenticated(true);
+      
+      // Set account tokens
+      const tokens = {};
+      migratedAccounts.forEach(account => {
+        tokens[account.openId] = {
+          accessToken: account.accessToken,
+          openId: account.openId,
+          refreshToken: account.refreshToken || ''
+        };
+      });
+      setAccountTokens(tokens);
+      
+      // Fetch user info for all accounts
+      migratedAccounts.forEach(account => {
+        fetchUserInfo(account.accessToken, account.openId);
+      });
+      
+      saveAccountsToUserRecord();
+      return;
+    }
+    
+    // If we reach this point, we found no accounts or migration failed
+    console.log('No TikTok accounts found in any storage method');
+    setConnectedAccounts([]);
+    setIsAuthenticated(false);
   }, []);
 
   // Update token handling in the callback effect
@@ -247,15 +307,7 @@ export default function TikTok() {
       // Find the next available index for the new account
       const nextIndex = connectedAccounts.length + 1; // Start from 1
       
-      // Save token and user info to localStorage with numbered index
-      localStorage?.setItem(`tiktok${nextIndex}AccessToken`, access_token);
-      if (refresh_token) localStorage?.setItem(`tiktok${nextIndex}RefreshToken`, refresh_token);
-      localStorage?.setItem(`tiktok${nextIndex}OpenId`, open_id);
-      if (username) localStorage?.setItem(`tiktok${nextIndex}Username`, username);
-      if (display_name) localStorage?.setItem(`tiktok${nextIndex}DisplayName`, display_name);
-      if (avatar_url) localStorage?.setItem(`tiktok${nextIndex}AvatarUrl`, avatar_url);
-      if (avatar_url_100) localStorage?.setItem(`tiktok${nextIndex}AvatarUrl100`, avatar_url_100);
-      
+      // Create new account object
       const newAccount = {
         accessToken: access_token,
         openId: open_id,
@@ -268,6 +320,26 @@ export default function TikTok() {
           avatar_url_100: avatar_url_100 || ''
         }
       };
+      
+      // Add to socialMediaData (primary storage method)
+      try {
+        const existingAccounts = getTikTokAccounts();
+        const updatedAccounts = [...existingAccounts, newAccount];
+        saveTikTokAccounts(updatedAccounts);
+        console.log('Added new TikTok account to socialMediaData');
+      } catch (error) {
+        console.error('Error adding account to socialMediaData:', error);
+        
+        // Fallback: only use legacy storage if socialMediaData update fails
+        localStorage?.setItem(`tiktok${nextIndex}AccessToken`, access_token);
+        if (refresh_token) localStorage?.setItem(`tiktok${nextIndex}RefreshToken`, refresh_token);
+        localStorage?.setItem(`tiktok${nextIndex}OpenId`, open_id);
+        if (username) localStorage?.setItem(`tiktok${nextIndex}Username`, username);
+        if (display_name) localStorage?.setItem(`tiktok${nextIndex}DisplayName`, display_name);
+        if (avatar_url) localStorage?.setItem(`tiktok${nextIndex}AvatarUrl`, avatar_url);
+        if (avatar_url_100) localStorage?.setItem(`tiktok${nextIndex}AvatarUrl100`, avatar_url_100);
+        console.log('Fallback: saved TikTok account using legacy storage method');
+      }
       
       // Update account tokens
       setAccountTokens(prev => ({
@@ -589,14 +661,37 @@ export default function TikTok() {
     if (!accountToRemove) return;
     
     try {
-      // Remove account from localStorage using numbered format
-      localStorage?.removeItem(`tiktok${accountToRemove?.index}AccessToken`);
-      localStorage?.removeItem(`tiktok${accountToRemove?.index}RefreshToken`);
-      localStorage?.removeItem(`tiktok${accountToRemove?.index}OpenId`);
-      localStorage?.removeItem(`tiktok${accountToRemove?.index}Username`);
-      localStorage?.removeItem(`tiktok${accountToRemove?.index}DisplayName`);
-      localStorage?.removeItem(`tiktok${accountToRemove?.index}AvatarUrl`);
-      localStorage?.removeItem(`tiktok${accountToRemove?.index}AvatarUrl100`);
+      console.log(`Removing TikTok account with openId: ${accountToRemove?.openId}`);
+      
+      // Primary method: Remove from socialMediaData storage
+      try {
+        const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+        if (socialMediaDataStr) {
+          const socialMediaData = JSON.parse(socialMediaDataStr);
+          if (socialMediaData?.tiktok && Array.isArray(socialMediaData.tiktok) && socialMediaData.tiktok.length > 0) {
+            // Filter out the account to remove
+            socialMediaData.tiktok = socialMediaData.tiktok.filter(acc => acc?.openId !== accountToRemove?.openId);
+            localStorage.setItem('socialMediaData', JSON.stringify(socialMediaData));
+            localStorage.setItem('socialMediaDataUpdated', Date.now().toString());
+            console.log(`Removed TikTok account from socialMediaData, remaining accounts: ${socialMediaData.tiktok.length}`);
+          }
+        }
+      } catch (dataError) {
+        console.error('Error updating socialMediaData:', dataError);
+      }
+      
+      // Backup cleanup: Remove any legacy numbered storage items, if they exist
+      const index = accountToRemove?.index;
+      if (index) {
+        localStorage?.removeItem(`tiktok${index}AccessToken`);
+        localStorage?.removeItem(`tiktok${index}RefreshToken`);
+        localStorage?.removeItem(`tiktok${index}OpenId`);
+        localStorage?.removeItem(`tiktok${index}Username`);
+        localStorage?.removeItem(`tiktok${index}DisplayName`);
+        localStorage?.removeItem(`tiktok${index}AvatarUrl`);
+        localStorage?.removeItem(`tiktok${index}AvatarUrl100`);
+        console.log(`Cleaned up any legacy storage for TikTok account ${index}`);
+      }
       
       // Remove account from database
       const firebaseUid = localStorage?.getItem('firebaseUid');
@@ -604,6 +699,7 @@ export default function TikTok() {
         await fetch(`/api/users/${firebaseUid}/social/tiktok?openId=${accountToRemove.openId}`, {
           method: 'DELETE'
         });
+        console.log(`Removed TikTok account from database for user ${firebaseUid}`);
       }
       
       // Update connected accounts
@@ -691,61 +787,64 @@ export default function TikTok() {
     router?.push('/');
   };
 
-  // After successfully connecting a TikTok account, save it to the user's record
-  const saveAccountsToUserRecord = () => {
+  // Update saveAccountsToUserRecord function to use socialMediaData directly
+  const saveAccountsToUserRecord = async () => {
     const firebaseUid = localStorage?.getItem('firebaseUid');
-    if (!firebaseUid || !connectedAccounts?.length) {
-      console.log('Cannot save TikTok accounts to user record:', { 
-        hasFirebaseUid: !!firebaseUid, 
-        accountsCount: connectedAccounts?.length 
-      });
+    if (!firebaseUid) {
+      console.log('Cannot save TikTok accounts to user record: No Firebase UID found');
       return;
     }
     
-    // Prevent duplicate accounts with the same openId
-    const uniqueAccounts = [];
-    const seenOpenIds = new Set();
+    // Get accounts directly from socialMediaData
+    const socialMediaAccounts = getTikTokAccounts();
     
-    connectedAccounts?.forEach(account => {
-      if (account?.openId && !seenOpenIds.has(account.openId)) {
-        seenOpenIds.add(account.openId);
-        uniqueAccounts.push(account);
-      }
-    });
+    if (!socialMediaAccounts || socialMediaAccounts.length === 0) {
+      console.log('No TikTok accounts to save to user record');
+      return;
+    }
     
-    console.log(`Saving ${uniqueAccounts.length} unique TikTok accounts to user record with UID:`, firebaseUid);
+    console.log(`Saving ${socialMediaAccounts.length} TikTok accounts to user record with UID:`, firebaseUid);
     
-    const accountsData = uniqueAccounts.map(account => ({
-      accessToken: account?.accessToken,
-      openId: account?.openId,
-      refreshToken: account?.refreshToken,
-      username: account?.userInfo?.username || account?.username || `TikTok Account ${account?.index}`,
-      displayName: account?.userInfo?.display_name || account?.displayName || '',
-      avatarUrl: account?.userInfo?.avatar_url || account?.avatarUrl || '',
-      avatarUrl100: account?.userInfo?.avatar_url_100 || account?.avatarUrl100 || '',
-      index: account?.index
+    // Prepare account data for backend
+    const accountsData = socialMediaAccounts.map(account => ({
+      accessToken: account.accessToken,
+      openId: account.openId,
+      refreshToken: account.refreshToken || '',
+      username: account.username || account.userInfo?.username || `TikTok Account ${account.index || 0}`,
+      displayName: account.displayName || account.userInfo?.display_name || '',
+      avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
+      avatarUrl100: account.avatarUrl100 || account.userInfo?.avatar_url_100 || '',
+      index: account.index || 0
     }));
     
-    // Save to backend
-    fetch(`/api/users/${firebaseUid}/social/tiktok`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(accountsData)
-    })
-    .then(response => {
+    try {
+      // Save to backend
+      const response = await fetch(`/api/users/${firebaseUid}/social/tiktok`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(accountsData)
+      });
+      
       if (!response?.ok) {
-        throw new Error(`Failed to save tokens: ${response?.status}`);
+        const errorText = await response.text();
+        console.error('Server error saving TikTok accounts:', response.status, errorText);
+        throw new Error(`Failed to save TikTok accounts: ${response?.status} - ${errorText}`);
       }
-      return response?.json();
-    })
-    .then(data => {
+      
+      const data = await response?.json();
       console.log('Successfully saved TikTok accounts to user record:', data?.success);
-    })
-    .catch(error => {
+      
+      if (window.showToast?.success) {
+        window.showToast.success(`Successfully saved ${accountsData.length} TikTok account(s)`);
+      }
+    } catch (error) {
       console.error('Error saving TikTok accounts to user record:', error);
-    });
+      if (window.showToast?.error) {
+        window.showToast.error('Error saving TikTok accounts: ' + (error.message || 'Unknown error'));
+      }
+    }
   };
 
   // Call this after adding a new account
