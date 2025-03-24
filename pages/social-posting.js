@@ -5,6 +5,14 @@ import styles from '../styles/SocialPosting.module.css';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 import ProtectedRoute from '../src/components/ProtectedRoute';
 import axios from 'axios';
+// Import platform-specific components
+import {
+  TikTokAccountSelector,
+  TikTokPoster,
+  TwitterAccountSelector,
+  TwitterPoster
+} from '../components/platforms';
+
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
 
 function SocialPosting() {
@@ -383,333 +391,38 @@ function SocialPosting() {
       // Build the results object to track each platform's posting status
       let results = {};
       
-      // Post to TikTok if selected
+      // Post to TikTok if selected using the platform-specific component
       if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length > 0) {
-        console.log(`Posting to ${selectedTiktokAccounts.length} TikTok accounts...`);
+        const tiktokResult = await TikTokPoster.postToTikTok({
+          selectedTiktokAccounts,
+          videoUrl,
+          caption,
+          firebaseUid,
+          isScheduled,
+          scheduledAt
+        });
         
-        try {
-          // Create TikTok payload - specifically for TikTok API
-          const tiktokPayload = {
-            userId: firebaseUid,
-            videoUrl: videoUrl,
-            caption: caption,
-            accounts: selectedTiktokAccounts.map(account => ({
-              accessToken: account.accessToken,
-              openId: account.openId,
-              refreshToken: account.refreshToken || '',
-              username: account.username || '',
-              displayName: account.displayName || account.userInfo?.display_name || account.username || ''
-            })),
-            scheduled: isScheduled,
-            scheduledAt: isScheduled ? scheduledAt.toISOString() : null
-          };
-          
-          console.log('TikTok payload:', {
-            videoUrl: tiktokPayload.videoUrl,
-            caption: tiktokPayload.caption,
-            accounts: `${tiktokPayload.accounts.length} accounts`
-          });
-          
-          let tiktokResults = [];
-          
-          if (isScheduled) {
-            // Handle scheduled posts
-            console.log('Scheduling TikTok post for', tiktokPayload.scheduledAt);
-            const scheduleResponse = await fetch(`${API_BASE_URL}/schedules`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                userId: firebaseUid,
-                video_url: tiktokPayload.videoUrl,
-                post_description: tiktokPayload.caption,
-                platforms: ['tiktok'],
-                tiktok_accounts: tiktokPayload.accounts,
-                isScheduled: true,
-                scheduledDate: tiktokPayload.scheduledAt
-              }),
-            });
-            
-            let scheduleData;
-            let scheduleError = null;
-            
-            try {
-              // First check if the response is valid
-              const contentType = scheduleResponse?.headers?.get("content-type");
-              if (contentType && contentType.includes("application/json")) {
-                try {
-                  scheduleData = await scheduleResponse.json();
-                } catch (jsonError) {
-                  console.error('Error parsing JSON from schedule API:', jsonError);
-                  scheduleError = 'Invalid JSON in schedule server response';
-                  scheduleData = { error: scheduleError };
-                }
-              } else {
-                // Handle non-JSON responses (like HTML error pages)
-                try {
-                  const text = await scheduleResponse.text();
-                  console.error('Non-JSON response from TikTok schedule API:', text.substring(0, 500));
-                  scheduleError = `Invalid response from schedule server (${scheduleResponse?.status || 'unknown status'})`;
-                  scheduleData = { error: scheduleError };
-                } catch (textError) {
-                  console.error('Error reading schedule response text:', textError);
-                  scheduleError = 'Failed to read schedule server response';
-                  scheduleData = { error: scheduleError };
-                }
-              }
-            } catch (error) {
-              console.error('Error processing schedule API response:', error);
-              scheduleError = 'Failed to process schedule server response';
-              scheduleData = { error: scheduleError };
-            }
-            
-            if (scheduleResponse?.ok && !scheduleError) {
-              tiktokResults = selectedTiktokAccounts.map(account => ({
-                displayName: account?.displayName || account?.userInfo?.display_name || account?.username || '',
-                username: account?.username || '', 
-                success: true, 
-                message: 'Post scheduled successfully'
-              }));
-            } else {
-              throw new Error(scheduleData?.error || scheduleError || 'Failed to schedule TikTok post');
-            }
-          } else {
-            // Handle immediate posts
-            console.log('Sending immediate TikTok post with payload:', {
-              videoUrl: tiktokPayload.videoUrl,
-              caption: tiktokPayload.caption,
-              accountsCount: tiktokPayload.accounts.length,
-              firstAccount: tiktokPayload.accounts[0] ? {
-                hasAccessToken: !!tiktokPayload.accounts[0].accessToken,
-                hasOpenId: !!tiktokPayload.accounts[0].openId
-              } : 'no accounts'
-            });
-            
-            const response = await fetch(`${API_BASE_URL}/social/tiktok/post`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(tiktokPayload),
-            });
-            
-            let data;
-            let responseError = null;
-            
-            try {
-              // First check if the response is valid
-              const contentType = response?.headers?.get("content-type");
-              if (contentType && contentType.includes("application/json")) {
-                try {
-                  data = await response.json();
-                } catch (jsonError) {
-                  console.error('Error parsing JSON from TikTok API:', jsonError);
-                  responseError = 'Invalid JSON in server response';
-                  data = { error: responseError };
-                }
-              } else {
-                // Handle non-JSON responses (like HTML error pages)
-                try {
-                  const text = await response.text();
-                  console.error('Non-JSON response from TikTok API:', text.substring(0, 500));
-                  responseError = `Invalid response from server (${response?.status || 'unknown status'})`;
-                  data = { error: responseError };
-                } catch (textError) {
-                  console.error('Error reading response text:', textError);
-                  responseError = 'Failed to read server response';
-                  data = { error: responseError };
-                }
-              }
-            } catch (error) {
-              console.error('Error processing TikTok API response:', error);
-              responseError = 'Failed to process server response';
-              data = { error: responseError };
-            }
-            
-            if (response?.ok && !responseError) {
-              if (data?.results && Array.isArray(data.results)) {
-                tiktokResults = data.results;
-              } else {
-                tiktokResults = selectedTiktokAccounts.map(account => ({
-                  displayName: account?.displayName || account?.userInfo?.display_name || account?.username || '',
-                  username: account?.username || '', 
-                  success: true, 
-                  message: data?.message || 'Posted successfully'
-                }));
-              }
-            } else {
-              throw new Error(data?.error || responseError || 'Failed to post to TikTok');
-            }
-          }
-          
-          results.tiktok = tiktokResults;
-        } catch (error) {
-          console.error('Error posting to TikTok:', error);
-          results.tiktok = selectedTiktokAccounts.map(account => ({
-            displayName: account?.displayName || account?.userInfo?.display_name || account?.username || '',
-            username: account?.username || '', 
-            success: false, 
-            error: error?.message || 'Unknown error'
-          }));
-        }
+        results.tiktok = tiktokResult.results;
       }
       
-      // Post to Twitter if selected
+      // Post to Twitter if selected using the platform-specific component
       if (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length > 0) {
-        console.log(`Posting to ${selectedTwitterAccounts.length} Twitter accounts...`);
+        const twitterResult = await TwitterPoster.postToTwitter({
+          selectedTwitterAccounts,
+          videoUrl,
+          caption,
+          firebaseUid,
+          isScheduled,
+          scheduledAt
+        });
         
-        try {
-          let twitterResults = [];
-          
-          if (isScheduled) {
-            // Handle scheduled Twitter posts
-            console.log('Scheduling Twitter post for', scheduledAt.toISOString());
-            const scheduleResponse = await fetch(`${API_BASE_URL}/schedules`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                userId: firebaseUid,
-                video_url: videoUrl,
-                post_description: caption,
-                platforms: ['twitter'],
-                twitter_accounts: selectedTwitterAccounts.map(account => ({
-                  accessToken: account.accessToken,
-                  accessTokenSecret: account.accessTokenSecret,
-                  userId: account.userId,
-                  username: account.username
-                })),
-                isScheduled: true,
-                scheduledDate: scheduledAt.toISOString()
-              }),
-            });
-            
-            let scheduleData;
-            let scheduleError = null;
-            
-            try {
-              // First check if the response is valid
-              const contentType = scheduleResponse?.headers?.get("content-type");
-              if (contentType && contentType.includes("application/json")) {
-                try {
-                  scheduleData = await scheduleResponse.json();
-                } catch (jsonError) {
-                  console.error('Error parsing JSON from Twitter schedule API:', jsonError);
-                  scheduleError = 'Invalid JSON in schedule server response';
-                  scheduleData = { error: scheduleError };
-                }
-              } else {
-                // Handle non-JSON responses (like HTML error pages)
-                try {
-                  const text = await scheduleResponse.text();
-                  console.error('Non-JSON response from schedule API:', text.substring(0, 500));
-                  scheduleError = `Invalid response from schedule server (${scheduleResponse?.status || 'unknown status'})`;
-                  scheduleData = { error: scheduleError };
-                } catch (textError) {
-                  console.error('Error reading schedule response text:', textError);
-                  scheduleError = 'Failed to read schedule server response';
-                  scheduleData = { error: scheduleError };
-                }
-              }
-            } catch (error) {
-              console.error('Error processing Twitter schedule API response:', error);
-              scheduleError = 'Failed to process schedule server response';
-              scheduleData = { error: scheduleError };
-            }
-            
-            if (scheduleResponse?.ok && !scheduleError) {
-              twitterResults = selectedTwitterAccounts.map(account => ({
-                username: account.username || account.userId, 
-                success: true, 
-                message: 'Post scheduled successfully'
-              }));
-            } else {
-              throw new Error(scheduleData?.error || scheduleError || 'Failed to schedule Twitter post');
-            }
-          } else {
-            // Handle immediate posts to multiple Twitter accounts
-            const postPromises = selectedTwitterAccounts.map(async twitterAccount => {
-              try {
-                // Create Twitter payload for this account
-                const twitterPayload = {
-                  userId: firebaseUid,
-                  videoUrl: videoUrl,
-                  text: caption,
-                  accessToken: twitterAccount.accessToken,
-                  accessTokenSecret: twitterAccount.accessTokenSecret
-                };
-                
-                console.log(`Posting to Twitter account: ${twitterAccount.username || twitterAccount.userId}`);
-                
-                const response = await fetch(`${API_BASE_URL}/twitter/post-video`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify(twitterPayload),
-                });
-                
-                // Parse response
-                let data;
-                try {
-                  // First check if the response is valid
-                  const contentType = response.headers.get("content-type");
-                  if (contentType && contentType.includes("application/json")) {
-                    data = await response.json();
-                  } else {
-                    // Handle non-JSON responses
-                    const text = await response.text();
-                    console.error('Non-JSON response from Twitter API:', text.substring(0, 500));
-                    throw new Error(`Invalid response from server (${response.status})`);
-                  }
-                } catch (error) {
-                  console.error('Error parsing Twitter API response:', error);
-                  throw new Error('Failed to parse server response');
-                }
-                
-                if (response?.ok) {
-                  return {
-                    username: twitterAccount.username || twitterAccount.userId,
-                    success: true,
-                    message: data.message || 'Posted successfully',
-                    postId: data.id_str,
-                    accountId: twitterAccount.userId
-                  };
-                } else {
-                  throw new Error(data?.error || 'Failed to post to Twitter');
-                }
-              } catch (error) {
-                console.error(`Error posting to Twitter account ${twitterAccount.username || twitterAccount.userId}:`, error);
-                return {
-                  username: twitterAccount.username || twitterAccount.userId,
-                  success: false,
-                  error: error?.message || 'Unknown error',
-                  accountId: twitterAccount.userId
-                };
-              }
-            });
-            
-            // Wait for all posts to complete
-            twitterResults = await Promise.all(postPromises);
-          }
-          
-          results.twitter = twitterResults;
-        } catch (error) {
-          console.error('Error posting to Twitter:', error);
-          results.twitter = selectedTwitterAccounts.map(account => ({
-            username: account.username || account.userId, 
-            success: false, 
-            error: error?.message || 'Unknown error'
-          }));
-        }
+        results.twitter = twitterResult.results;
       }
       
       setPlatformResults(results);
       
-      const allSuccess = Object?.values(results)?.every(result => {
-        if (Array?.isArray(result)) {
+      const allSuccess = Object.values(results)?.every(result => {
+        if (Array.isArray(result)) {
           return result?.every(r => r?.success);
         }
         return result?.success;
@@ -768,65 +481,26 @@ function SocialPosting() {
   const renderTikTokAccounts = () => {
     if (!selectedPlatforms.includes('tiktok')) return null;
     
-    if (tiktokAccounts.length === 0) {
-      return (
-        <div className={styles.noAccountsMessage}>
-          <p>No TikTok accounts connected.</p>
-          <Link href="/tiktok" legacyBehavior>
-            <a className={styles.connectLink}>
-              <button className={styles.connectButton} type="button">
-                <TikTokSimpleIcon width="20" height="20" />
-                Connect TikTok Account
-              </button>
-            </a>
-          </Link>
-        </div>
-      );
-    }
-
     return (
-      <div className={styles.accountsSection}>
-        <h3>Select TikTok Accounts</h3>
-        <div className={styles.accountsList}>
-          {tiktokAccounts.map(account => (
-            <div 
-              key={account.openId}
-              className={`${styles.accountCard} ${
-                selectedTiktokAccounts.some(acc => acc.openId === account.openId) 
-                  ? styles.selectedAccount 
-                  : ''
-              }`}
-              onClick={() => handleTikTokAccountToggle(account)}
-            >
-              <div className={styles.accountInfo}>
-                <TikTokSimpleIcon width="24" height="24" />
-                <span className={styles.accountName}>{account.displayName || account.userInfo?.display_name || account.username || (account.openId ? `@${account.openId.substring(0, 10)}...` : 'TikTok Account')}</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={selectedTiktokAccounts.some(acc => acc.openId === account.openId)}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  handleTikTokAccountToggle(account);
-                }}
-                className={styles.accountCheckbox}
-              />
-            </div>
-          ))}
-        </div>
-        <Link href="/tiktok" legacyBehavior>
-          <a className={styles.connectLink}>
-            <button className={styles.addAccountButton} type="button">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="16"></line>
-                <line x1="8" y1="12" x2="16" y2="12"></line>
-              </svg>
-              Add Another TikTok Account
-            </button>
-          </a>
-        </Link>
-      </div>
+      <TikTokAccountSelector
+        tiktokAccounts={tiktokAccounts}
+        selectedTiktokAccounts={selectedTiktokAccounts}
+        handleTikTokAccountToggle={handleTikTokAccountToggle}
+        searchTerm={searchTerm}
+      />
+    );
+  };
+
+  const renderTwitterAccounts = () => {
+    if (!selectedPlatforms.includes('twitter')) return null;
+    
+    return (
+      <TwitterAccountSelector
+        twitterAccounts={twitterAccounts}
+        selectedTwitterAccounts={selectedTwitterAccounts}
+        handleTwitterAccountToggle={handleTwitterAccountToggle}
+        searchTerm={searchTerm}
+      />
     );
   };
 
