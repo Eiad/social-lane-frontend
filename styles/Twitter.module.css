@@ -367,9 +367,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid #ebeef0;
-  padding-bottom: 1rem;
+  margin-bottom: 1rem;
 }
 
 .accountsActions {
@@ -479,19 +477,25 @@
 }
 
 .disconnectAllButton {
-  background-color: transparent;
-  color: #e0245e;
-  border: 1px solid #e0245e;
-  border-radius: 50px;
-  padding: 0.5rem 1.25rem;
+  display: flex;
+  align-items: center;
   font-size: 0.875rem;
-  font-weight: 600;
+  color: #f44336;
+  background: none;
+  border: none;
   cursor: pointer;
-  transition: all 0.2s;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  transition: color 0.2s, background-color 0.2s;
 }
 
 .disconnectAllButton:hover {
-  background-color: #ffecf0;
+  color: #d32f2f;
+  background-color: rgba(244, 67, 54, 0.05);
+}
+
+.disconnectAllButton svg {
+  margin-right: 0.25rem;
 }
 
 .refreshButton {
@@ -577,4 +581,114 @@
   .accountsGrid {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+.connectionsContainer {
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.connectedAccountsTitle {
+  font-size: 1.125rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.connectedAccount {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background-color: #f7f9fc;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.accountInfo {
+  display: flex;
+  align-items: center;
+}
+
+.accountAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #1DA1F2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  margin-right: 1rem;
+  overflow: hidden;
+}
+
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.accountDetails {
+  display: flex;
+  flex-direction: column;
+}
+
+.accountName {
+  font-weight: 500;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.accountType {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.disconnectButton {
+  display: flex;
+  align-items: center;
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.disconnectButton:hover {
+  background-color: #d32f2f;
+}
+
+.disconnectButton svg {
+  margin-right: 0.5rem;
+}
+
+.addAccountButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: #1DA1F2;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: background-color 0.2s;
+}
+
+.addAccountButton:hover {
+  background-color: #1991DA;
+}
+
+.addAccountButton svg {
+  margin-right: 0.5rem;
 } 

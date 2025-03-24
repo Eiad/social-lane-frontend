@@ -194,16 +194,26 @@ function ScheduledPosts() {
       }
       
       if (editPlatforms.includes('twitter')) {
-        const twitterAccessToken = localStorage?.getItem('twitter_access_token');
-        const twitterAccessTokenSecret = localStorage?.getItem('twitter_access_token_secret') || 
-                                        localStorage?.getItem('twitter_refresh_token');
-        
-        if (twitterAccessToken) {
-          updateData.twitter_access_token = twitterAccessToken;
-        }
-        
-        if (twitterAccessTokenSecret) {
-          updateData.twitter_access_token_secret = twitterAccessTokenSecret;
+        try {
+          // Get Twitter credentials from socialMediaData instead of direct localStorage
+          const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+          if (socialMediaDataStr) {
+            const socialMediaData = JSON.parse(socialMediaDataStr);
+            if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
+              // Get the first Twitter account (could be enhanced to select a specific one)
+              const twitterAccount = socialMediaData.twitter[0];
+              
+              if (twitterAccount?.accessToken) {
+                updateData.twitter_access_token = twitterAccount.accessToken;
+              }
+              
+              if (twitterAccount?.accessTokenSecret) {
+                updateData.twitter_access_token_secret = twitterAccount.accessTokenSecret;
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error getting Twitter credentials from socialMediaData:', error);
         }
       }
       

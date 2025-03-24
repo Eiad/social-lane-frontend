@@ -24,6 +24,11 @@ export const createOrUpdateUser = async (userData) => {
  */
 export const getUserByUid = async (uid) => {
   try {
+    if (!uid) {
+      console.error('No UID provided to getUserByUid');
+      return { success: false, data: null };
+    }
+    
     const response = await axios.get(`${API_URL}/users/${uid}`);
     return response?.data;
   } catch (error) {

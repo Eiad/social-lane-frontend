@@ -1,76 +1,93 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import styles from '../styles/SocialPosting.module.css';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 import ProtectedRoute from '../src/components/ProtectedRoute';
 import axios from 'axios';
-
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
 
 function SocialPosting() {
+  // State for managing current step
   const [currentStep, setCurrentStep] = useState(1);
+  
+  // State for managing file upload
   const [file, setFile] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadError, setUploadError] = useState(null);
   const [videoUrl, setVideoUrl] = useState('');
+  
+  // State for managing platforms and accounts
   const [selectedPlatforms, setSelectedPlatforms] = useState([]);
+  
+  // TikTok accounts
+  const [tiktokAccounts, setTiktokAccounts] = useState([]);
+  const [selectedTiktokAccounts, setSelectedTiktokAccounts] = useState([]);
+  
+  // Twitter accounts
+  const [twitterAccounts, setTwitterAccounts] = useState([]);
+  const [selectedTwitterAccounts, setSelectedTwitterAccounts] = useState([]);
+  
+  // State for managing caption
   const [caption, setCaption] = useState('');
-  const [isPosting, setIsPosting] = useState(false);
-  const [postSuccess, setPostSuccess] = useState(false);
-  const [platformResults, setPlatformResults] = useState({});
+  
+  // State for managing scheduling
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
+  
+  // State for managing posting
+  const [isPosting, setIsPosting] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const [postSuccess, setPostSuccess] = useState(false);
+  const [platformResults, setPlatformResults] = useState({});
+  
+  // Search and filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  
   const [userId, setUserId] = useState('');
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
-  const [tiktokAccounts, setTiktokAccounts] = useState([]);
-  const [selectedTiktokAccounts, setSelectedTiktokAccounts] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [showVideoModal, setShowVideoModal] = useState(false);
 
+  // First useEffect - load user data and accounts
   useEffect(() => {
-    // Use Firebase UID if available, otherwise fallback to stored userId or generate a new one
+    // Always use Firebase UID - this is the authoritative user identifier
     const firebaseUid = localStorage?.getItem('firebaseUid');
     if (firebaseUid) {
       setUserId(firebaseUid);
-      localStorage?.setItem('userId', firebaseUid); // Ensure userId is also set to the Firebase UID
+      // Ensure userId is set to the Firebase UID for consistency across all components
+      localStorage?.setItem('userId', firebaseUid);
+      console.log('Using Firebase UID as user identifier:', firebaseUid);
     } else {
+      // If no Firebase UID, check for existing userId as fallback
       const storedUserId = localStorage?.getItem('userId');
       if (storedUserId) {
         setUserId(storedUserId);
+        console.log('No Firebase UID found, using existing userId:', storedUserId);
+        // Note: This is a fallback and may cause issues with database operations
+        window.showToast?.warning?.('Authentication issue detected. Some features might not work correctly. Please try logging in again.');
       } else {
-        const newUserId = crypto.randomUUID();
-        localStorage?.setItem('userId', newUserId);
-        setUserId(newUserId);
+        // As a last resort, generate a temporary ID - but warn that this may cause issues
+        console.warn('No user ID found! Generating temporary ID, but this may cause sync issues.');
+        const tempUserId = crypto.randomUUID();
+        localStorage?.setItem('userId', tempUserId);
+        setUserId(tempUserId);
+        // Clearly warn the user about potential issues
+        window.showToast?.error?.('Authentication issue detected. Please log in again to use all features.');
       }
     }
     
     // Load TikTok accounts on component mount
     loadTikTokAccounts();
     
-    // If Twitter is connected, add it to selected platforms
-    const twitterConnected = localStorage?.getItem('twitter_access_token');
-    if (twitterConnected) {
-      setSelectedPlatforms(prev => {
-        if (!prev.includes('twitter')) {
-          return [...prev, 'twitter'];
-        }
-        return prev;
-      });
-    }
+    // Load Twitter accounts
+    loadTwitterAccounts();
   }, []);
 
-  useEffect(() => {
-    loadTikTokAccounts();
-  }, []);
-
-  const loadTikTokAccounts = () => {
+  const loadTikTokAccounts = useCallback(() => {
     const accounts = [];
     let i = 1;
     while (true) {
@@ -102,7 +119,66 @@ function SocialPosting() {
         return prev;
       });
     }
-  };
+  }, []);
+
+  // Add a new function to load Twitter accounts
+  const loadTwitterAccounts = useCallback(() => {
+    try {
+      // Get from socialMediaData first (primary location)
+      const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+      if (socialMediaDataStr) {
+        try {
+          const socialMediaData = JSON.parse(socialMediaDataStr);
+          if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
+            // Filter out accounts without required fields
+            const validAccounts = socialMediaData.twitter.filter(account => 
+              account?.accessToken && 
+              account?.accessTokenSecret && 
+              account?.userId
+            );
+            
+            if (validAccounts.length > 0) {
+              console.log(`Loaded ${validAccounts.length} Twitter accounts from socialMediaData`);
+              setTwitterAccounts(validAccounts);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing socialMediaData for Twitter accounts:', e);
+        }
+      }
+      
+      // Fallback: try the direct twitterAccounts in localStorage
+      const twitterAccountsStr = localStorage?.getItem('twitterAccounts');
+      if (twitterAccountsStr) {
+        try {
+          const accounts = JSON.parse(twitterAccountsStr);
+          if (Array.isArray(accounts) && accounts.length > 0) {
+            // Filter out accounts without required fields
+            const validAccounts = accounts.filter(account => 
+              account?.accessToken && 
+              account?.accessTokenSecret && 
+              account?.userId
+            );
+            
+            if (validAccounts.length > 0) {
+              console.log(`Loaded ${validAccounts.length} Twitter accounts from twitterAccounts`);
+              setTwitterAccounts(validAccounts);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing twitterAccounts:', e);
+        }
+      }
+      
+      console.log('No valid Twitter accounts found in storage');
+      setTwitterAccounts([]);
+    } catch (error) {
+      console.error('Error loading Twitter accounts:', error);
+      setTwitterAccounts([]);
+    }
+  }, []);
 
   const handleTikTokAccountToggle = (account) => {
     if (!account?.openId) return;
@@ -125,20 +201,19 @@ function SocialPosting() {
   };
 
   const handlePlatformToggle = (platform) => {
-    console.log(`Toggling platform: ${platform}`);
-    
-    setSelectedPlatforms(prev => {
-      // Check if the platform is already selected
+    setSelectedPlatforms((prev) => {
       if (prev.includes(platform)) {
-        // If platform is TikTok, clear selected TikTok accounts
+        // If removing a platform, also clear the selected accounts for that platform
         if (platform === 'tiktok') {
           setSelectedTiktokAccounts([]);
         }
-        // Remove the platform from the selected platforms
-        return prev.filter(p => p !== platform);
+        if (platform === 'twitter') {
+          setSelectedTwitterAccounts([]);
+        }
+        return prev.filter((p) => p !== platform);
+      } else {
+        return [...prev, platform];
       }
-      // Add the platform to the selected platforms
-      return [...prev, platform];
     });
   };
 
@@ -253,200 +328,314 @@ function SocialPosting() {
   };
 
   const handlePost = async () => {
-    if (!videoUrl || selectedPlatforms?.length === 0) return;
-    
-    // Check if TikTok is selected but no accounts are selected and it's the only platform
-    if (selectedPlatforms?.includes('tiktok') && selectedTiktokAccounts?.length === 0) {
-      // Check if there are other platforms selected
-      const otherPlatformsSelected = selectedPlatforms?.filter(p => p !== 'tiktok')?.length > 0;
-      
-      if (!otherPlatformsSelected) {
-        window.showToast?.warning?.('Please select at least one TikTok account to post to');
-        return;
-      }
-      
-      // If we have other platforms, remove TikTok from the selected platforms
-      setSelectedPlatforms(prev => prev?.filter(p => p !== 'tiktok'));
-    }
-    
     try {
       setIsPosting(true);
       setUploadError(null);
       setPlatformResults({});
       
-      const twitterAccessToken = localStorage?.getItem('twitter_access_token');
-      let twitterAccessTokenSecret = localStorage?.getItem('twitter_access_token_secret');
-      const twitterRefreshToken = localStorage?.getItem('twitter_refresh_token');
+      if (!videoUrl) {
+        throw new Error('Please upload a video first');
+      }
       
-      if (!twitterAccessTokenSecret) {
-        twitterAccessTokenSecret = twitterRefreshToken;
-        if (twitterAccessTokenSecret) {
-          localStorage?.setItem('twitter_access_token_secret', twitterAccessTokenSecret);
+      // Get Firebase UID
+      const firebaseUid = localStorage?.getItem('firebaseUid') || userId;
+      
+      if (!firebaseUid) {
+        throw new Error('User ID not found. Please refresh the page and try again.');
+      }
+      
+      console.log('Posting with user ID:', firebaseUid);
+      
+      // Validate platforms
+      if (!selectedPlatforms.includes('tiktok') && !selectedPlatforms.includes('twitter')) {
+        throw new Error('Please select at least one platform');
+      }
+      
+      // Validate that we have accounts selected for each platform
+      if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length === 0) {
+        throw new Error('Please select at least one TikTok account');
+      }
+      
+      if (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length === 0) {
+        throw new Error('Please select a Twitter account');
+      }
+      
+      // Prepare post data based on schedule
+      let scheduledAt = null;
+      if (isScheduled) {
+        if (!scheduledDate || !scheduledTime) {
+          throw new Error('Please select both date and time for scheduling');
         }
-      }
-      
-      if (selectedPlatforms?.includes('twitter') && (!twitterAccessToken || !twitterAccessTokenSecret)) {
-        window.showToast?.warning?.('Twitter credentials are missing. Please connect your Twitter account first.');
-      }
-      
-      if (isScheduled && scheduledDate && scheduledTime) {
-        const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
         
-        if (scheduledDateTime <= new Date()) {
+        scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`);
+        
+        if (scheduledAt <= new Date()) {
           throw new Error('Scheduled time must be in the future');
         }
         
-        console.log('Scheduling post to:', `${API_BASE_URL}/posts`);
+        console.log('Post scheduled for:', scheduledAt.toISOString());
+      }
+      
+      // Build the results object to track each platform's posting status
+      let results = {};
+      
+      // Post to TikTok if selected
+      if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length > 0) {
+        console.log(`Posting to ${selectedTiktokAccounts.length} TikTok accounts...`);
         
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 60000);
-          
-          // Get the actual platforms we'll be posting to
-          const activePlatforms = [...selectedPlatforms];
-          
-          // Remove TikTok from platforms if no accounts selected
-          if (activePlatforms?.includes('tiktok') && selectedTiktokAccounts?.length === 0) {
-            const index = activePlatforms?.indexOf('tiktok');
-            if (index !== -1) {
-              activePlatforms?.splice(index, 1);
-            }
-          }
-          
-          const requestBody = {
+          // Create TikTok payload - specifically for TikTok API
+          const tiktokPayload = {
+            userId: firebaseUid,
             video_url: videoUrl,
-            post_description: caption,
-            platforms: activePlatforms,
-            userId: userId,
-            isScheduled: true,
-            scheduledDate: scheduledDateTime?.toISOString(),
-            ...(activePlatforms?.includes('tiktok') && selectedTiktokAccounts?.length > 0 ? {
-              tiktok_accounts: selectedTiktokAccounts?.map(account => ({
-                accessToken: account?.accessToken,
-                refreshToken: account?.refreshToken,
-                openId: account?.openId
-              }))
-            } : {}),
-            ...(activePlatforms?.includes('twitter') && twitterAccessToken ? {
-              twitter_access_token: twitterAccessToken,
-              twitter_access_token_secret: twitterAccessTokenSecret,
-              twitter_refresh_token: twitterRefreshToken
-            } : {})
+            description: caption,
+            accounts: selectedTiktokAccounts.map(account => ({
+              accessToken: account.accessToken,
+              openId: account.openId,
+              refreshToken: account.refreshToken,
+              username: account.username
+            })),
+            scheduled: isScheduled,
+            scheduledAt: isScheduled ? scheduledAt.toISOString() : null
           };
           
-          const response = await fetch(`${API_BASE_URL}/posts`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            signal: controller.signal,
-            body: JSON.stringify(requestBody),
+          console.log('TikTok payload:', {
+            ...tiktokPayload,
+            accounts: `${tiktokPayload.accounts.length} accounts`
           });
           
-          clearTimeout(timeoutId);
+          let tiktokResults = [];
           
-          if (!response?.ok) {
-            throw new Error('Failed to schedule post');
-          }
-          
-          setPostSuccess(true);
-          window.showToast?.success?.('Post scheduled successfully!');
-          
-          setVideoUrl('');
-          setUploadedFile(null);
-          setSelectedPlatforms([]);
-          setSelectedTiktokAccounts([]);
-          setCaption('');
-          setCurrentStep(1);
-          setIsScheduled(false);
-          setScheduledDate('');
-          setScheduledTime('');
-          
-          return;
-        } catch (error) {
-          console.error('Error scheduling post:', error);
-          throw new Error('Failed to schedule post: ' + error?.message);
-        }
-      }
-      
-      const results = {};
-      
-      // Get the actual platforms we'll be posting to
-      const activePlatforms = [...selectedPlatforms];
-      
-      // Remove TikTok from platforms if no accounts selected
-      if (activePlatforms?.includes('tiktok') && selectedTiktokAccounts?.length === 0) {
-        const index = activePlatforms?.indexOf('tiktok');
-        if (index !== -1) {
-          activePlatforms?.splice(index, 1);
-        }
-      }
-      
-      if (activePlatforms?.includes('tiktok')) {
-        results.tiktok = [];
-        
-        for (const account of selectedTiktokAccounts || []) {
-          try {
-            const response = await fetch(`${API_BASE_URL}/tiktok/post-video`, {
+          if (isScheduled) {
+            // Handle scheduled posts
+            const scheduleResponse = await fetch(`${API_BASE_URL}/schedules`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                videoUrl,
-                accessToken: account?.accessToken,
-                refreshToken: account?.refreshToken,
-                caption
+                userId: firebaseUid,
+                platforms: { tiktok: tiktokPayload.accounts },
+                content: {
+                  caption,
+                  mediaUrl: videoUrl,
+                },
+                scheduledAt: tiktokPayload.scheduledAt
               }),
             });
             
-            const data = await response?.json?.();
+            let scheduleData;
+            try {
+              // First check if the response is valid
+              const contentType = scheduleResponse.headers.get("content-type");
+              if (contentType && contentType.includes("application/json")) {
+                scheduleData = await scheduleResponse.json();
+              } else {
+                // Handle non-JSON responses (like HTML error pages)
+                const text = await scheduleResponse.text();
+                console.error('Non-JSON response from TikTok schedule API:', text.substring(0, 500));
+                throw new Error(`Invalid response from schedule server (${scheduleResponse.status})`);
+              }
+            } catch (error) {
+              console.error('Error parsing TikTok schedule API response:', error);
+              throw new Error('Failed to parse schedule server response');
+            }
+            
+            if (scheduleResponse?.ok) {
+              tiktokResults = selectedTiktokAccounts.map(account => ({
+                username: account.username, 
+                success: true, 
+                message: 'Post scheduled successfully'
+              }));
+            } else {
+              throw new Error(scheduleData?.error || 'Failed to schedule TikTok post');
+            }
+          } else {
+            // Handle immediate posts
+            const response = await fetch(`${API_BASE_URL}/social/tiktok/post`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(tiktokPayload),
+            });
+            
+            let data;
+            try {
+              // First check if the response is valid
+              const contentType = response.headers.get("content-type");
+              if (contentType && contentType.includes("application/json")) {
+                data = await response.json();
+              } else {
+                // Handle non-JSON responses (like HTML error pages)
+                const text = await response.text();
+                console.error('Non-JSON response from TikTok API:', text.substring(0, 500));
+                throw new Error(`Invalid response from server (${response.status})`);
+              }
+            } catch (error) {
+              console.error('Error parsing TikTok API response:', error);
+              throw new Error('Failed to parse server response');
+            }
             
             if (response?.ok) {
-              results.tiktok.push({
-                success: true,
-                accountId: account?.openId,
-                username: account?.username,
-                message: data?.message
-              });
+              if (data.results && Array.isArray(data.results)) {
+                tiktokResults = data.results;
+              } else {
+                tiktokResults = selectedTiktokAccounts.map(account => ({
+                  username: account.username, 
+                  success: true, 
+                  message: data.message || 'Posted successfully'
+                }));
+              }
             } else {
               throw new Error(data?.error || 'Failed to post to TikTok');
             }
-          } catch (error) {
-            results.tiktok.push({
-              success: false,
-              accountId: account?.openId,
-              username: account?.username,
-              error: error?.message
-            });
           }
+          
+          results.tiktok = tiktokResults;
+        } catch (error) {
+          console.error('Error posting to TikTok:', error);
+          results.tiktok = selectedTiktokAccounts.map(account => ({
+            username: account.username, 
+            success: false, 
+            error: error?.message || 'Unknown error'
+          }));
         }
       }
       
-      if (activePlatforms?.includes('twitter') && twitterAccessToken && twitterAccessTokenSecret) {
+      // Post to Twitter if selected
+      if (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length > 0) {
+        console.log(`Posting to ${selectedTwitterAccounts.length} Twitter accounts...`);
+        
         try {
-          const response = await fetch(`${API_BASE_URL}/twitter/post-video`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              videoUrl,
-              accessToken: twitterAccessToken,
-              accessTokenSecret: twitterAccessTokenSecret,
-              text: caption
-            }),
-          });
+          let twitterResults = [];
           
-          const data = await response?.json?.();
-          
-          if (response?.ok) {
-            results.twitter = { success: true, message: data?.message };
+          if (isScheduled) {
+            // Handle scheduled Twitter posts
+            const scheduleResponse = await fetch(`${API_BASE_URL}/schedules`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                userId: firebaseUid,
+                platforms: { 
+                  twitter: selectedTwitterAccounts.map(account => ({
+                    accessToken: account.accessToken,
+                    accessTokenSecret: account.accessTokenSecret,
+                    userId: account.userId,
+                    username: account.username
+                  }))
+                },
+                content: {
+                  caption,
+                  mediaUrl: videoUrl,
+                },
+                scheduledAt: isScheduled ? scheduledAt.toISOString() : null
+              }),
+            });
+            
+            let scheduleData;
+            try {
+              // First check if the response is valid
+              const contentType = scheduleResponse.headers.get("content-type");
+              if (contentType && contentType.includes("application/json")) {
+                scheduleData = await scheduleResponse.json();
+              } else {
+                // Handle non-JSON responses (like HTML error pages)
+                const text = await scheduleResponse.text();
+                console.error('Non-JSON response from schedule API:', text.substring(0, 500));
+                throw new Error(`Invalid response from schedule server (${scheduleResponse.status})`);
+              }
+            } catch (error) {
+              console.error('Error parsing schedule API response:', error);
+              throw new Error('Failed to parse schedule server response');
+            }
+            
+            if (scheduleResponse?.ok) {
+              twitterResults = selectedTwitterAccounts.map(account => ({
+                username: account.username, 
+                success: true, 
+                message: 'Post scheduled successfully'
+              }));
+            } else {
+              throw new Error(scheduleData?.error || 'Failed to schedule Twitter post');
+            }
           } else {
-            throw new Error(data?.error || 'Failed to post to Twitter');
+            // Handle immediate posts to multiple Twitter accounts
+            const postPromises = selectedTwitterAccounts.map(async twitterAccount => {
+              try {
+                // Create Twitter payload for this account
+                const twitterPayload = {
+                  userId: firebaseUid,
+                  videoUrl: videoUrl,
+                  text: caption,
+                  accessToken: twitterAccount.accessToken,
+                  accessTokenSecret: twitterAccount.accessTokenSecret
+                };
+                
+                console.log(`Posting to Twitter account: ${twitterAccount.username || twitterAccount.userId}`);
+                
+                const response = await fetch(`${API_BASE_URL}/twitter/post-video`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(twitterPayload),
+                });
+                
+                // Parse response
+                let data;
+                try {
+                  // First check if the response is valid
+                  const contentType = response.headers.get("content-type");
+                  if (contentType && contentType.includes("application/json")) {
+                    data = await response.json();
+                  } else {
+                    // Handle non-JSON responses
+                    const text = await response.text();
+                    console.error('Non-JSON response from Twitter API:', text.substring(0, 500));
+                    throw new Error(`Invalid response from server (${response.status})`);
+                  }
+                } catch (error) {
+                  console.error('Error parsing Twitter API response:', error);
+                  throw new Error('Failed to parse server response');
+                }
+                
+                if (response?.ok) {
+                  return {
+                    username: twitterAccount.username || twitterAccount.userId,
+                    success: true,
+                    message: data.message || 'Posted successfully',
+                    postId: data.id_str,
+                    accountId: twitterAccount.userId
+                  };
+                } else {
+                  throw new Error(data?.error || 'Failed to post to Twitter');
+                }
+              } catch (error) {
+                console.error(`Error posting to Twitter account ${twitterAccount.username || twitterAccount.userId}:`, error);
+                return {
+                  username: twitterAccount.username || twitterAccount.userId,
+                  success: false,
+                  error: error?.message || 'Unknown error',
+                  accountId: twitterAccount.userId
+                };
+              }
+            });
+            
+            // Wait for all posts to complete
+            twitterResults = await Promise.all(postPromises);
           }
+          
+          results.twitter = twitterResults;
         } catch (error) {
-          results.twitter = { success: false, error: error?.message };
+          console.error('Error posting to Twitter:', error);
+          results.twitter = selectedTwitterAccounts.map(account => ({
+            username: account.username || account.userId, 
+            success: false, 
+            error: error?.message || 'Unknown error'
+          }));
         }
       }
       
@@ -467,6 +656,7 @@ function SocialPosting() {
         setUploadedFile(null);
         setSelectedPlatforms([]);
         setSelectedTiktokAccounts([]);
+        setSelectedTwitterAccounts([]);
         setCaption('');
         setCurrentStep(1);
       } else {
@@ -488,9 +678,24 @@ function SocialPosting() {
   }, [tiktokAccounts, searchTerm]);
 
   const filteredTwitterAccounts = useMemo(() => {
-    const twitterUsername = localStorage?.getItem('twitter_username');
-    if (!twitterUsername) return [];
-    return twitterUsername.toLowerCase().includes(searchTerm.toLowerCase()) ? [twitterUsername] : [];
+    try {
+      // Use socialMediaData structure instead of legacy storage
+      const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+      if (!socialMediaDataStr) return [];
+      
+      const socialMediaData = JSON.parse(socialMediaDataStr);
+      if (!socialMediaData?.twitter || !Array.isArray(socialMediaData.twitter) || socialMediaData.twitter.length === 0) {
+        return [];
+      }
+      
+      // Get Twitter accounts that match the search term
+      return socialMediaData.twitter
+        .filter(account => account?.username?.toLowerCase().includes(searchTerm.toLowerCase()))
+        .map(account => account.username);
+    } catch (error) {
+      console.error('Error filtering Twitter accounts:', error);
+      return [];
+    }
   }, [searchTerm]);
 
   const renderTikTokAccounts = () => {
@@ -703,160 +908,177 @@ function SocialPosting() {
         );
       case 2:
         return (
-          <div className={styles.stepContainer}>
-            <div className={styles.stepTitle}>
-              <h2>Select Accounts</h2>
-            </div>
+          <div className="mt-6 space-y-4">
+            <h2 className="text-xl font-semibold">Select platforms to post to</h2>
             
-            <div className={styles.searchContainer}>
-              <div className={styles.searchInputWrapper}>
-                <svg className={styles.searchIcon} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <input 
-                  type="text" 
-                  className={styles.searchInput} 
-                  placeholder="Search accounts..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <button className={styles.filterButton}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 14 14 12.46 22 3"></polygon>
-                </svg>
-              </button>
-            </div>
-            
-            <div className={styles.platformsGrid}>
-              {/* TikTok Section */}
-              <div className={styles.platformCard}>
-                <div className={styles.platformHeader}>
-                  <div className={styles.platformIcon}>
-                    <TikTokSimpleIcon width="24" height="24" />
-                  </div>
-                  <span className={styles.platformName}>TikTok</span>
+            <div className="flex flex-wrap gap-4">
+              {/* TikTok platform selection */}
+              <div
+                className={`border rounded-lg p-4 cursor-pointer flex items-center space-x-3 ${
+                  selectedPlatforms.includes('tiktok')
+                    ? 'border-blue-500'
+                    : 'border-gray-200'
+                }`}
+                onClick={() => handlePlatformToggle('tiktok')}
+              >
+                <div className="w-12 h-12 flex items-center justify-center bg-black rounded-full">
+                  <svg viewBox="0 0 48 48" width="24" height="24" fill="white">
+                    <path d="M38.0266 15.5965C34.9334 15.5965 32.1709 14.3528 30.2 12.2062V27.9677C30.2 34.9147 24.6466 40.6062 17.7334 40.6062C14.9306 40.6062 12.3595 39.5516 10.4 37.8062C12.9889 40.5342 16.6595 42.2062 20.7334 42.2062C27.6466 42.2062 33.2 36.5147 33.2 29.5677V13.8062C35.1709 15.9528 37.9334 17.1965 41.0266 17.1965V8.79648C41.0266 8.79648 39.4555 8.79648 38.0266 8.79648V15.5965ZM27.6667 11.3965V13.0306C26.9377 12.3919 26.3377 11.3743 26.0889 10.6062C25.7334 9.61733 25.5556 8.57191 25.6 7.52591V5.59648H22.8V26.3965C22.8 28.8639 20.8 30.7965 18.4 30.7965C17.0889 30.7965 15.9111 30.178 15.1556 29.2284C14.4 28.2789 14.0655 27.0506 14.2667 25.8062C14.5556 23.7965 16.2667 22.2729 18.2667 21.9965C17.1037 21.9382 16.4482 21.9965 16.4 21.9965V29.1965C16.2767 30.4408 16.6112 31.6691 17.3667 32.6187C18.1223 33.5682 19.3 34.1868 20.6112 34.1868C23.0112 34.1868 25.0112 32.2542 25.0112 29.7868V7.59648C23.2445 7.63525 20.0889 7.85191 16.2667 9.19648C16.9112 13.3677 20.2667 16.7965 24.3823 17.3187L24.4 14.508C22.0889 14.0343 20.3112 12.0454 20.3112 9.59648H27.6667V11.3965Z" />
+                  </svg>
                 </div>
-                
-                <div className={styles.accountsList}>
-                  {tiktokAccounts.length === 0 ? (
-                    <div className={styles.noAccountsMessage}>
-                      <p>No TikTok accounts connected.</p>
-                      <Link href="/tiktok" legacyBehavior>
-                        <a className={styles.connectLink}>
-                          <button className={styles.connectAccountButton} type="button">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <line x1="12" y1="5" x2="12" y2="19"></line>
-                              <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                            Connect TikTok Account
-                          </button>
-                        </a>
-                      </Link>
-                    </div>
-                  ) : (
-                    <>
-                      {filteredTiktokAccounts.map(account => (
-                        <div 
-                          key={account.openId}
-                          className={`${styles.accountRow} ${selectedTiktokAccounts.some(acc => acc.openId === account.openId) ? styles.selectedAccountRow : ''}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            handleTikTokAccountToggle(account);
-                          }}
-                        >
-                          <div className={styles.accountInfo}>
-                            <div className={styles.accountAvatar}>
-                              {account.username?.charAt(0).toUpperCase() || 'T'}
-                            </div>
-                            <span className={styles.accountName}>{account.username}</span>
-                          </div>
-                          <input
-                            type="checkbox"
-                            checked={selectedTiktokAccounts.some(acc => acc.openId === account.openId)}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              handleTikTokAccountToggle(account);
-                            }}
-                            className={styles.accountCheckbox}
-                          />
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
+                <span className="font-medium">TikTok</span>
+                {tiktokAccounts.length > 0 && (
+                  <span className="ml-2 text-sm text-green-600">
+                    {tiktokAccounts.length} account{tiktokAccounts.length > 1 ? 's' : ''} connected
+                  </span>
+                )}
               </div>
               
-              {/* Twitter Section */}
-              <div className={styles.platformCard}>
-                <div className={styles.platformHeader}>
-                  <div className={styles.platformIcon}>
-                    <TwitterIcon width="24" height="24" />
-                  </div>
-                  <span className={styles.platformName}>Twitter / X</span>
+              {/* Twitter platform selection */}
+              <div
+                className={`border rounded-lg p-4 cursor-pointer flex items-center space-x-3 ${
+                  selectedPlatforms.includes('twitter')
+                    ? 'border-blue-500'
+                    : 'border-gray-200'
+                }`}
+                onClick={() => handlePlatformToggle('twitter')}
+              >
+                <div className="w-12 h-12 flex items-center justify-center bg-blue-400 rounded-full">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                    <path d="M23.643 4.937c-.835.37-1.732.62-2.675.733.962-.576 1.7-1.49 2.048-2.578-.9.534-1.897.922-2.958 1.13-.85-.904-2.06-1.47-3.4-1.47-2.572 0-4.658 2.086-4.658 4.66 0 .364.042.718.12 1.06-3.873-.195-7.304-2.05-9.602-4.868-.4.69-.63 1.49-.63 2.342 0 1.616.823 3.043 2.072 3.878-.764-.025-1.482-.234-2.11-.583v.06c0 2.257 1.605 4.14 3.737 4.568-.392.106-.803.162-1.227.162-.3 0-.593-.028-.877-.082.593 1.85 2.313 3.198 4.352 3.234-1.595 1.25-3.604 1.995-5.786 1.995-.376 0-.747-.022-1.112-.065 2.062 1.323 4.51 2.093 7.14 2.093 8.57 0 13.255-7.098 13.255-13.254 0-.2-.005-.402-.014-.602.91-.658 1.7-1.477 2.323-2.41z" />
+                  </svg>
                 </div>
-                
-                <div className={styles.accountsList}>
-                  {!localStorage?.getItem('twitter_access_token') ? (
-                    <div className={styles.noAccountsMessage}>
-                      <p>No Twitter account connected.</p>
-                      <Link href="/twitter" legacyBehavior>
-                        <a className={styles.connectLink}>
-                          <button className={styles.connectAccountButton} type="button">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <line x1="12" y1="5" x2="12" y2="19"></line>
-                              <line x1="5" y1="12" x2="19" y2="12"></line>
-                            </svg>
-                            Connect Twitter Account
-                          </button>
-                        </a>
-                      </Link>
-                    </div>
-                  ) : (
-                    <div 
-                      className={`${styles.accountRow} ${selectedPlatforms.includes('twitter') ? styles.selectedAccountRow : ''}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        handlePlatformToggle('twitter');
-                      }}
-                    >
-                      <div className={styles.accountInfo}>
-                        <div className={styles.accountAvatar}>
-                          {localStorage?.getItem('twitter_username')?.charAt(0).toUpperCase() || 'T'}
-                        </div>
-                        <span className={styles.accountName}>{localStorage?.getItem('twitter_username') || 'Twitter Account'}</span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={selectedPlatforms.includes('twitter')}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          handlePlatformToggle('twitter');
-                        }}
-                        className={styles.accountCheckbox}
-                      />
-                    </div>
-                  )}
-                </div>
+                <span className="font-medium">Twitter</span>
+                {twitterAccounts.length > 0 && (
+                  <span className="ml-2 text-sm text-green-600">
+                    {twitterAccounts.length} account{twitterAccounts.length > 1 ? 's' : ''} connected
+                  </span>
+                )}
               </div>
             </div>
             
-            {videoUrl && (
-              <div className={styles.nextButtonContainer}>
-                <button 
-                  className={styles.nextButton} 
-                  onClick={() => setCurrentStep(3)}
-                  disabled={!(selectedTiktokAccounts.length > 0 || selectedPlatforms.includes('twitter'))}
-                >
-                  Next: Add Caption
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                    <polyline points="12 5 19 12 12 19"></polyline>
-                  </svg>
-                </button>
+            {/* Display TikTok accounts */}
+            {selectedPlatforms.includes('tiktok') && (
+              <div className="mt-4">
+                <h3 className="text-lg font-semibold mb-2">TikTok Accounts</h3>
+                
+                {tiktokAccounts.length === 0 ? (
+                  <div className="mb-4 p-4 bg-gray-100 rounded-lg">
+                    <p className="text-gray-600">No TikTok account connected.</p>
+                    <Link href="/tiktok" className="mt-2 inline-block text-blue-600 hover:underline">
+                      Connect TikTok account
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-2 mb-4">
+                    {tiktokAccounts.map((account) => (
+                      <div
+                        key={account.openId}
+                        className={`p-3 border rounded-lg cursor-pointer flex items-center ${
+                          selectedTiktokAccounts.some((a) => a.openId === account.openId)
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200'
+                        }`}
+                        onClick={() => handleTikTokAccountToggle(account)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTiktokAccounts.some((a) => a.openId === account.openId)}
+                          onChange={() => handleTikTokAccountToggle(account)}
+                          className="mr-3"
+                        />
+                        <div>
+                          <p className="font-medium">{account.displayName || account.username || '@' + account.openId}</p>
+                          {account.username && account.openId && account.username !== account.openId && (
+                            <p className="text-xs text-gray-500">ID: {account.openId}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
+            
+            {/* Display Twitter accounts */}
+            {selectedPlatforms.includes('twitter') && (
+              <div className="mt-4">
+                <h3 className="text-lg font-semibold mb-2">Twitter Accounts</h3>
+                
+                {twitterAccounts.length === 0 ? (
+                  <div className="mb-4 p-4 bg-gray-100 rounded-lg">
+                    <p className="text-gray-600">No Twitter account connected.</p>
+                    <Link href="/twitter" className="mt-2 inline-block text-blue-600 hover:underline">
+                      Connect Twitter account
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-2 mb-4">
+                    {twitterAccounts.map((account) => (
+                      <div
+                        key={account.userId}
+                        className={`p-3 border rounded-lg cursor-pointer flex items-center ${
+                          selectedTwitterAccounts.some((a) => a.userId === account.userId)
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200'
+                        }`}
+                        onClick={() => handleTwitterAccountToggle(account)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTwitterAccounts.some((a) => a.userId === account.userId)}
+                          onChange={() => handleTwitterAccountToggle(account)}
+                          className="mr-3"
+                        />
+                        <div>
+                          <p className="font-medium">{account.username || account.screenName || '@' + account.userId}</p>
+                          {account.username && account.userId && account.username !== account.userId && (
+                            <p className="text-xs text-gray-500">ID: {account.userId}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="mt-6 flex justify-between">
+              <button
+                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                onClick={() => setCurrentStep(1)}
+              >
+                Back
+              </button>
+              
+              <button
+                className={`px-4 py-2 rounded ${
+                  (selectedPlatforms.length === 0 ||
+                  (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length === 0 && !selectedPlatforms.includes('twitter')) ||
+                  (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length === 0 && !selectedPlatforms.includes('tiktok')) ||
+                  (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length === 0 && 
+                   selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length === 0))
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                }`}
+                onClick={() => {
+                  // Validate that at least one platform is selected with at least one account
+                  if (
+                    selectedPlatforms.length === 0 || 
+                    (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length === 0 && !selectedPlatforms.includes('twitter')) ||
+                    (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length === 0 && !selectedPlatforms.includes('tiktok')) ||
+                    (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length === 0 && 
+                     selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length === 0)
+                  ) {
+                    return;
+                  }
+                  
+                  setCurrentStep(3);
+                }}
+              >
+                Next
+              </button>
+            </div>
           </div>
         );
       case 3:
@@ -931,7 +1153,23 @@ function SocialPosting() {
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M18.901 1.50293H22.581L14.541 10.7825L24 22.4999H16.594L10.794 15.4626L4.156 22.4999H0.474L9.074 12.5626L0 1.50293H7.594L12.837 7.92235L18.901 1.50293ZM17.61 20.4208H19.649L6.486 3.48519H4.298L17.61 20.4208Z" fill="black"/>
                       </svg>
-                      <span className="text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded">{localStorage?.getItem('twitter_username') || 'Twitter Account'}</span>
+                      <span className="text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded">
+                        {(() => {
+                          try {
+                            const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+                            if (socialMediaDataStr) {
+                              const socialMediaData = JSON.parse(socialMediaDataStr);
+                              if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
+                                return socialMediaData.twitter[0].username || 'Twitter Account';
+                              }
+                            }
+                            return 'Twitter Account';
+                          } catch (error) {
+                            console.error('Error getting Twitter username:', error);
+                            return 'Twitter Account';
+                          }
+                        })()}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1058,7 +1296,23 @@ function SocialPosting() {
                       <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                         <div className="flex items-center gap-2">
                           <TwitterIcon width="18" height="18" />
-                          <span className="font-medium text-gray-700">{localStorage?.getItem('twitter_username') || 'Twitter Account'}</span>
+                          <span className="font-medium text-gray-700">
+                            {(() => {
+                              try {
+                                const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+                                if (socialMediaDataStr) {
+                                  const socialMediaData = JSON.parse(socialMediaDataStr);
+                                  if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
+                                    return socialMediaData.twitter[0].username || 'Twitter Account';
+                                  }
+                                }
+                                return 'Twitter Account';
+                              } catch (error) {
+                                console.error('Error getting Twitter username:', error);
+                                return 'Twitter Account';
+                              }
+                            })()}
+                          </span>
                         </div>
                         {result?.success ? (
                           <span className="text-green-600">{result?.message}</span>
@@ -1078,43 +1332,51 @@ function SocialPosting() {
     }
   };
 
-  // Refresh Twitter credentials
-  const refreshTwitterCredentials = async () => {
-    try {
-      const refreshToken = localStorage?.getItem('twitter_refresh_token');
-      
-      if (!refreshToken) {
-        window.showToast?.warning?.('No Twitter refresh token found. Please reconnect your Twitter account.');
-        return;
-      }
-      
-      setIsLoading(true);
-      
-      const response = await fetch(`${API_BASE_URL}/twitter/refresh-credentials?refreshToken=${encodeURIComponent(refreshToken)}`);
-      const data = await response?.json();
-      
-      if (response?.ok && data?.success && data?.data?.access_token) {
-        // Update the stored tokens
-        localStorage.setItem('twitter_access_token', data.data.access_token);
-        
-        if (data.data.refresh_token) {
-          localStorage.setItem('twitter_refresh_token', data.data.refresh_token);
-          localStorage.setItem('twitter_access_token_secret', data.data.refresh_token);
+  const hasValidPlatforms = () => {
+    const validPlatforms = [];
+    
+    // Check Twitter
+    if (selectedPlatforms?.includes('twitter')) {
+      try {
+        const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+        if (socialMediaDataStr) {
+          const socialMediaData = JSON.parse(socialMediaDataStr);
+          if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
+            // Check the first Twitter account (the one that will be used for posting)
+            const twitterAccount = socialMediaData.twitter[0];
+            
+            console.log('Twitter platform check:', {
+              hasAccount: !!twitterAccount,
+              hasAccessToken: !!twitterAccount?.accessToken,
+              hasAccessTokenSecret: !!twitterAccount?.accessTokenSecret,
+              username: twitterAccount?.username || 'unknown'
+            });
+            
+            if (twitterAccount?.accessToken && twitterAccount?.accessTokenSecret) {
+              console.log('Twitter platform is valid');
+              validPlatforms.push('twitter');
+            }
+          }
         }
-        
-        window.showToast?.success?.('Twitter credentials refreshed successfully');
-      } else {
-        console.error('Failed to refresh Twitter credentials:', data);
-        window.showToast?.error?.('Failed to refresh Twitter credentials');
+      } catch (error) {
+        console.error('Error checking Twitter credentials:', error);
       }
-    } catch (error) {
-      console.error('Error refreshing Twitter credentials:', error?.message);
-      window.showToast?.error?.(error?.message || 'Error refreshing Twitter credentials');
-    } finally {
-      setIsLoading(false);
     }
+    
+    // Check TikTok
+    if (selectedPlatforms?.includes('tiktok') && selectedTiktokAccounts?.length > 0) {
+      console.log('TikTok platform is valid with', selectedTiktokAccounts.length, 'accounts');
+      validPlatforms.push('tiktok');
+    }
+    
+    // Log button state
+    const isValid = validPlatforms.length > 0;
+    console.log(`Post Now button should be ${isValid ? 'enabled' : 'disabled'}`);
+    
+    return isValid;
   };
 
+  // Render the Connect buttons
   const renderConnectButtons = () => {
     return (
       <div className={styles.connectButtonsContainer}>
@@ -1135,40 +1397,30 @@ function SocialPosting() {
               </button>
             </a>
           </Link>
-          <button 
-            className={styles.refreshButton} 
-            onClick={refreshTwitterCredentials}
-            disabled={isLoading}
-            type="button"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-            </svg>
-            {isLoading ? 'Refreshing...' : 'Refresh Twitter'}
-          </button>
         </div>
       </div>
     );
   };
 
-  const hasValidPlatforms = () => {
-    // If Twitter is selected and has credentials, it's valid
-    if (selectedPlatforms?.includes('twitter')) {
-      const twitterAccessToken = localStorage?.getItem('twitter_access_token');
-      const twitterAccessTokenSecret = localStorage?.getItem('twitter_access_token_secret') || 
-                                      localStorage?.getItem('twitter_refresh_token');
-      if (twitterAccessToken && twitterAccessTokenSecret) {
-        return true;
+  // Handle Twitter account toggle
+  const handleTwitterAccountToggle = (account) => {
+    if (!account?.userId) return;
+    
+    setSelectedTwitterAccounts(prev => {
+      const isSelected = prev.some(acc => acc?.userId === account?.userId);
+      const newSelectedAccounts = isSelected 
+        ? prev.filter(acc => acc?.userId !== account?.userId)
+        : [...prev, account];
+      
+      // Also update selectedPlatforms based on if we have any accounts selected
+      if (newSelectedAccounts.length > 0 && !selectedPlatforms.includes('twitter')) {
+        setSelectedPlatforms(prev => [...prev, 'twitter']);
+      } else if (newSelectedAccounts.length === 0 && selectedPlatforms.includes('twitter')) {
+        setSelectedPlatforms(prev => prev.filter(p => p !== 'twitter'));
       }
-    }
-    
-    // If TikTok is selected and has accounts selected, it's valid
-    if (selectedPlatforms?.includes('tiktok') && selectedTiktokAccounts?.length > 0) {
-      return true;
-    }
-    
-    // No valid platforms
-    return false;
+      
+      return newSelectedAccounts;
+    });
   };
 
   return (
