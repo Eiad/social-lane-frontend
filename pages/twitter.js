@@ -51,8 +51,6 @@ function Twitter() {
   const [authSuccess, setAuthSuccess] = useState(false);
   const [caption, setCaption] = useState('');
   const [postError, setPostError] = useState(null);
-  const [debugInfo, setDebugInfo] = useState('Loading debug info...');
-  const [altUserId, setAltUserId] = useState('');
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   // Define the upload process steps
@@ -485,7 +483,7 @@ function Twitter() {
       setSelectedProfileImage('');
       
       // Refresh debug info
-      await refreshDebugInfo();
+      
       
       window.showToast?.success?.('All Twitter accounts disconnected successfully');
     } catch (error) {
@@ -579,7 +577,7 @@ function Twitter() {
             setSelectedProfileImage(formattedAccounts[0].profileImageUrl || '');
             
             // Refresh debug info
-            refreshDebugInfo();
+            
             return formattedAccounts;
           } else {
             console.warn('No valid Twitter accounts found in user data');
@@ -632,7 +630,7 @@ function Twitter() {
       }
       
       // Load debug info
-      await refreshDebugInfo();
+      
     };
     
     // Set API URL
@@ -746,7 +744,7 @@ function Twitter() {
           setSelectedProfileImage(twitterAccount.profileImageUrl || '');
           
           // Refresh debug info
-          await refreshDebugInfo();
+          
           
           // Show success message
           window.showToast?.success?.('Twitter account connected successfully!');
@@ -875,7 +873,7 @@ function Twitter() {
       }
       
       // Refresh debug info
-      await refreshDebugInfo();
+      
       
       window.showToast?.success?.('Twitter account disconnected successfully');
     } catch (error) {
@@ -887,148 +885,8 @@ function Twitter() {
   };
 
   // Refresh debug info
-  const refreshDebugInfo = async () => {
-    try {
-      const firebaseUid = localStorage?.getItem('firebaseUid');
-      const twitterAccounts = getTwitterAccounts();
-      
-      const debugData = {
-        timestamp: new Date().toISOString(),
-        firebaseUid: firebaseUid || 'Not found',
-        twitterAccounts: twitterAccounts.length,
-        accountDetails: twitterAccounts.map(acc => ({
-          userId: acc.userId,
-          username: acc.username,
-          hasProfileImage: !!acc.profileImageUrl
-        }))
-      };
-      
-      setDebugInfo(JSON.stringify(debugData, null, 2));
-    } catch (error) {
-      console.error('Error refreshing debug info:', error);
-      setDebugInfo(`Error: ${error.message || 'Unknown error'}`);
-    }
-  };
 
   // Import Twitter accounts from alternate user ID
-  const importTwitterAccounts = async () => {
-    if (!altUserId) {
-      window.showToast?.warning?.('Please enter an alternate user ID');
-      return;
-    }
-    
-    try {
-      setIsFetchingUserInfo(true);
-      
-      console.log(`Attempting to import Twitter accounts from user ID: ${altUserId}`);
-      
-      // Fetch user data from the alternate ID
-      const response = await fetch(`${API_BASE_URL}/users/${altUserId}`);
-      
-      if (!response?.ok) {
-        throw new Error(`Error fetching user data: ${response?.status}`);
-      }
-      
-      const userData = await response?.json?.();
-      
-      console.log('User data fetched:', userData);
-      
-      // Get Twitter accounts from the user data
-      if (userData?.data?.providerData?.twitter) {
-        const twitterData = userData.data.providerData.twitter;
-        const twitterAccounts = Array.isArray(twitterData) ? twitterData : [twitterData];
-        
-        if (twitterAccounts.length === 0) {
-          throw new Error('No Twitter accounts found for the alternate user ID');
-        }
-        
-        // Format accounts with tokens for database save
-        const formattedAccounts = twitterAccounts
-          .filter(account => account)
-          .map(account => ({
-            accessToken: account.accessToken || account.access_token,
-            accessTokenSecret: account.accessTokenSecret || account.access_token_secret,
-            userId: account.userId || account.user_id,
-            username: account.username || account.screen_name || '',
-            name: account.name || account.displayName || account.username || 'Twitter User',
-            profileImageUrl: account.profileImageUrl || account.profile_image_url || ''
-          }))
-          .filter(account => account.accessToken && account.accessTokenSecret);
-        
-        if (formattedAccounts.length === 0) {
-          throw new Error('No valid Twitter accounts found for the alternate user ID');
-        }
-        
-        // Save display info to localStorage (without tokens)
-        const displayAccounts = formattedAccounts.map(account => ({
-          userId: account.userId,
-          username: account.username,
-          name: account.name,
-          profileImageUrl: account.profileImageUrl
-        }));
-        saveTwitterAccounts(displayAccounts);
-        
-        // Save accounts with tokens to database for current user
-        const firebaseUid = localStorage?.getItem('firebaseUid');
-        if (firebaseUid) {
-          await saveTwitterAccountsToDatabase(firebaseUid, formattedAccounts);
-        }
-        
-        // Update UI
-        setAuthSuccess(true);
-        setSelectedUsername(formattedAccounts[0].username || 'Twitter Account');
-        setSelectedProfileImage(formattedAccounts[0].profileImageUrl || '');
-        
-        // Refresh debug info
-        await refreshDebugInfo();
-        
-        window.showToast?.success?.(`Imported ${formattedAccounts.length} Twitter account(s) successfully`);
-      } else {
-        throw new Error('No Twitter data found for the alternate user ID');
-      }
-    } catch (error) {
-      console.error('Error importing Twitter accounts:', error);
-      window.showToast?.error?.('Error importing Twitter accounts: ' + error.message);
-    } finally {
-      setIsFetchingUserInfo(false);
-      setAltUserId(''); // Clear the input field
-    }
-  };
-
-  // Test saving Twitter account to database
-  const testSaveTwitterAccountToDB = async () => {
-    try {
-      console.log('Testing saving Twitter account to database');
-      
-      // Get the Firebase UID
-      const firebaseUid = localStorage?.getItem('firebaseUid');
-      if (!firebaseUid) {
-        console.error('No Firebase UID found in localStorage');
-        window.showToast?.error?.('Cannot save Twitter account: Missing user ID');
-        return;
-      }
-      
-      // Get existing Twitter accounts
-      const twitterAccounts = getTwitterAccounts();
-      
-      if (twitterAccounts.length === 0) {
-        console.warn('No Twitter accounts to save');
-        window.showToast?.warning?.('No Twitter accounts to save');
-        return;
-      }
-      
-      // Save accounts to database
-      await saveTwitterAccountsToDatabase(firebaseUid, twitterAccounts);
-      
-      // Refresh debug info
-      await refreshDebugInfo();
-      
-      window.showToast?.success?.('Test save to database successful');
-    } catch (error) {
-      console.error('Error testing save to database:', error);
-      window.showToast?.error?.('Error saving to database: ' + error.message);
-    }
-  };
 
   return (
     <div className={styles.container}>
@@ -1168,61 +1026,6 @@ function Twitter() {
               </svg>
               {isFetchingUserInfo ? 'Loading...' : 'Reload Twitter Account'}
             </button>
-            
-            {/* Button to test Twitter account saving to DB */}
-            <div className="mt-4">
-              <button 
-                className="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded flex items-center"
-                onClick={testSaveTwitterAccountToDB}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                  <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-                  <path d="m9 12 2 2 4-4"/>
-                </svg>
-                Test Save to DB
-              </button>
-            </div>
-            
-            {/* Debug section - show current Twitter account data */}
-            <div className="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium mb-2">Debug Info</h3>
-                <button 
-                  className="text-sm text-blue-500 hover:text-blue-700"
-                  onClick={refreshDebugInfo}
-                >
-                  Refresh
-                </button>
-              </div>
-              
-              <div className="text-xs font-mono bg-black text-green-400 p-2 rounded mt-2 max-h-60 overflow-auto">
-                {debugInfo}
-              </div>
-              
-              {/* Button to import Twitter accounts from alt user ID */}
-              <div className="mt-4">
-                <h4 className="text-sm font-semibold mb-2">Fix User ID Issues</h4>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    className="border p-1 text-sm rounded flex-1"
-                    placeholder="Alternate User ID"
-                    value={altUserId}
-                    onChange={(e) => setAltUserId(e.target.value)}
-                  />
-                  <button 
-                    className="bg-purple-500 hover:bg-purple-600 text-white text-sm py-1 px-2 rounded"
-                    onClick={importTwitterAccounts}
-                    disabled={!altUserId}
-                  >
-                    Import
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  If your Twitter account was saved to a different user ID, enter it above and click Import.
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </main>
