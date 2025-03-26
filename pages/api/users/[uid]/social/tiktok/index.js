@@ -38,14 +38,23 @@ export default async function handler(req, res) {
           displayName: account?.displayName || account?.userInfo?.display_name || '',
           avatarUrl: account?.avatarUrl || account?.userInfo?.avatar_url || '',
           avatarUrl100: account?.avatarUrl100 || account?.userInfo?.avatar_url_100 || '',
-          index: account?.index || 0
+          index: account?.index || 0,
+          userInfo: account?.userInfo || null
         }))
         .filter(account => account.accessToken && account.openId);
       
       if (validatedAccounts.length === 0) {
-        console.log('[USER TIKTOK] Error: No valid accounts after validation');
-        return res.status(400).json({ error: 'No valid accounts found. Each account requires accessToken and openId.' });
+        console.log('[USER TIKTOK] Error: No valid accounts after validation (missing required fields)');
+        return res.status(400).json({ error: 'No valid TikTok accounts provided. Each account must have accessToken and openId.' });
       }
+      
+      console.log('[USER TIKTOK] Account user info available:', validatedAccounts.map(a => ({
+        accountId: a.openId,
+        hasUsername: !!a.username,
+        hasDisplayName: !!a.displayName,
+        hasAvatarUrl: !!a.avatarUrl,
+        hasAvatarUrl100: !!a.avatarUrl100
+      })));
       
       console.log(`[USER TIKTOK] Sending ${validatedAccounts.length} validated accounts to backend`);
       

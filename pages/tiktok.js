@@ -6,6 +6,7 @@ import Head from 'next/head';
 import { TikTokSimpleIcon } from '../src/components/icons/SocialIcons';
 import Link from 'next/link';
 import axios from 'axios';
+import { useLoader } from '../src/context/LoaderContext';
 
 // With this approach that safely handles both server and client environments:
 const API_BASE_URL = 
@@ -23,6 +24,7 @@ export default function TikTok() {
   const [userId, setUserId] = useState('');
   const [connectedAccounts, setConnectedAccounts] = useState([]);
   const [isHovering, setIsHovering] = useState(null);
+  const { showLoader, hideLoader } = useLoader();
 
   // Get TikTok accounts from socialMediaData
   const getTikTokAccounts = () => {
@@ -61,8 +63,8 @@ export default function TikTok() {
       // Only store non-sensitive user info for display purposes
       socialMediaData.tiktok = accounts.map(account => ({
         // Store the openId as an identifier but NOT the tokens
-        accountId: account.accountId,
-        username: account.username || account.userInfo?.username || '',
+        accountId: account.accountId || account.openId,
+        username: account.username || account.userInfo?.username || 'TikTok User',
         displayName: account.displayName || account.userInfo?.display_name || '',
         avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
         avatarUrl100: account.avatarUrl100 || account.userInfo?.avatar_url_100 || '',
@@ -73,6 +75,12 @@ export default function TikTok() {
       localStorage.setItem('socialMediaDataUpdated', Date.now().toString());
       
       console.log('Saved TikTok user info to socialMediaData (tokens stored only in database)');
+      console.log('TikTok accounts saved to localStorage:', socialMediaData.tiktok.map(account => ({
+        accountId: account.accountId,
+        username: account.username,
+        hasDisplayName: !!account.displayName,
+        hasAvatarUrl: !!account.avatarUrl
+      })));
     } catch (error) {
       console.error('Error saving TikTok accounts to socialMediaData:', error);
     }
@@ -128,14 +136,14 @@ export default function TikTok() {
   // Helper function to fetch user accounts from the database if they're not in localStorage
   const fetchUserAccounts = async () => {
     try {
-      setIsLoading(true);
+      showLoader('Loading your TikTok accounts...');
       
       // Get current user ID from localStorage
       const uid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
       
       if (!uid) {
         console.error('No user ID found, cannot fetch TikTok accounts');
-        setIsLoading(false);
+        hideLoader();
         return;
       }
       
@@ -183,7 +191,7 @@ export default function TikTok() {
     } catch (error) {
       console.error('Error fetching user TikTok accounts:', error);
     } finally {
-      setIsLoading(false);
+      hideLoader();
     }
   };
 
@@ -268,6 +276,7 @@ export default function TikTok() {
     
     if (access_token && open_id) {
       console.log('TikTok auth callback received');
+      showLoader('Connecting to TikTok...');
       
       try {
         // Parse user info if available
@@ -275,24 +284,45 @@ export default function TikTok() {
         if (user_info) {
           try {
             userInfoObj = JSON.parse(decodeURIComponent(user_info));
+            console.log('Successfully parsed user info:', {
+              hasUsername: !!userInfoObj?.username,
+              hasDisplayName: !!userInfoObj?.display_name,
+              hasAvatarUrl: !!userInfoObj?.avatar_url,
+              hasAvatarUrl100: !!userInfoObj?.avatar_url_100
+            });
           } catch (e) {
             console.error('Failed to parse user_info:', e);
           }
+        } else {
+          console.warn('No user_info received from TikTok callback');
         }
         
         const accountData = {
           accessToken: access_token,
           openId: open_id,
-          userInfo: userInfoObj
+          refreshToken: router?.query?.refresh_token || '',
+          userInfo: userInfoObj,
+          username: userInfoObj?.username || 'TikTok User',
+          displayName: userInfoObj?.display_name || '',
+          avatarUrl: userInfoObj?.avatar_url || '',
+          avatarUrl100: userInfoObj?.avatar_url_100 || ''
         };
+        
+        console.log('Saving account data to backend:', {
+          hasUsername: !!accountData.username,
+          hasDisplayName: !!accountData.displayName,
+          hasAvatarUrl: !!accountData.avatarUrl
+        });
         
         // Save token to backend
         saveAccountToBackend(accountData)
           .then(() => {
             window.showToast?.success?.('Successfully connected to TikTok!');
+            hideLoader();
           })
           .catch(error => {
             window.showToast?.error?.('Failed to save TikTok account: ' + (error?.message || 'Unknown error'));
+            hideLoader();
           });
         
         // Remove the token from URL for security
@@ -300,13 +330,14 @@ export default function TikTok() {
       } catch (error) {
         console.error('Error processing TikTok auth callback:', error);
         window.showToast?.error?.('Failed to process TikTok authentication callback');
+        hideLoader();
       }
     }
   }, [router?.query]);
 
   const handleConnect = async () => {
     try {
-      setIsLoading(true);
+      showLoader('Connecting to TikTok...');
       
       // Make sure we're using the environment variable
       const url = `${apiUrl}/tiktok/auth`;
@@ -343,8 +374,7 @@ export default function TikTok() {
     } catch (error) {
       console.error('Detailed auth error:', error);
       window.showToast?.error?.('Failed to initiate TikTok authentication: ' + (error?.message || 'Unknown error'));
-    } finally {
-      setIsLoading(false);
+      hideLoader();
     }
   };
 
@@ -355,7 +385,8 @@ export default function TikTok() {
     }
     
     try {
-      setIsLoading(true);
+      // Show global loader instead of local loading state
+      showLoader('Disconnecting TikTok account...');
       
       const firebaseUid = localStorage?.getItem('firebaseUid');
       if (!firebaseUid) {
@@ -373,14 +404,14 @@ export default function TikTok() {
       });
       
       if (!response?.ok) {
-        const errorText = await response.text();
-        console.error('Server error disconnecting TikTok account:', response.status, errorText);
+        const errorText = await response?.text?.() || '';
+        console.error('Server error disconnecting TikTok account:', response?.status, errorText);
         throw new Error(`Failed to disconnect TikTok account: ${response?.status}`);
       }
       
       // Remove account from localStorage
-      const accounts = getTikTokAccounts();
-      const updatedAccounts = accounts.filter(a => a.accountId !== account.accountId);
+      const accounts = getTikTokAccounts() || [];
+      const updatedAccounts = accounts.filter(a => a?.accountId !== account?.accountId);
       saveTikTokAccounts(updatedAccounts);
       
       // Update state
@@ -394,7 +425,8 @@ export default function TikTok() {
       console.error('Error disconnecting TikTok account:', error);
       window.showToast?.error?.('Failed to disconnect TikTok account: ' + (error?.message || 'Unknown error'));
     } finally {
-      setIsLoading(false);
+      // Hide global loader
+      hideLoader();
     }
   };
 
@@ -473,23 +505,10 @@ export default function TikTok() {
               
               <button
                 onClick={handleConnect}
-                className="px-6 py-3 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-medium flex items-center gap-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
-                disabled={isLoading}
+                className="px-6 py-3 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-medium flex items-center gap-2 transition-all shadow-md hover:shadow-lg"
               >
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Connecting...</span>
-                  </>
-                ) : (
-                  <>
-                    <TikTokSimpleIcon width="20" height="20" />
-                    <span>Connect TikTok Account</span>
-                  </>
-                )}
+                <TikTokSimpleIcon width="20" height="20" />
+                <span>Connect TikTok Account</span>
               </button>
               
               <div className="mt-4 flex items-center text-gray-500 text-sm">
