@@ -889,143 +889,177 @@ function Twitter() {
   // Import Twitter accounts from alternate user ID
 
   return (
-    <div className={styles.container}>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
       <Head>
         <title>Twitter Integration</title>
         <meta name="description" content="Connect your Twitter account to post videos" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div className={styles.header}>
-        <div className={styles.logoContainer}>
-          <TwitterIcon className={styles.twitterIcon} />
-          <h1 className={styles.title}>Twitter Integration</h1>
+      <main className="py-8">
+        {/* Header with back button */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
+            <span className="text-blue-500"><TwitterIcon className="w-8 h-8" /></span>
+            <span className="bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
+              Twitter Integration
+            </span>
+          </h1>
+          <Link 
+            href="/social-posting"
+            className="px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center gap-2 transition-colors text-gray-700"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
+            Back to Home
+          </Link>
         </div>
-        <Link href="/social-posting" className={styles.backButton}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5"></path>
-            <path d="M12 19l-7-7 7-7"></path>
-          </svg>
-          Back to Home
-        </Link>
-      </div>
 
-      <main className={styles.main}>
-        <div className={styles.connectTwitter}>
-          <h2 className={styles.sectionTitle}>Connect to Twitter</h2>
-          <p className={styles.sectionDescription}>
-            Authenticate with Twitter to post videos to your account.
-          </p>
-
-          {authError && (
-            <div className={styles.errorMessage}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <span>{authError}</span>
-            </div>
-          )}
-
-          {!authSuccess ? (
-            <button 
-              className={styles.connectButton}
-              onClick={handleConnect} 
-              disabled={isLoading}
-            >
-              <TwitterIcon className={styles.buttonIcon} />
-              <span>{isLoading ? 'Connecting...' : 'Connect Twitter Account'}</span>
-            </button>
-          ) : (
-            <div className={styles.connectionsContainer}>
-              <div className={styles.accountsHeader || 'flex justify-between items-center mb-3'}>
-                <h3 className={styles.connectedAccountsTitle || 'text-lg font-medium'}>Connected Accounts</h3>
-                {getTwitterAccounts().length > 1 && (
-                  <button 
-                    className={styles.disconnectAllButton || 'text-sm text-red-600 hover:text-red-800 flex items-center'}
-                    onClick={disconnectTwitter}
-                    disabled={isDisconnecting}
-                  >
-                    {isDisconnecting ? 'Disconnecting...' : (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                          <polyline points="16 17 21 12 16 7"></polyline>
-                          <line x1="21" y1="12" x2="9" y2="12"></line>
-                        </svg>
-                        Disconnect All
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
+        {/* Main content */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="divide-y divide-gray-100">
+            {/* Accounts Management Section */}
+            <div className="p-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-6">Your Twitter Accounts</h2>
               
-              {/* Display all connected accounts */}
-              {getTwitterAccounts().map((account, index) => (
-                <div key={account.userId || index} className={styles.connectedAccount}>
-                  <div className={styles.accountInfo}>
-                    <div className={styles.accountAvatar}>
-                      {account.profileImageUrl ? (
-                        <img src={account.profileImageUrl} alt={account.username} className={styles.avatarImage} />
-                      ) : (
-                        <div className={styles.avatarPlaceholder}>
-                          {account.username?.charAt(0)?.toUpperCase() || 'T'}
-                        </div>
-                      )}
-                    </div>
-                    <div className={styles.accountDetails}>
-                      <h3 className={styles.accountName}>{account.username || "Twitter Account"}</h3>
-                      <span className={styles.accountType}>Twitter Account</span>
-                    </div>
+              {authError && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg text-red-600 flex items-start">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>{authError}</span>
+                </div>
+              )}
+              
+              {!authSuccess ? (
+                <div className="flex flex-col items-center justify-center p-8 bg-gray-50 rounded-xl border border-gray-200">
+                  <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-blue-500 mb-6">
+                    <TwitterIcon className="w-10 h-10" />
                   </div>
+                  <h3 className="text-lg font-medium text-gray-800 mb-2">Connect to Twitter</h3>
+                  <p className="text-gray-600 mb-6 text-center max-w-md">
+                    Authenticate with Twitter to post videos directly to your account.
+                  </p>
                   <button 
-                    className={styles.disconnectButton}
-                    onClick={() => disconnectTwitterAccount(account)}
-                    disabled={isDisconnecting}
+                    className="px-6 py-2 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 text-white font-medium flex items-center gap-2 transition-all shadow-sm"
+                    onClick={handleConnect} 
+                    disabled={isLoading}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                      <polyline points="16 17 21 12 16 7"></polyline>
-                      <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
-                    <span>Disconnect</span>
+                    <TwitterIcon className="w-5 h-5" />
+                    <span>{isLoading ? 'Connecting...' : 'Connect Twitter Account'}</span>
                   </button>
                 </div>
-              ))}
-              
-              {/* Add another account button */}
+              ) : (
+                <>
+                  {/* Connected accounts header with disconnect all button */}
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium text-gray-700">Connected Accounts</h3>
+                    {getTwitterAccounts().length > 1 && (
+                      <button 
+                        className="text-sm text-red-600 hover:text-red-800 flex items-center"
+                        onClick={disconnectTwitter}
+                        disabled={isDisconnecting}
+                      >
+                        {isDisconnecting ? 'Disconnecting...' : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V7.414l-5-5H3zM2 4a2 2 0 012-2h5.586a1 1 0 01.707.293l6 6a1 1 0 01.293.707V16a2 2 0 01-2 2H4a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                              <path d="M14 10v4a1 1 0 01-1 1H7a1 1 0 01-1-1v-4a1 1 0 011-1h6a1 1 0 011 1z" />
+                            </svg>
+                            Disconnect All
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Grid of connected accounts */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                    {getTwitterAccounts().map((account, index) => (
+                      <div 
+                        key={account.userId || index}
+                        className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex flex-col p-4">
+                          <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-4">
+                            {account.profileImageUrl ? (
+                              <img 
+                                src={account.profileImageUrl} 
+                                alt={`${account.username}'s profile`}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = 'https://placehold.co/100x100?text=T';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-blue-100 flex items-center justify-center text-blue-500 text-2xl font-bold">
+                                {account.username?.charAt(0)?.toUpperCase() || 'T'}
+                              </div>
+                            )}
+                          </div>
+                          <h3 className="text-xl font-semibold text-center mb-1">{account.username || "Twitter Account"}</h3>
+                          <p className="text-gray-500 text-center text-sm">@{account.username}</p>
+                        </div>
+                        
+                        <div className="p-4 border-t border-gray-100">
+                          <button 
+                            onClick={() => disconnectTwitterAccount(account)}
+                            disabled={isDisconnecting}
+                            className="w-full py-2 px-4 bg-red-50 text-red-600 hover:bg-red-100 rounded-md transition-colors font-medium text-sm"
+                          >
+                            Disconnect Account
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Add Account Button */}
+                    <div 
+                      onClick={handleConnect}
+                      className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    >
+                      <div className="flex flex-col p-4 items-center justify-center">
+                        <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-4 bg-gray-100 flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                        </div>
+                        <h3 className="text-xl font-semibold text-center mb-1">Add Twitter Account</h3>
+                        <p className="text-gray-500 text-center text-sm">Connect a new account</p>
+                      </div>
+                      
+                      <div className="p-4 border-t border-gray-100">
+                        <button 
+                          className="w-full py-2 px-4 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md transition-colors font-medium text-sm"
+                        >
+                          Connect Account
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            {/* Sync Account Section */}
+            <div className="p-6 bg-gray-50">
+              <h2 className="text-lg font-semibold text-gray-800 mb-2">Sync Twitter Account</h2>
+              <p className="text-gray-600 text-sm mb-4">
+                If your Twitter account isn&apos;t showing correctly after login, click below to manually reload it from the database.
+              </p>
               <button 
-                className={styles.addAccountButton || 'mt-4 flex items-center justify-center w-full py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded'}
-                onClick={handleConnect}
-                disabled={isLoading}
+                className="px-4 py-2 rounded-md bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium flex items-center gap-2 transition-colors shadow-sm"
+                onClick={fetchUserTwitterAccounts}
+                disabled={isFetchingUserInfo}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="8" x2="12" y2="16"></line>
-                  <line x1="8" y1="12" x2="16" y2="12"></line>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                <span>{isLoading ? 'Connecting...' : 'Add Another Twitter Account'}</span>
+                {isFetchingUserInfo ? 'Loading...' : 'Reload Twitter Account'}
               </button>
             </div>
-          )}
-          
-          {/* Button to manually load Twitter accounts from database */}
-          <div className={styles.syncSection || 'mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50'}>
-            <h3 className={styles.syncTitle || 'text-lg font-medium mb-2'}>Sync Twitter Account</h3>
-            <p className={styles.syncDescription || 'text-sm text-gray-600 mb-3'}>
-              If your Twitter account isn&apos;t showing correctly after login, click below to manually load it from the database.
-            </p>
-            <button 
-              className={styles.syncButton || 'bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded flex items-center'}
-              onClick={fetchUserTwitterAccounts}
-              disabled={isFetchingUserInfo}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-              </svg>
-              {isFetchingUserInfo ? 'Loading...' : 'Reload Twitter Account'}
-            </button>
           </div>
         </div>
       </main>
