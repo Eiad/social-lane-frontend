@@ -95,6 +95,167 @@ function SocialPosting() {
     loadTwitterAccounts();
   }, []);
 
+  // Helper function to fetch social media accounts from the database
+  const fetchSocialMediaAccounts = async () => {
+    try {
+      console.log('Fetching social media accounts from database');
+      
+      // Get current user ID from localStorage
+      const uid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
+      
+      if (!uid) {
+        console.error('No user ID found, cannot fetch social media accounts');
+        return false;
+      }
+      
+      // Call the backend API to get user data including social media accounts
+      const response = await fetch(`/api/users/${uid}`);
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching user data: ${response.status}`);
+      }
+      
+      const userData = await response.json();
+      
+      if (userData?.success && userData?.data?.providerData) {
+        // Initialize or get existing socialMediaData
+        let socialMediaData = {};
+        try {
+          const existingData = localStorage.getItem('socialMediaData');
+          if (existingData) {
+            socialMediaData = JSON.parse(existingData);
+          }
+        } catch (error) {
+          console.error('Error parsing existing socialMediaData:', error);
+          socialMediaData = {};
+        }
+        
+        // Process Twitter accounts if available
+        if (userData.data.providerData.twitter) {
+          const twitterData = userData.data.providerData.twitter;
+          const twitterAccounts = Array.isArray(twitterData) ? twitterData : [twitterData];
+          
+          if (twitterAccounts.length > 0) {
+            console.log(`Found ${twitterAccounts.length} Twitter accounts in database`);
+            
+            // Format Twitter accounts - only store UI display data, not tokens
+            const formattedTwitterAccounts = twitterAccounts
+              .filter(account => account)
+              .map(account => ({
+                userId: account.userId || account.user_id,
+                username: account.username || account.screen_name || '',
+                name: account.name || account.displayName || account.username || 'Twitter User',
+                profileImageUrl: account.profileImageUrl || account.profile_image_url || ''
+              }))
+              .filter(account => account.userId);
+            
+            if (formattedTwitterAccounts.length > 0) {
+              socialMediaData.twitter = formattedTwitterAccounts;
+              console.log(`Processed ${formattedTwitterAccounts.length} Twitter accounts from database`);
+              setTwitterAccounts(formattedTwitterAccounts);
+            }
+          }
+        }
+        
+        // Process TikTok accounts if available
+        if (userData.data.providerData.tiktok) {
+          const tiktokData = userData.data.providerData.tiktok;
+          const tiktokAccounts = Array.isArray(tiktokData) ? tiktokData : [tiktokData];
+          
+          if (tiktokAccounts.length > 0) {
+            console.log(`Found ${tiktokAccounts.length} TikTok accounts in database`);
+            
+            // Format TikTok accounts for storage with accountId as identifier
+            const formattedTiktokAccounts = tiktokAccounts
+              .filter(account => account)
+              .map(account => ({
+                accountId: account.openId || account.accountId,
+                username: account.username || account.userInfo?.username || '',
+                displayName: account.displayName || account.userInfo?.display_name || '',
+                avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || account.avatarUrl100 || account.userInfo?.avatar_url_100 || '',
+                userInfo: account.userInfo || {}
+              }))
+              .filter(account => account.accountId);
+            
+            if (formattedTiktokAccounts.length > 0) {
+              socialMediaData.tiktok = formattedTiktokAccounts;
+              console.log(`Processed ${formattedTiktokAccounts.length} TikTok accounts from database`);
+              setTiktokAccounts(formattedTiktokAccounts);
+            }
+          }
+        }
+        
+        // Save the updated socialMediaData to localStorage
+        localStorage.setItem('socialMediaData', JSON.stringify(socialMediaData));
+        localStorage.setItem('socialMediaDataUpdated', Date.now().toString());
+        console.log('Saved social media accounts to localStorage');
+        
+        return true;
+      } else {
+        console.log('No social media data found in user data');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error fetching social media accounts:', error);
+      return false;
+    }
+  };
+
+  // Add a new function to load Twitter accounts
+  const loadTwitterAccounts = useCallback(() => {
+    try {
+      // Get from socialMediaData first (primary location)
+      const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+      if (socialMediaDataStr) {
+        try {
+          const socialMediaData = JSON.parse(socialMediaDataStr);
+          if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
+            // Filter out accounts without required fields - only userId is needed now
+            const validAccounts = socialMediaData.twitter.filter(account => 
+              account?.userId
+            );
+            
+            if (validAccounts.length > 0) {
+              console.log(`Loaded ${validAccounts.length} Twitter accounts from socialMediaData`);
+              setTwitterAccounts(validAccounts);
+              return true;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing socialMediaData for Twitter accounts:', e);
+        }
+      }
+      
+      // Fallback: try the direct twitterAccounts in localStorage
+      const twitterAccountsStr = localStorage?.getItem('twitterAccounts');
+      if (twitterAccountsStr) {
+        try {
+          const accounts = JSON.parse(twitterAccountsStr);
+          if (Array.isArray(accounts) && accounts.length > 0) {
+            // Filter out accounts without required fields - only userId is needed now
+            const validAccounts = accounts.filter(account => 
+              account?.userId
+            );
+            
+            if (validAccounts.length > 0) {
+              console.log(`Loaded ${validAccounts.length} Twitter accounts from twitterAccounts`);
+              setTwitterAccounts(validAccounts);
+              return true;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing twitterAccounts:', e);
+        }
+      }
+      
+      console.log('No valid Twitter accounts found in storage');
+      return false;
+    } catch (error) {
+      console.error('Error loading Twitter accounts:', error);
+      return false;
+    }
+  }, []);
+
   const loadTikTokAccounts = useCallback(() => {
     // Load exclusively from socialMediaData
     try {
@@ -104,8 +265,7 @@ function SocialPosting() {
         if (socialMediaData?.tiktok && Array.isArray(socialMediaData.tiktok) && socialMediaData.tiktok.length > 0) {
           // Filter out accounts without required fields
           const validAccounts = socialMediaData.tiktok.filter(account => 
-            account?.accessToken && 
-            account?.openId
+            account?.accountId
           );
           
           if (validAccounts.length > 0) {
@@ -120,85 +280,45 @@ function SocialPosting() {
               return prev;
             });
             
-            return; // Exit early since we found accounts
+            return true; // Exit early since we found accounts
           }
         }
       }
       
       console.log('No valid TikTok accounts found in socialMediaData');
-      setTiktokAccounts([]);
+      return false;
     } catch (e) {
       console.error('Error loading TikTok accounts from socialMediaData:', e);
-      setTiktokAccounts([]);
+      return false;
     }
   }, []);
 
-  // Add a new function to load Twitter accounts
-  const loadTwitterAccounts = useCallback(() => {
-    try {
-      // Get from socialMediaData first (primary location)
-      const socialMediaDataStr = localStorage?.getItem('socialMediaData');
-      if (socialMediaDataStr) {
-        try {
-          const socialMediaData = JSON.parse(socialMediaDataStr);
-          if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
-            // Filter out accounts without required fields
-            const validAccounts = socialMediaData.twitter.filter(account => 
-              account?.accessToken && 
-              account?.accessTokenSecret && 
-              account?.userId
-            );
-            
-            if (validAccounts.length > 0) {
-              console.log(`Loaded ${validAccounts.length} Twitter accounts from socialMediaData`);
-              setTwitterAccounts(validAccounts);
-              return;
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing socialMediaData for Twitter accounts:', e);
-        }
-      }
+  // Load accounts and data on initialization
+  useEffect(() => {
+    const loadAllAccounts = async () => {
+      console.log('Loading social media accounts...');
       
-      // Fallback: try the direct twitterAccounts in localStorage
-      const twitterAccountsStr = localStorage?.getItem('twitterAccounts');
-      if (twitterAccountsStr) {
-        try {
-          const accounts = JSON.parse(twitterAccountsStr);
-          if (Array.isArray(accounts) && accounts.length > 0) {
-            // Filter out accounts without required fields
-            const validAccounts = accounts.filter(account => 
-              account?.accessToken && 
-              account?.accessTokenSecret && 
-              account?.userId
-            );
-            
-            if (validAccounts.length > 0) {
-              console.log(`Loaded ${validAccounts.length} Twitter accounts from twitterAccounts`);
-              setTwitterAccounts(validAccounts);
-              return;
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing twitterAccounts:', e);
-        }
-      }
+      // Try to load accounts from localStorage first
+      const twitterAccountsLoaded = loadTwitterAccounts();
+      const tiktokAccountsLoaded = loadTikTokAccounts();
       
-      console.log('No valid Twitter accounts found in storage');
-      setTwitterAccounts([]);
-    } catch (error) {
-      console.error('Error loading Twitter accounts:', error);
-      setTwitterAccounts([]);
-    }
-  }, []);
+      // If either account type wasn't loaded from localStorage, try to fetch from database
+      if (!twitterAccountsLoaded || !tiktokAccountsLoaded) {
+        console.log('Some account types not found in localStorage, trying to fetch from database');
+        await fetchSocialMediaAccounts();
+      }
+    };
+    
+    loadAllAccounts();
+  }, [loadTwitterAccounts, loadTikTokAccounts]);
 
   const handleTikTokAccountToggle = (account) => {
-    if (!account?.openId) return;
+    if (!account?.accountId) return;
     
     setSelectedTiktokAccounts(prev => {
-      const isSelected = prev.some(acc => acc?.openId === account?.openId);
+      const isSelected = prev.some(acc => acc?.accountId === account?.accountId);
       const newSelectedAccounts = isSelected 
-        ? prev.filter(acc => acc?.openId !== account?.openId)
+        ? prev.filter(acc => acc?.accountId !== account?.accountId)
         : [...prev, account];
       
       // Also update selectedPlatforms based on if we have any accounts selected
@@ -714,9 +834,9 @@ function SocialPosting() {
                   <div className="space-y-2 mb-4">
                     {tiktokAccounts.map((account) => (
                       <div
-                        key={account.openId}
+                        key={`tiktok-account-${account.accountId}`}
                         className={`p-3 border rounded-lg cursor-pointer flex items-center ${
-                          selectedTiktokAccounts.some((a) => a.openId === account.openId)
+                          selectedTiktokAccounts.some((a) => a.accountId === account.accountId)
                             ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200'
                         }`}
@@ -724,12 +844,12 @@ function SocialPosting() {
                       >
                         <input
                           type="checkbox"
-                          checked={selectedTiktokAccounts.some((a) => a.openId === account.openId)}
+                          checked={selectedTiktokAccounts.some((a) => a.accountId === account.accountId)}
                           onChange={() => handleTikTokAccountToggle(account)}
                           className="mr-3"
                         />
                         <div>
-                          <p className="font-medium">{account.displayName || account.userInfo?.display_name || account.username || (account.openId ? `@${account.openId.substring(0, 10)}...` : 'TikTok Account')}</p>
+                          <p className="font-medium">{account.displayName || account.userInfo?.display_name || account.username || (account.accountId ? `@${account.accountId.substring(0, 10)}...` : 'TikTok Account')}</p>
                           {account.username && (
                             <p className="text-xs text-gray-500">@{account.username}</p>
                           )}
@@ -757,7 +877,7 @@ function SocialPosting() {
                   <div className="space-y-2 mb-4">
                     {twitterAccounts.map((account) => (
                       <div
-                        key={account.userId}
+                        key={`twitter-account-${account.userId}`}
                         className={`p-3 border rounded-lg cursor-pointer flex items-center ${
                           selectedTwitterAccounts.some((a) => a.userId === account.userId)
                             ? 'border-blue-500 bg-blue-50'
@@ -874,11 +994,11 @@ function SocialPosting() {
                   <h4 className="text-sm font-medium text-gray-600 mb-2">TikTok Accounts</h4>
                   <div className="flex flex-wrap gap-2">
                     {selectedTiktokAccounts?.map(account => (
-                      <div key={account?.openId} className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100">
+                      <div key={`${account?.accountId}-result`} className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M19.6099 6.90989C17.9366 6.90989 16.5731 5.54646 16.5731 3.87312H12.1379V15.9837C12.1379 17.6477 10.7837 19.0019 9.11969 19.0019C7.45569 19.0019 6.1015 17.6477 6.1015 15.9837C6.1015 14.3197 7.45569 12.9655 9.11969 12.9655C9.51114 12.9655 9.88351 13.0447 10.2276 13.1855V8.69296C9.88351 8.65228 9.5301 8.63213 9.18077 8.63213C5.04351 8.63213 1.67578 12.0091 1.67578 16.1356C1.67578 20.2728 5.05271 23.639 9.18077 23.639C13.3088 23.639 16.6858 20.2728 16.6858 16.1356V9.93228C18.0322 10.9064 19.6743 11.445 21.427 11.445V7.10217C21.4178 7.10217 19.6191 7.10217 19.6099 6.90989Z" fill="black"/>
                         </svg>
-                        <span className="text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded">{account?.displayName || account?.userInfo?.display_name || account?.username || (account?.openId ? `@${account?.openId.substring(0, 10)}...` : 'TikTok Account')}</span>
+                        <span className="text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded">{account?.displayName || account?.userInfo?.display_name || account?.username || (account?.accountId ? `@${account?.accountId.substring(0, 10)}...` : 'TikTok Account')}</span>
                       </div>
                     ))}
                   </div>
@@ -1015,12 +1135,12 @@ function SocialPosting() {
               <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-8">
                 <h3 className="text-xl font-semibold text-gray-800 mb-6">Posting Results</h3>
                 {Object.entries(platformResults).map(([platform, result]) => (
-                  <div key={platform} className="mb-6 last:mb-0">
+                  <div key={`${platform}-result`} className="mb-6 last:mb-0">
                     <h4 className="text-lg font-medium text-gray-700 mb-3">{platform.charAt(0).toUpperCase() + platform.slice(1)}</h4>
                     {Array.isArray(result) ? (
                       <div className="space-y-3">
                         {result.map((r, i) => (
-                          <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                          <div key={`${platform}-result-${i}`} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                             <div className="flex items-center gap-2">
                               <TikTokSimpleIcon width="18" height="18" />
                               <span className="font-medium text-gray-700">{r?.displayName || r?.username}</span>

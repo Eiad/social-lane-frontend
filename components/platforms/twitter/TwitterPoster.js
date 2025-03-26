@@ -31,8 +31,6 @@ const TwitterPoster = {
             post_description: caption,
             platforms: ['twitter'],
             twitter_accounts: selectedTwitterAccounts.map(account => ({
-              accessToken: account.accessToken,
-              accessTokenSecret: account.accessTokenSecret,
               userId: account.userId,
               username: account.username
             })),
@@ -93,8 +91,6 @@ const TwitterPoster = {
           videoUrl: videoUrl,
           text: caption,
           accounts: selectedTwitterAccounts.map(account => ({
-            accessToken: account.accessToken,
-            accessTokenSecret: account.accessTokenSecret,
             userId: account.userId,
             username: account.username || ''
           }))
@@ -188,7 +184,7 @@ const TwitterPoster = {
       }
       
       return socialMediaData.twitter.filter(account => 
-        account && account.accessToken && account.accessTokenSecret && account.userId
+        account && account.userId
       );
     } catch (error) {
       console.error('Error getting Twitter accounts from socialMediaData:', error);

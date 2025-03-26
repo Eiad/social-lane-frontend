@@ -37,9 +37,9 @@ const TikTokAccountSelector = ({
       <div className={styles.accountsList}>
         {filteredTiktokAccounts.map(account => (
           <div 
-            key={account.openId}
+            key={account.accountId}
             className={`${styles.accountCard} ${
-              selectedTiktokAccounts.some(acc => acc.openId === account.openId) 
+              selectedTiktokAccounts.some(acc => acc.accountId === account.accountId) 
                 ? styles.selectedAccount 
                 : ''
             }`}
@@ -48,12 +48,12 @@ const TikTokAccountSelector = ({
             <div className={styles.accountInfo}>
               <TikTokSimpleIcon width="24" height="24" />
               <span className={styles.accountName}>
-                {account.displayName || account.userInfo?.display_name || account.username || (account.openId ? `@${account.openId.substring(0, 10)}...` : 'TikTok Account')}
+                {account.displayName || account.userInfo?.display_name || account.username || (account.accountId ? `@${account.accountId.substring(0, 10)}...` : 'TikTok Account')}
               </span>
             </div>
             <input
               type="checkbox"
-              checked={selectedTiktokAccounts.some(acc => acc.openId === account.openId)}
+              checked={selectedTiktokAccounts.some(acc => acc.accountId === account.accountId)}
               onChange={(e) => {
                 e.stopPropagation();
                 handleTikTokAccountToggle(account);

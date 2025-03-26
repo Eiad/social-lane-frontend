@@ -38,6 +38,7 @@ export const AuthProvider = ({ children }) => {
       
       // Store Twitter tokens if available
       const twitterData = userData.providerData.twitter;
+      
       if (twitterData) {
         // Mark that social media data was loaded from DB
         localStorage?.setItem('socialMediaLoaded', 'true');
@@ -73,43 +74,30 @@ export const AuthProvider = ({ children }) => {
             if (account.name) localStorage?.setItem(`twitterName_${handle}`, account.name);
             if (account.profileImageUrl) localStorage?.setItem(`twitterProfileImage_${handle}`, account.profileImageUrl);
           });
-          
-          // Set legacy format only for the first account (for backward compatibility)
-          if (twitterData.length > 0) {
-            // Legacy format sync removed as we're transitioning to socialMediaData only
-          }
-        } else if (twitterData.accessToken && twitterData.username) {
-          // Handle single object format
-          console.log('Found Twitter data (single object)');
-          
-          // Clear existing Twitter accounts
-          clearAllTwitterStorage();
-          
-          // Get handle from username and convert to lowercase
-          const handle = (twitterData.username || '').toLowerCase();
-          
-          if (handle) {
-            // Store with handle as identifier
-            if (twitterData.accessToken) localStorage?.setItem(`twitterAccessToken_${handle}`, twitterData.accessToken);
-            if (twitterData.userId) localStorage?.setItem(`twitterUserId_${handle}`, twitterData.userId);
-            if (twitterData.accessTokenSecret) localStorage?.setItem(`twitterAccessTokenSecret_${handle}`, twitterData.accessTokenSecret);
-            if (twitterData.username) localStorage?.setItem(`twitterUsername_${handle}`, twitterData.username); // Store original case
-            if (twitterData.name) localStorage?.setItem(`twitterName_${handle}`, twitterData.name);
-            if (twitterData.profileImageUrl) localStorage?.setItem(`twitterProfileImage_${handle}`, twitterData.profileImageUrl);
-            
-            // Legacy format sync removed as we're transitioning to socialMediaData only
-          } else {
-            console.warn('Cannot store Twitter account without username/handle');
-          }
         } else {
-          console.log('Invalid Twitter data format or missing username');
+          console.log('Found single Twitter account object');
+          // Store single account
+          const account = twitterData;
+          const handle = (account.username || '').toLowerCase();
+          
+          if (!handle) {
+            console.warn('Skipping Twitter account with no handle/username');
+          } else {
+            console.log(`Storing Twitter account for @${handle}`);
+            
+            if (account.accessToken) localStorage?.setItem(`twitterAccessToken_${handle}`, account.accessToken);
+            if (account.userId) localStorage?.setItem(`twitterUserId_${handle}`, account.userId);
+            if (account.accessTokenSecret) localStorage?.setItem(`twitterAccessTokenSecret_${handle}`, account.accessTokenSecret);
+            if (account.username) localStorage?.setItem(`twitterUsername_${handle}`, account.username);
+            if (account.name) localStorage?.setItem(`twitterName_${handle}`, account.name);
+            if (account.profileImageUrl) localStorage?.setItem(`twitterProfileImage_${handle}`, account.profileImageUrl);
+          }
         }
-      } else {
-        console.log('No Twitter data found in user object');
       }
       
       // Store TikTok tokens if available
       const tiktokAccounts = userData.providerData.tiktok;
+      
       if (tiktokAccounts && Array.isArray(tiktokAccounts)) {
         console.log('Found TikTok accounts:', tiktokAccounts.length);
         
@@ -117,64 +105,45 @@ export const AuthProvider = ({ children }) => {
         localStorage?.setItem('socialMediaLoaded', 'true');
         localStorage?.setItem('socialMediaLoadTime', Date.now().toString());
         
-        // Get existing accounts from localStorage
-        const existingAccounts = [];
-        let i = 1;
-        while (true) {
-          const token = localStorage?.getItem(`tiktok${i}AccessToken`);
-          const openId = localStorage?.getItem(`tiktok${i}OpenId`);
-          if (!token || !openId) break;
-          
-          existingAccounts.push({
-            accessToken: token,
-            openId,
-            refreshToken: localStorage?.getItem(`tiktok${i}RefreshToken`),
-            username: localStorage?.getItem(`tiktok${i}Username`),
-            displayName: localStorage?.getItem(`tiktok${i}DisplayName`),
-            avatarUrl: localStorage?.getItem(`tiktok${i}AvatarUrl`),
-            avatarUrl100: localStorage?.getItem(`tiktok${i}AvatarUrl100`),
-            index: i
-          });
-          i++;
+        // Initialize or get existing socialMediaData
+        let socialMediaData = {};
+        try {
+          const existingData = localStorage.getItem('socialMediaData');
+          if (existingData) {
+            socialMediaData = JSON.parse(existingData);
+          }
+        } catch (error) {
+          console.error('Error parsing existing socialMediaData:', error);
+          socialMediaData = {};
         }
         
-        // Merge backend accounts with existing accounts
-        const mergedAccounts = [...existingAccounts];
-        const existingOpenIds = new Set(existingAccounts.map(acc => acc.openId));
+        // Format TikTok accounts for storage
+        const formattedAccounts = tiktokAccounts
+          .filter(account => account) // Filter out null/undefined accounts
+          .map(account => {
+            // Create unique accountId for TikTok account if not present
+            const accountId = account.accountId || account.openId || `tiktok-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            
+            return {
+              accountId,
+              username: account.username || account.userInfo?.username || '',
+              displayName: account.displayName || account.userInfo?.display_name || '',
+              avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || account.userInfo?.avatar_url_100 || '',
+              userInfo: account.userInfo || {}
+            };
+          })
+          .filter(account => account.accountId); // Ensure we only keep accounts with an accountId
         
-        tiktokAccounts.forEach(account => {
-          if (!existingOpenIds.has(account.openId)) {
-            const nextIndex = mergedAccounts.length + 1;
-            mergedAccounts.push({
-              ...account,
-              index: nextIndex
-            });
-          }
-        });
-        
-        // Store merged accounts in localStorage
-        mergedAccounts.forEach((account, index) => {
-          const accountIndex = index + 1;
-          console.log(`Storing TikTok account ${accountIndex}:`, {
-            hasAccessToken: !!account.accessToken,
-            hasOpenId: !!account.openId,
-            hasRefreshToken: !!account.refreshToken,
-            username: account.username || `TikTok Account ${accountIndex}`
-          });
-          
-          if (account.accessToken) localStorage?.setItem(`tiktok${accountIndex}AccessToken`, account.accessToken);
-          if (account.openId) localStorage?.setItem(`tiktok${accountIndex}OpenId`, account.openId);
-          if (account.refreshToken) localStorage?.setItem(`tiktok${accountIndex}RefreshToken`, account.refreshToken);
-          if (account.username) localStorage?.setItem(`tiktok${accountIndex}Username`, account.username);
-          if (account.displayName) localStorage?.setItem(`tiktok${accountIndex}DisplayName`, account.displayName);
-          if (account.avatarUrl) localStorage?.setItem(`tiktok${accountIndex}AvatarUrl`, account.avatarUrl);
-          if (account.avatarUrl100) localStorage?.setItem(`tiktok${accountIndex}AvatarUrl100`, account.avatarUrl100);
-        });
-      } else {
-        console.log('No TikTok accounts found in user object or not an array:', tiktokAccounts);
+        // Store in socialMediaData structure
+        if (formattedAccounts.length > 0) {
+          socialMediaData.tiktok = formattedAccounts;
+          localStorage.setItem('socialMediaData', JSON.stringify(socialMediaData));
+          console.log(`Stored ${formattedAccounts.length} TikTok accounts in socialMediaData:`, formattedAccounts);
+        }
       }
+      
     } catch (error) {
-      console.error('Error storing social media tokens:', error);
+      console.error('Error storing social tokens:', error);
     }
   };
 
@@ -352,6 +321,51 @@ export const AuthProvider = ({ children }) => {
         }
       } else {
         console.log('No Twitter data found');
+      }
+      
+      // Process TikTok accounts
+      const tiktokData = providerData.tiktok || userData.tiktok || (userData.data && userData.data.tiktok);
+      
+      if (tiktokData) {
+        console.log('Found TikTok data:', tiktokData);
+        
+        const tiktokAccounts = Array.isArray(tiktokData) 
+          ? tiktokData 
+          : [tiktokData];
+          
+        console.log(`Processing ${tiktokAccounts.length} TikTok accounts`);
+        
+        // Map each account to our standardized format with accountId as the main identifier
+        const formattedAccounts = tiktokAccounts
+          .filter(account => account) // Filter out null/undefined accounts
+          .map(account => {
+            // Create unique accountId for TikTok account if not present
+            const accountId = account.accountId || account.openId || `tiktok-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+            
+            return {
+              accountId,
+              username: account.username || account.userInfo?.username || '',
+              displayName: account.displayName || account.userInfo?.display_name || '',
+              avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || account.userInfo?.avatar_url_100 || '',
+              userInfo: account.userInfo || {}
+            };
+          })
+          .filter(account => account.accountId); // Ensure we only keep accounts with an accountId
+        
+        console.log(`Formatted ${formattedAccounts.length} valid TikTok accounts:`, formattedAccounts);
+        
+        // Only update if we have valid accounts
+        if (formattedAccounts.length > 0) {
+          socialMediaData.tiktok = formattedAccounts;
+          console.log(`Stored ${socialMediaData.tiktok.length} valid TikTok accounts in socialMediaData`);
+          
+          // Set a flag to indicate we successfully loaded TikTok data
+          localStorage.setItem('tiktokStorageMigrated', 'true');
+        } else {
+          console.warn('No valid TikTok accounts found to store');
+        }
+      } else {
+        console.log('No TikTok data found');
       }
       
       // Save the unified structure to localStorage

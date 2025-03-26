@@ -114,7 +114,7 @@ function Twitter() {
       }
       
       return socialMediaData.twitter.filter(account => 
-        account && account.accessToken && account.accessTokenSecret
+        account && account.userId
       );
     } catch (error) {
       console.error('Error getting Twitter accounts from socialMediaData:', error);
@@ -132,11 +132,18 @@ function Twitter() {
         socialMediaData = JSON.parse(socialMediaDataStr);
       }
       
-      socialMediaData.twitter = accounts;
-          localStorage.setItem('socialMediaData', JSON.stringify(socialMediaData));
+      // Store only UI display data, not tokens
+      socialMediaData.twitter = accounts.map(account => ({
+        userId: account.userId,
+        username: account.username,
+        name: account.name || account.username,
+        profileImageUrl: account.profileImageUrl
+      }));
+
+      localStorage.setItem('socialMediaData', JSON.stringify(socialMediaData));
       localStorage.setItem('socialMediaDataUpdated', Date.now().toString());
       
-      console.log('Saved Twitter accounts to socialMediaData:', accounts);
+      console.log('Saved Twitter accounts to socialMediaData:', accounts.length);
     } catch (error) {
       console.error('Error saving Twitter accounts to socialMediaData:', error);
     }
@@ -160,11 +167,11 @@ function Twitter() {
       // Prepare account data
       const accountsData = accounts.map(account => ({
           accessToken: account.accessToken,
-        accessTokenSecret: account.accessTokenSecret,
+          accessTokenSecret: account.accessTokenSecret,
           userId: account.userId,
           username: account.username,
           name: account.name || account.username,
-        profileImageUrl: account.profileImageUrl
+          profileImageUrl: account.profileImageUrl
       }));
       
       // Send to API
@@ -311,7 +318,7 @@ function Twitter() {
 
   // Handle posting to Twitter
   const handlePost = async () => {
-      setIsPosting(true);
+    setIsPosting(true);
     setPostError(null);
     setPostSuccess(false);
 
@@ -331,34 +338,27 @@ function Twitter() {
       
       console.log('Selected account details:', {
         hasAccount: !!selectedAccount,
-        hasAccessToken: !!selectedAccount?.accessToken,
-        hasAccessTokenSecret: !!selectedAccount?.accessTokenSecret,
-        username: selectedAccount?.username
+        username: selectedAccount?.username,
+        userId: selectedAccount?.userId
       });
       
-      if (!selectedAccount?.accessToken || !selectedAccount?.accessTokenSecret) {
-        throw new Error('Twitter account not connected properly. Please reconnect your account.');
-      }
-      
+      // We just need the userId, the backend will look up the tokens
       const payload = {
-          videoUrl,
-          text: caption || '',
-          accessToken: selectedAccount.accessToken,
-          accessTokenSecret: selectedAccount.accessTokenSecret,
-        userId: selectedAccount.userId || null
+        videoUrl,
+        text: caption || '',
+        userId: selectedAccount.userId || localStorage?.getItem('firebaseUid')
       };
       
       console.log('Posting to Twitter with payload:', {
-        hasAccessToken: !!payload.accessToken,
-        hasAccessTokenSecret: !!payload.accessTokenSecret,
         videoUrl: !!payload.videoUrl,
-        hasText: !!payload.text
+        hasText: !!payload.text,
+        userId: payload.userId
       });
       
       const response = await axios.post(`${apiUrl}/twitter/post-video`, payload);
       
       if (response?.data?.message) {
-      setPostSuccess(true);
+        setPostSuccess(true);
         setCaption('');
         setVideoUrl('');
         setFile(null);
@@ -496,70 +496,32 @@ function Twitter() {
     }
   };
 
-  // Load Twitter accounts from database
-  const loadTwitterAccountsFromDB = async () => {
+  // Helper function to fetch Twitter accounts from the database if they're not in localStorage
+  const fetchUserTwitterAccounts = async () => {
     try {
-      if (typeof window === 'undefined') return;
-      
-      console.log('Attempting to load Twitter accounts from DB');
-      // Always prioritize Firebase UID
-      const firebaseUid = localStorage?.getItem('firebaseUid');
-        
-      if (!firebaseUid) {
-        console.warn('No Firebase UID found in localStorage, cannot load Twitter accounts');
-        window.showToast?.warning?.('Not logged in with Firebase. Please log in to load your Twitter accounts.');
-        return;
-      }
-      
-      console.log('Fetching user data for Firebase UID:', firebaseUid);
       setIsFetchingUserInfo(true);
       
-      // Try to fetch user data with retries for maximum reliability
-      let userData = null;
-      let attempts = 0;
-      const maxAttempts = 3;
+      // Get current user ID from localStorage
+      const uid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
       
-      while (attempts < maxAttempts && !userData) {
-        try {
-          attempts++;
-          console.log(`Fetching user data attempt ${attempts}/${maxAttempts}`);
-          
-          // API endpoint to get user data
-          const response = await fetch(`${apiUrl}/users/${firebaseUid}`);
+      if (!uid) {
+        console.error('No user ID found, cannot fetch Twitter accounts');
+        setIsFetchingUserInfo(false);
+        return null;
+      }
+      
+      console.log(`Fetching Twitter accounts for user ${uid} from database`);
+      
+      // Call the backend API to get user data including social media accounts
+      const response = await fetch(`/api/users/${uid}`);
       
       if (!response.ok) {
-        const errorText = await response.text();
-            throw new Error(`Failed to fetch user data (status: ${response.status}, message: ${errorText})`);
+        throw new Error(`Error fetching user data: ${response.status}`);
       }
       
-      const data = await response.json();
-          console.log(`User data fetch attempt ${attempts} successful:`, data?.success ? 'Success' : 'Failed');
-          
-          if (data?.success && data?.data) {
-            userData = data;
-            console.log('Successfully loaded user data');
-          } else {
-            throw new Error('Invalid user data format received');
-          }
-        } catch (attemptError) {
-          console.error(`Error fetching user data attempt ${attempts}:`, attemptError);
-          
-          if (attempts < maxAttempts) {
-            // Exponential backoff
-            const delay = Math.pow(2, attempts) * 500;
-            console.log(`Retrying after ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-          } else {
-            throw attemptError; // Re-throw the last error after all attempts
-          }
-        }
-      }
+      const userData = await response.json();
       
-      if (!userData) {
-        throw new Error('Failed to fetch user data after multiple attempts');
-      }
-      
-      console.log('Received user data from API:', userData);
+      console.log('User data fetched:', userData);
       
       // Process the user data and store Twitter accounts
       if (userData?.data) {
@@ -584,18 +546,16 @@ function Twitter() {
           
           console.log(`Processing ${twitterAccounts.length} Twitter accounts from database`);
           
-          // Map accounts to standardized format
+          // Map accounts to standardized format - without tokens
           const formattedAccounts = twitterAccounts
             .filter(account => account)
             .map(account => ({
-              accessToken: account.accessToken || account.access_token,
-              accessTokenSecret: account.accessTokenSecret || account.access_token_secret,
               userId: account.userId || account.user_id,
               username: account.username || account.screen_name || '',
               name: account.name || account.displayName || account.username || 'Twitter User',
               profileImageUrl: account.profileImageUrl || account.profile_image_url || ''
             }))
-            .filter(account => account.accessToken && account.accessTokenSecret);
+            .filter(account => account.userId); // Only filter by userId now
           
           console.log('Formatted Twitter accounts:', formattedAccounts.map(acc => ({
             userId: acc.userId,
@@ -643,780 +603,6 @@ function Twitter() {
     }
   };
 
-  // Handle the Twitter callback after authentication
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    // Check if user is authenticated
-    const firebaseUid = localStorage?.getItem('firebaseUid');
-    if (!firebaseUid) {
-      console.warn('No Firebase UID found in localStorage for Twitter callback processing');
-      return;
-    }
-
-    // Process URL parameters for Twitter authentication
-    const params = new URLSearchParams(window.location.search);
-    
-    // Check if we have any relevant parameters that indicate a Twitter callback
-    const hasCallbackParams = params.has('accessToken') || params.has('access_token') || 
-                             params.has('error') || params.has('denied');
-    
-    if (!hasCallbackParams) {
-      // Not a Twitter callback, skip processing
-      return;
-    }
-    
-    console.log('Twitter callback detected, processing parameters...');
-    
-    // Handle both formats - camelCase and snake_case
-    const accessToken = params.get('accessToken') || params.get('access_token');
-    const accessTokenSecret = params.get('accessTokenSecret') || params.get('access_token_secret');
-    const userId = params.get('userId') || params.get('user_id');
-    const username = params.get('username') || params.get('screen_name');
-    const name = params.get('name');
-    const profileImageUrl = params.get('profileImageUrl') || params.get('profile_image_url');
-    const error = params.get('error');
-    const denied = params.get('denied');
-
-    // Clear the query parameters after processing 
-    if (window.history && window.history.replaceState) {
-      console.log('Clearing URL parameters after processing');
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
-    }
-
-    // Handle authentication denial
-    if (denied) {
-      console.error('Twitter authentication denied by user');
-      window.showToast?.error?.('Twitter authentication was denied');
-      setAuthError('Authentication was denied. Please try again.');
-      return;
-    }
-
-    // Handle authentication errors
-    if (error) {
-      console.error('Twitter authentication error:', error);
-      window.showToast?.error?.(`Twitter authentication failed: ${error}`);
-      setAuthError(`Authentication failed: ${error}`);
-      return;
-    }
-
-    // Validate required tokens
-    if (!accessToken || !accessTokenSecret || !userId) {
-      console.error('Missing required Twitter credentials:', {
-        hasAccessToken: !!accessToken,
-        hasAccessTokenSecret: !!accessTokenSecret,
-        hasUserId: !!userId
-      });
-      
-      window.showToast?.error?.('Incomplete Twitter authentication data received');
-      setAuthError('Authentication failed: Incomplete data received from Twitter');
-      return;
-    }
-
-    // Log the received data (safely)
-    console.log('Twitter credentials received:', {
-      accessToken: accessToken ? `${accessToken.substring(0, 5)}...` : 'missing',
-      accessTokenSecret: accessTokenSecret ? `${accessTokenSecret.substring(0, 5)}...` : 'missing',
-      userId,
-      username,
-      name,
-      hasProfileImage: !!profileImageUrl,
-      tokenLength: accessToken?.length || 0,
-      secretLength: accessTokenSecret?.length || 0
-    });
-
-    // Create account data object with all required fields and defaults
-    const accountData = {
-      accessToken,
-      accessTokenSecret,
-      userId,
-      username: username || '',
-      name: name || username || 'Twitter User',
-      profileImageUrl: profileImageUrl || ''
-    };
-
-    // Store in localStorage first
-    console.log('Storing Twitter account data in localStorage...');
-    (async () => {
-      try {
-        const saved = await storeTwitterAccount(accountData);
-        
-        if (saved) {
-          console.log('Twitter account stored in localStorage successfully');
-          window.showToast?.success?.('Twitter account connected successfully');
-          
-          // Update UI state immediately
-          setAuthSuccess(true);
-          setSelectedUsername(username || 'Twitter Account');
-          setSelectedProfileImage(profileImageUrl || '');
-          
-          // Verify the account was saved correctly
-          await refreshDebugInfo();
-        } else {
-          console.error('Failed to store Twitter account in localStorage');
-          window.showToast?.error?.('Failed to store Twitter account information');
-        }
-      } catch (error) {
-        console.error('Error in Twitter callback processing:', error);
-        window.showToast?.error?.('Error processing Twitter login: ' + error.message);
-      }
-    })();
-  }, []);
-
-  // Function to store Twitter account in localStorage and database
-  const storeTwitterAccount = async (accountData) => {
-    try {
-      // Validate required fields
-      if (!accountData?.accessToken || !accountData?.accessTokenSecret || !accountData?.userId) {
-        console.error('Missing required Twitter account fields:', {
-          hasAccessToken: !!accountData?.accessToken,
-          hasAccessTokenSecret: !!accountData?.accessTokenSecret,
-          hasUserId: !!accountData?.userId
-        });
-        window.showToast?.error?.('Cannot connect Twitter account: Missing required data');
-        return false;
-      }
-
-      // Normalize the account data
-      const normalizedAccount = {
-        accessToken: accountData?.accessToken || accountData?.access_token,
-        accessTokenSecret: accountData?.accessTokenSecret || accountData?.access_token_secret,
-        userId: accountData?.userId || accountData?.user_id,
-        username: accountData?.username || accountData?.screen_name || '',
-        name: accountData?.name || accountData?.display_name || accountData?.username || '',
-        profileImageUrl: accountData?.profileImageUrl || accountData?.profile_image_url || ''
-      };
-
-      // Log what we're storing (don't log full tokens)
-      console.log('Storing Twitter account:', {
-        accessToken: normalizedAccount.accessToken ? `${normalizedAccount.accessToken.substring(0, 5)}...` : 'MISSING',
-        accessTokenLength: normalizedAccount.accessToken?.length || 0,
-        accessTokenSecret: normalizedAccount.accessTokenSecret ? `${normalizedAccount.accessTokenSecret.substring(0, 5)}...` : 'MISSING',
-        accessTokenSecretLength: normalizedAccount.accessTokenSecret?.length || 0,
-        userId: normalizedAccount.userId,
-        username: normalizedAccount.username
-      });
-
-      // Get existing Twitter accounts from socialMediaData
-      const existingAccounts = getTwitterAccounts();
-      
-      // Check if account already exists by userId
-      const existingIndex = existingAccounts.findIndex(
-        acc => acc?.userId === normalizedAccount.userId
-      );
-      
-      // Update or add the account
-      if (existingIndex >= 0) {
-        // Update existing account
-        existingAccounts[existingIndex] = normalizedAccount;
-        console.log(`Updated existing Twitter account for ${normalizedAccount.username || normalizedAccount.userId}`);
-      } else {
-        // Add new account
-        existingAccounts.push(normalizedAccount);
-        console.log(`Added new Twitter account for ${normalizedAccount.username || normalizedAccount.userId}`);
-      }
-      
-      // Save to socialMediaData
-      saveTwitterAccounts(existingAccounts);
-      
-      // Save to database
-      console.log('Saving Twitter account to database...');
-      const saveSuccess = await saveTwitterAccountToDB(normalizedAccount);
-      
-      if (saveSuccess) {
-        console.log('Twitter account saved successfully to database');
-        window.showToast?.success?.('Twitter account connected successfully!');
-        
-        // Update UI with new account
-        if (normalizedAccount.username) {
-          setSelectedUsername(normalizedAccount.username);
-        }
-        if (normalizedAccount.profileImageUrl) {
-          setSelectedProfileImage(normalizedAccount.profileImageUrl);
-        }
-        setAuthSuccess(true);
-        
-        return true;
-      } else {
-        console.error('Failed to save Twitter account to database');
-        window.showToast?.error?.('Failed to save Twitter account to database');
-        return false;
-      }
-    } catch (error) {
-      console.error('Error storing Twitter account:', error);
-      window.showToast?.error?.(`Error connecting Twitter account: ${error?.message}`);
-      return false;
-    }
-  };
-
-  // Direct database update function for forcing Twitter account updates
-  const forceUpdateUserData = async () => {
-    try {
-      // Get the Twitter accounts from localStorage
-      const socialMediaDataStr = localStorage?.getItem('socialMediaData');
-      if (!socialMediaDataStr) {
-        window.showToast?.warning?.('No socialMediaData found in localStorage');
-        return;
-      }
-      
-      const socialMediaData = JSON.parse(socialMediaDataStr);
-      if (!socialMediaData?.twitter || !Array.isArray(socialMediaData.twitter) || socialMediaData.twitter.length === 0) {
-        window.showToast?.warning?.('No Twitter accounts found in localStorage');
-        return;
-      }
-      
-      // Get the Firebase UID
-      const firebaseUid = localStorage?.getItem('firebaseUid');
-      if (!firebaseUid) {
-        window.showToast?.error?.('Firebase UID not found in localStorage');
-        return;
-      }
-      
-      // Prepare direct update payload
-      const payload = {
-        providerData: {
-          twitter: socialMediaData.twitter
-        }
-      };
-      
-      console.log('Force updating user data with payload:', payload);
-      window.showToast?.info?.('Attempting force update...');
-      
-      // Use the force-update endpoint
-      const response = await fetch(`${API_BASE_URL}/users/${firebaseUid}/force-update`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API error (${response.status}): ${errorText}`);
-      }
-      
-              const data = await response.json();
-      console.log('Force update response:', data);
-      
-      if (data.success) {
-        window.showToast?.success?.('User data force updated successfully');
-        
-        // Verify the update
-        if (data.data?.providerData?.twitter && data.data.providerData.twitter.length > 0) {
-          console.log('Twitter accounts verified in response:', data.data.providerData.twitter);
-        } else {
-          console.warn('No Twitter accounts found in response after update');
-          window.showToast?.warning?.('Update succeeded but Twitter accounts not found in response');
-        }
-      } else {
-        throw new Error('Update failed: ' + (data.error || 'Unknown error'));
-      }
-      
-      // Refresh debug info
-      await refreshDebugInfo();
-    } catch (error) {
-      console.error('Error in force update:', error);
-      window.showToast?.error?.('Force update failed: ' + error.message);
-    }
-  };
-  
-  // Render debug section
-  const renderDebugSection = () => {
-    return (
-      <div className="bg-gray-900 p-4 mt-6 rounded-lg text-xs">
-        <h3 className="text-white text-sm font-bold mb-2">Debug & Troubleshooting</h3>
-        <div className="flex space-x-2 mb-3">
-          <button
-            className="bg-gray-700 text-white px-3 py-1 rounded text-xs"
-            onClick={refreshDebugInfo}
-          >
-            Refresh Debug Info
-          </button>
-          <button
-            className="bg-yellow-600 text-white px-3 py-1 rounded text-xs"
-            onClick={testSaveTwitterAccountToDB}
-          >
-            Test Save Twitter Account
-          </button>
-          <button
-            className="bg-purple-600 text-white px-3 py-1 rounded text-xs"
-            onClick={forceUpdateUserData}
-          >
-            Force Update Twitter Accounts
-          </button>
-        </div>
-        
-        <div className="bg-gray-800 p-3 rounded overflow-auto max-h-64">
-          <pre className="text-gray-300 whitespace-pre-wrap">{debugInfo}</pre>
-        </div>
-        
-        <div className="mt-4">
-          <h4 className="text-white text-xs font-bold mb-2">Import Twitter Accounts from Alternate User ID</h4>
-          <div className="flex space-x-2">
-            <input
-              type="text"
-              value={altUserId}
-              onChange={(e) => setAltUserId(e.target.value)}
-              placeholder="Enter User ID"
-              className="bg-gray-800 text-white px-3 py-1 rounded text-xs flex-1"
-            />
-            <button
-              className="bg-blue-600 text-white px-3 py-1 rounded text-xs"
-              onClick={importTwitterAccounts}
-              disabled={isFetchingUserInfo}
-            >
-              {isFetchingUserInfo ? 'Importing...' : 'Import Twitter Accounts'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Function to directly save a Twitter account to the database
-  const saveTwitterAccountToDB = async (accountData) => {
-    try {
-      // Get Firebase UID for the API call
-      const firebaseUid = localStorage?.getItem('firebaseUid');
-      if (!firebaseUid) {
-        console.error('No Firebase UID found in localStorage, cannot save Twitter account');
-        window.showToast?.error?.('Authentication error. Please log in again.');
-        return false;
-      }
-
-      // Normalize the account data to handle both camelCase and snake_case formats
-      const normalizedAccount = {
-        accessToken: accountData?.accessToken || accountData?.access_token,
-        accessTokenSecret: accountData?.accessTokenSecret || accountData?.access_token_secret,
-        userId: accountData?.userId || accountData?.user_id,
-        username: accountData?.username || accountData?.screen_name || '',
-        name: accountData?.name || accountData?.display_name || accountData?.username || '',
-        profileImageUrl: accountData?.profileImageUrl || accountData?.profile_image_url || ''
-      };
-
-      // Log what we're sending (without exposing full tokens)
-      console.log('Saving Twitter account to database:', {
-        accessToken: normalizedAccount.accessToken ? `${normalizedAccount.accessToken.substring(0, 5)}...` : 'MISSING',
-        accessTokenLength: normalizedAccount.accessToken?.length || 0,
-        accessTokenSecret: normalizedAccount.accessTokenSecret ? `${normalizedAccount.accessTokenSecret.substring(0, 5)}...` : 'MISSING',
-        accessTokenSecretLength: normalizedAccount.accessTokenSecret?.length || 0,
-        userId: normalizedAccount.userId,
-        username: normalizedAccount.username
-      });
-
-      // Validate required fields
-      if (!normalizedAccount.accessToken || !normalizedAccount.accessTokenSecret || !normalizedAccount.userId) {
-        console.error('Missing required Twitter account fields:', {
-          hasAccessToken: !!normalizedAccount.accessToken,
-          hasAccessTokenSecret: !!normalizedAccount.accessTokenSecret,
-          hasUserId: !!normalizedAccount.userId
-        });
-        window.showToast?.error?.('Invalid Twitter account data');
-        return false;
-      }
-
-      // API endpoint for storing Twitter accounts
-      const apiUrl = `${API_BASE_URL}/users/${firebaseUid}/social/twitter`;
-      
-      // Try multiple formats for maximum compatibility with the backend
-      
-      // 1. Try direct array format first (standard method)
-      console.log('Attempting to save with array format payload...');
-      try {
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify([normalizedAccount])
-        });
-        
-        if (!response?.ok) {
-          console.warn(`Save with array format failed with status: ${response?.status}`);
-          const errorText = await response?.text?.();
-          console.warn('Error response:', errorText);
-          // Continue to next method
-        } else {
-          const responseData = await response?.json?.();
-          console.log('Save response (array format):', responseData);
-          
-          if (responseData?.success) {
-            console.log('Twitter account saved successfully with array format');
-            return true;
-          }
-        }
-      } catch (error) {
-        console.warn('Error saving with array format:', error?.message);
-        // Continue to next method
-      }
-      
-      // 2. Try wrapped format as fallback
-      console.log('Trying alternative payload format with accounts wrapper...');
-      try {
-        const altResponse = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ accounts: [normalizedAccount] })
-        });
-        
-        if (!altResponse?.ok) {
-          console.warn(`Save with wrapped format failed with status: ${altResponse?.status}`);
-          const errorText = await altResponse?.text?.();
-          console.warn('Error response:', errorText);
-          // Continue to next method
-        } else {
-          const altResponseData = await altResponse?.json?.();
-          console.log('Save response (wrapped format):', altResponseData);
-          
-          if (altResponseData?.success) {
-            console.log('Twitter account saved successfully with wrapped format');
-            return true;
-          }
-        }
-      } catch (error) {
-        console.warn('Error saving with wrapped format:', error?.message);
-        // Continue to next method
-      }
-
-      // 3. Try direct single account format
-      console.log('Trying direct single account format...');
-      try {
-        const singleResponse = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(normalizedAccount)
-        });
-        
-        if (!singleResponse?.ok) {
-          console.warn(`Save with direct format failed with status: ${singleResponse?.status}`);
-          const errorText = await singleResponse?.text?.();
-          console.warn('Error response:', errorText);
-          // Continue to next method
-        } else {
-          const singleResponseData = await singleResponse?.json?.();
-          console.log('Save response (direct format):', singleResponseData);
-          
-          if (singleResponseData?.success) {
-            console.log('Twitter account saved successfully with direct format');
-            return true;
-          }
-        }
-      } catch (error) {
-        console.warn('Error saving with direct format:', error?.message);
-        // Continue to final method
-      }
-      
-      // 4. Last resort - try force update endpoint
-      console.log('Trying force-update endpoint as last resort...');
-      try {
-        const forceUpdateResponse = await fetch(`${API_BASE_URL}/users/${firebaseUid}/force-update`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            providerData: {
-              twitter: [normalizedAccount]
-            }
-          })
-        });
-        
-        if (!forceUpdateResponse?.ok) {
-          console.warn(`Force update failed with status: ${forceUpdateResponse?.status}`);
-          const errorText = await forceUpdateResponse?.text?.();
-          console.warn('Error response:', errorText);
-          // All methods failed
-        } else {
-          const forceUpdateData = await forceUpdateResponse?.json?.();
-          console.log('Force update response:', forceUpdateData);
-          
-          if (forceUpdateData?.success) {
-            console.log('Twitter account saved successfully via force update');
-            return true;
-          }
-        }
-      } catch (error) {
-        console.error('Error with force update:', error?.message);
-        // All methods failed
-      }
-      
-      console.error('All save attempts failed');
-      window.showToast?.error?.('Failed to save Twitter account after multiple attempts');
-      return false;
-    } catch (error) {
-      console.error('Error in saveTwitterAccountToDB:', error);
-      window.showToast?.error?.(`Failed to save Twitter account: ${error?.message}`);
-      return false;
-    }
-  };
-
-  // Function to test saving Twitter account to DB
-  const testSaveTwitterAccountToDB = async () => {
-    try {
-      // Get the Twitter accounts from localStorage
-      const twitterAccounts = getTwitterAccounts();
-      
-      if (twitterAccounts.length === 0) {
-        window.showToast?.warning?.('No Twitter accounts found in localStorage');
-        return;
-      }
-      
-      console.log('Testing save of account:', {
-        userId: twitterAccounts[0].userId,
-        username: twitterAccounts[0].username,
-        hasAccessToken: !!twitterAccounts[0].accessToken,
-        hasAccessTokenSecret: !!twitterAccounts[0].accessTokenSecret
-      });
-      
-      window.showToast?.info?.('Attempting to save Twitter account to database...');
-      
-      // Call the save function
-      const result = await saveTwitterAccountToDB(twitterAccounts[0]);
-      
-      if (result) {
-        window.showToast?.success?.('Test save successful!');
-        await refreshDebugInfo();
-      } else {
-        window.showToast?.error?.('Test save failed!');
-      }
-    } catch (error) {
-      console.error('Error in test save:', error);
-      window.showToast?.error?.('Test save error: ' + error.message);
-    }
-  };
-
-  // Refresh debug info
-  const refreshDebugInfo = async () => {
-    try {
-      let debug = '';
-      
-      // Add Firebase UID
-      const firebaseUid = localStorage?.getItem('firebaseUid');
-      debug += `Firebase UID: ${firebaseUid || 'Not found'}\n\n`;
-      
-      // Add socialMediaData Twitter accounts
-      const socialMediaDataStr = localStorage?.getItem('socialMediaData');
-      if (socialMediaDataStr) {
-        try {
-          const socialMediaData = JSON.parse(socialMediaDataStr);
-          
-          // Twitter accounts
-          if (socialMediaData.twitter && Array.isArray(socialMediaData.twitter)) {
-            debug += `Twitter Accounts (${socialMediaData.twitter.length}):\n`;
-            
-            socialMediaData.twitter.forEach((account, index) => {
-              debug += `\nAccount #${index + 1}:\n`;
-              debug += `- userId: ${account.userId || 'Missing'}\n`;
-              debug += `- username: ${account.username || 'Missing'}\n`;
-              debug += `- name: ${account.name || 'Missing'}\n`;
-              debug += `- accessToken: ${account.accessToken ? `${account.accessToken.substring(0, 5)}... (${account.accessToken.length} chars)` : 'Missing'}\n`;
-              debug += `- accessTokenSecret: ${account.accessTokenSecret ? `${account.accessTokenSecret.substring(0, 5)}... (${account.accessTokenSecret.length} chars)` : 'Missing'}\n`;
-              debug += `- profileImageUrl: ${account.profileImageUrl ? 'Present' : 'Missing'}\n`;
-            });
-          } else {
-            debug += 'No Twitter accounts found in socialMediaData\n';
-          }
-        } catch (error) {
-          debug += `Error parsing socialMediaData: ${error.message}\n`;
-        }
-      } else {
-        debug += 'socialMediaData not found in localStorage\n';
-      }
-      
-      // Get user data from API if logged in
-      if (firebaseUid) {
-        try {
-          debug += '\n--- Database Information ---\n';
-          
-          const response = await fetch(`${apiUrl}/users/${firebaseUid}`);
-          
-          if (response.ok) {
-            const userData = await response.json();
-            
-            if (userData.success && userData.data) {
-              // Check Twitter accounts
-              const twitterData = userData.data.providerData?.twitter;
-              
-              if (twitterData) {
-                const accounts = Array.isArray(twitterData) ? twitterData : [twitterData];
-                
-                debug += `\nTwitter Accounts in DB (${accounts.length}):\n`;
-                
-                accounts.forEach((account, index) => {
-                  debug += `\nDB Account #${index + 1}:\n`;
-                  debug += `- userId: ${account.userId || account.user_id || 'Missing'}\n`;
-                  debug += `- username: ${account.username || account.screen_name || 'Missing'}\n`;
-                  debug += `- name: ${account.name || account.display_name || 'Missing'}\n`;
-                  debug += `- accessToken: ${account.accessToken || account.access_token ? 
-                    `Present (${(account.accessToken || account.access_token).length} chars)` : 'Missing'}\n`;
-                  debug += `- accessTokenSecret: ${account.accessTokenSecret || account.access_token_secret ? 
-                    `Present (${(account.accessTokenSecret || account.access_token_secret).length} chars)` : 'Missing'}\n`;
-                });
-              } else {
-                debug += 'No Twitter accounts found in database\n';
-              }
-            } else {
-              debug += `Invalid user data format received: ${JSON.stringify(userData)}\n`;
-            }
-          } else {
-            debug += `Failed to fetch user data from API: ${response.status} ${response.statusText}\n`;
-          }
-        } catch (error) {
-          debug += `Error fetching user data from API: ${error.message}\n`;
-        }
-      }
-      
-      setDebugInfo(debug);
-    } catch (error) {
-      console.error('Error refreshing debug info:', error);
-      setDebugInfo(`Error refreshing debug info: ${error.message}`);
-    }
-  };
-
-  // Import Twitter accounts from alternate user ID
-  const importTwitterAccounts = async () => {
-    try {
-      if (!altUserId || altUserId.trim() === '') {
-        window.showToast?.warning?.('Please enter a valid User ID');
-        return;
-      }
-      
-      setIsFetchingUserInfo(true);
-      window.showToast?.info?.(`Importing Twitter accounts from user ${altUserId}...`);
-      
-      // Fetch user data from the provided user ID
-      const response = await fetch(`${apiUrl}/users/${altUserId}`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch user data for ${altUserId} (${response.status})`);
-      }
-      
-      const userData = await response.json();
-      
-      if (!userData.success || !userData.data) {
-        throw new Error('Invalid user data received');
-      }
-      
-      // Check for Twitter accounts
-      const twitterData = userData.data.providerData?.twitter;
-      
-      if (!twitterData) {
-        throw new Error('No Twitter accounts found for this user ID');
-      }
-      
-      // Process Twitter accounts
-      const twitterAccounts = Array.isArray(twitterData) ? twitterData : [twitterData];
-      
-      if (twitterAccounts.length === 0) {
-        throw new Error('No Twitter accounts found for this user ID');
-      }
-      
-      console.log(`Found ${twitterAccounts.length} Twitter accounts to import`);
-      
-      // Format the accounts
-      const formattedAccounts = twitterAccounts.map(account => ({
-        accessToken: account.accessToken || account.access_token,
-        accessTokenSecret: account.accessTokenSecret || account.access_token_secret,
-        userId: account.userId || account.user_id,
-        username: account.username || account.screen_name || '',
-        name: account.name || account.display_name || account.username || 'Twitter User',
-        profileImageUrl: account.profileImageUrl || account.profile_image_url || ''
-      })).filter(account => account.accessToken && account.accessTokenSecret && account.userId);
-      
-      if (formattedAccounts.length === 0) {
-        throw new Error('No valid Twitter accounts found');
-      }
-      
-      // Get existing accounts from socialMediaData
-      const existingAccounts = getTwitterAccounts();
-      
-      // Add imported accounts, checking for duplicates
-      let added = 0;
-      let updated = 0;
-      const updatedAccounts = [...existingAccounts];
-      
-      for (const account of formattedAccounts) {
-        const existingIndex = updatedAccounts.findIndex(
-          a => a && a.userId === account.userId
-        );
-        
-        if (existingIndex >= 0) {
-          // Update existing account
-          updatedAccounts[existingIndex] = account;
-          updated++;
-          console.log(`Updated existing account for ${account.username}`);
-        } else {
-          // Add new account
-          updatedAccounts.push(account);
-          added++;
-          console.log(`Added new account for ${account.username}`);
-        }
-      }
-      
-      // Save to socialMediaData
-      saveTwitterAccounts(updatedAccounts);
-      
-      window.showToast?.success?.(`Imported ${formattedAccounts.length} Twitter accounts (${added} new, ${updated} updated)`);
-      
-      // Update UI if accounts were imported
-      if (updatedAccounts.length > 0) {
-        setAuthSuccess(true);
-        setSelectedUsername(updatedAccounts[0].username || 'Twitter Account');
-        setSelectedProfileImage(updatedAccounts[0].profileImageUrl || '');
-      }
-      
-      // Now save to database if we have any accounts
-      if (updatedAccounts.length > 0) {
-        try {
-          // Get Firebase UID
-          const firebaseUid = localStorage?.getItem('firebaseUid');
-          if (!firebaseUid) {
-            throw new Error('Firebase UID not found. Cannot save to database.');
-          }
-          
-          // Use force update for the most reliable update
-          const updateResponse = await fetch(`${API_BASE_URL}/users/${firebaseUid}/force-update`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              providerData: {
-                twitter: updatedAccounts
-              }
-            })
-          });
-          
-          if (updateResponse.ok) {
-            window.showToast?.success?.('Twitter accounts saved to database');
-          } else {
-            throw new Error(`Database update failed (${updateResponse.status})`);
-          }
-        } catch (saveError) {
-          console.error('Error saving imported accounts to database:', saveError);
-          window.showToast?.warning?.('Accounts imported to localStorage but not saved to database. Try the Force Update button.');
-        }
-      }
-      
-      // Refresh debug info
-      await refreshDebugInfo();
-      
-      // Clear the input
-      setAltUserId('');
-    } catch (error) {
-      console.error('Error importing Twitter accounts:', error);
-      window.showToast?.error?.('Failed to import Twitter accounts: ' + error.message);
-    } finally {
-      setIsFetchingUserInfo(false);
-    }
-  };
-
   // Initialize UI on component mount
   useEffect(() => {
     // Initialize UI based on existing accounts
@@ -1432,11 +618,17 @@ function Twitter() {
         setSelectedProfileImage(account.profileImageUrl || '');
         console.log('Twitter account detected, initializing UI with:', account.username);
       } else {
-        // No accounts, so reset UI
-        setAuthSuccess(false);
-        setSelectedUsername('Twitter Account');
-        setSelectedProfileImage('');
-        console.log('No Twitter accounts found during initialization');
+        // No accounts in localStorage, try to load from database
+        console.log('No Twitter accounts found during initialization, trying database');
+        const dbAccounts = await fetchUserTwitterAccounts();
+        
+        if (!dbAccounts || dbAccounts.length === 0) {
+          // No accounts, so reset UI
+          setAuthSuccess(false);
+          setSelectedUsername('Twitter Account');
+          setSelectedProfileImage('');
+          console.log('No Twitter accounts found in database either');
+        }
       }
       
       // Load debug info
@@ -1449,6 +641,134 @@ function Twitter() {
     // Run initialization
     initializeUI();
   }, []);
+
+  // Handle Twitter callback after authentication
+  useEffect(() => {
+    // Check if we're returning from Twitter auth
+    const processTwitterCallback = async () => {
+      // Check if the URL contains parameters indicating Twitter callback
+      const { 
+        oauth_token, 
+        oauth_verifier, 
+        access_token, 
+        access_token_secret, 
+        user_id, 
+        username, 
+        name,
+        profile_image_url,
+        error
+      } = router.query;
+      
+      // Handle error redirects
+      if (error) {
+        console.error('Twitter authentication error:', error);
+        setAuthError(decodeURIComponent(error));
+        window.showToast?.error?.(decodeURIComponent(error));
+        router.replace('/twitter', undefined, { shallow: true });
+        return;
+      }
+      
+      // If we have oauth_token and oauth_verifier, the user has just been redirected back from Twitter
+      // but the tokens haven't been processed yet. This is handled by the backend.
+      if (oauth_token && oauth_verifier) {
+        console.log('Twitter OAuth callback detected. The backend will process this.');
+        setIsLoading(true);
+        return;
+      }
+      
+      // If we have access token and user data in the URL, the backend has processed the auth
+      // and redirected back to us with the data
+      if (access_token && access_token_secret && user_id) {
+        try {
+          console.log('Twitter auth data detected in URL, processing credentials');
+          setIsLoading(true);
+          setAuthError(null);
+          
+          // Create account object from URL parameters
+          const twitterAccount = {
+            accessToken: decodeURIComponent(access_token),
+            accessTokenSecret: decodeURIComponent(access_token_secret),
+            userId: decodeURIComponent(user_id),
+            username: username ? decodeURIComponent(username) : 'Twitter User',
+            name: name ? decodeURIComponent(name) : (username ? decodeURIComponent(username) : 'Twitter User'),
+            profileImageUrl: profile_image_url ? decodeURIComponent(profile_image_url) : ''
+          };
+          
+          console.log('Processing Twitter account:', {
+            userId: twitterAccount.userId,
+            username: twitterAccount.username,
+            hasToken: !!twitterAccount.accessToken,
+            hasSecret: !!twitterAccount.accessTokenSecret
+          });
+          
+          // Get existing accounts (only display data)
+          const existingAccounts = getTwitterAccounts();
+          
+          // Check if account already exists
+          const accountExists = existingAccounts.some(acc => acc.userId === twitterAccount.userId);
+          
+          // Prepare updated accounts list for UI display (without tokens)
+          let updatedAccounts;
+          if (accountExists) {
+            // Update existing account
+            updatedAccounts = existingAccounts.map(acc => 
+              acc.userId === twitterAccount.userId ? {
+                userId: twitterAccount.userId,
+                username: twitterAccount.username,
+                name: twitterAccount.name,
+                profileImageUrl: twitterAccount.profileImageUrl
+              } : acc
+            );
+            console.log('Updated existing Twitter account');
+          } else {
+            // Add new account
+            updatedAccounts = [...existingAccounts, {
+              userId: twitterAccount.userId,
+              username: twitterAccount.username, 
+              name: twitterAccount.name,
+              profileImageUrl: twitterAccount.profileImageUrl
+            }];
+            console.log('Added new Twitter account');
+          }
+          
+          // Save display info to localStorage (without tokens)
+          saveTwitterAccounts(updatedAccounts);
+          
+          // Save complete account data (including tokens) to database
+          const firebaseUid = localStorage?.getItem('firebaseUid');
+          if (firebaseUid) {
+            await saveTwitterAccountsToDatabase(firebaseUid, [twitterAccount]);
+          }
+          
+          // Update UI
+          setAuthSuccess(true);
+          setSelectedUsername(twitterAccount.username);
+          setSelectedProfileImage(twitterAccount.profileImageUrl || '');
+          
+          // Refresh debug info
+          await refreshDebugInfo();
+          
+          // Show success message
+          window.showToast?.success?.('Twitter account connected successfully!');
+          
+          // Clear query parameters to avoid reprocessing on page refresh
+          router.replace('/twitter', undefined, { shallow: true });
+        } catch (error) {
+          console.error('Error processing Twitter auth data:', error);
+          setAuthError(error?.message || 'Failed to complete Twitter authentication');
+          window.showToast?.error?.(error?.message || 'Error connecting Twitter account');
+        } finally {
+          setIsLoading(false);
+          // Clear auth timestamp
+          localStorage.removeItem('twitterAuthTimestamp');
+        }
+      }
+    };
+    
+    if (router.isReady) {
+      processTwitterCallback();
+    }
+  }, [router.isReady, router.query]);
 
   // Disconnect a specific Twitter account
   const disconnectTwitterAccount = async (accountToRemove) => {
@@ -1563,6 +883,150 @@ function Twitter() {
       window.showToast?.error?.('Error disconnecting Twitter account: ' + error.message);
     } finally {
       setIsDisconnecting(false);
+    }
+  };
+
+  // Refresh debug info
+  const refreshDebugInfo = async () => {
+    try {
+      const firebaseUid = localStorage?.getItem('firebaseUid');
+      const twitterAccounts = getTwitterAccounts();
+      
+      const debugData = {
+        timestamp: new Date().toISOString(),
+        firebaseUid: firebaseUid || 'Not found',
+        twitterAccounts: twitterAccounts.length,
+        accountDetails: twitterAccounts.map(acc => ({
+          userId: acc.userId,
+          username: acc.username,
+          hasProfileImage: !!acc.profileImageUrl
+        }))
+      };
+      
+      setDebugInfo(JSON.stringify(debugData, null, 2));
+    } catch (error) {
+      console.error('Error refreshing debug info:', error);
+      setDebugInfo(`Error: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  // Import Twitter accounts from alternate user ID
+  const importTwitterAccounts = async () => {
+    if (!altUserId) {
+      window.showToast?.warning?.('Please enter an alternate user ID');
+      return;
+    }
+    
+    try {
+      setIsFetchingUserInfo(true);
+      
+      console.log(`Attempting to import Twitter accounts from user ID: ${altUserId}`);
+      
+      // Fetch user data from the alternate ID
+      const response = await fetch(`${API_BASE_URL}/users/${altUserId}`);
+      
+      if (!response?.ok) {
+        throw new Error(`Error fetching user data: ${response?.status}`);
+      }
+      
+      const userData = await response?.json?.();
+      
+      console.log('User data fetched:', userData);
+      
+      // Get Twitter accounts from the user data
+      if (userData?.data?.providerData?.twitter) {
+        const twitterData = userData.data.providerData.twitter;
+        const twitterAccounts = Array.isArray(twitterData) ? twitterData : [twitterData];
+        
+        if (twitterAccounts.length === 0) {
+          throw new Error('No Twitter accounts found for the alternate user ID');
+        }
+        
+        // Format accounts with tokens for database save
+        const formattedAccounts = twitterAccounts
+          .filter(account => account)
+          .map(account => ({
+            accessToken: account.accessToken || account.access_token,
+            accessTokenSecret: account.accessTokenSecret || account.access_token_secret,
+            userId: account.userId || account.user_id,
+            username: account.username || account.screen_name || '',
+            name: account.name || account.displayName || account.username || 'Twitter User',
+            profileImageUrl: account.profileImageUrl || account.profile_image_url || ''
+          }))
+          .filter(account => account.accessToken && account.accessTokenSecret);
+        
+        if (formattedAccounts.length === 0) {
+          throw new Error('No valid Twitter accounts found for the alternate user ID');
+        }
+        
+        // Save display info to localStorage (without tokens)
+        const displayAccounts = formattedAccounts.map(account => ({
+          userId: account.userId,
+          username: account.username,
+          name: account.name,
+          profileImageUrl: account.profileImageUrl
+        }));
+        saveTwitterAccounts(displayAccounts);
+        
+        // Save accounts with tokens to database for current user
+        const firebaseUid = localStorage?.getItem('firebaseUid');
+        if (firebaseUid) {
+          await saveTwitterAccountsToDatabase(firebaseUid, formattedAccounts);
+        }
+        
+        // Update UI
+        setAuthSuccess(true);
+        setSelectedUsername(formattedAccounts[0].username || 'Twitter Account');
+        setSelectedProfileImage(formattedAccounts[0].profileImageUrl || '');
+        
+        // Refresh debug info
+        await refreshDebugInfo();
+        
+        window.showToast?.success?.(`Imported ${formattedAccounts.length} Twitter account(s) successfully`);
+      } else {
+        throw new Error('No Twitter data found for the alternate user ID');
+      }
+    } catch (error) {
+      console.error('Error importing Twitter accounts:', error);
+      window.showToast?.error?.('Error importing Twitter accounts: ' + error.message);
+    } finally {
+      setIsFetchingUserInfo(false);
+      setAltUserId(''); // Clear the input field
+    }
+  };
+
+  // Test saving Twitter account to database
+  const testSaveTwitterAccountToDB = async () => {
+    try {
+      console.log('Testing saving Twitter account to database');
+      
+      // Get the Firebase UID
+      const firebaseUid = localStorage?.getItem('firebaseUid');
+      if (!firebaseUid) {
+        console.error('No Firebase UID found in localStorage');
+        window.showToast?.error?.('Cannot save Twitter account: Missing user ID');
+        return;
+      }
+      
+      // Get existing Twitter accounts
+      const twitterAccounts = getTwitterAccounts();
+      
+      if (twitterAccounts.length === 0) {
+        console.warn('No Twitter accounts to save');
+        window.showToast?.warning?.('No Twitter accounts to save');
+        return;
+      }
+      
+      // Save accounts to database
+      await saveTwitterAccountsToDatabase(firebaseUid, twitterAccounts);
+      
+      // Refresh debug info
+      await refreshDebugInfo();
+      
+      window.showToast?.success?.('Test save to database successful');
+    } catch (error) {
+      console.error('Error testing save to database:', error);
+      window.showToast?.error?.('Error saving to database: ' + error.message);
     }
   };
 
@@ -1696,7 +1160,7 @@ function Twitter() {
             </p>
             <button 
               className={styles.syncButton || 'bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded flex items-center'}
-              onClick={loadTwitterAccountsFromDB}
+              onClick={fetchUserTwitterAccounts}
               disabled={isFetchingUserInfo}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
