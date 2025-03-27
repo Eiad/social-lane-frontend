@@ -167,7 +167,7 @@ export default async function handler(req, res) {
                 console.log('[UPLOAD API] Temp file deleted');
               }
             } catch (cleanupError) {
-              console.error('[UPLOAD API] Error cleaning up temp file:', cleanupError);
+              console.error('[UPLOAD API] Error cleaning up temp file:', cleanupError?.message);
             }
           }
           
