@@ -61,15 +61,26 @@ export default function TikTok() {
       }
       
       // Only store non-sensitive user info for display purposes
-      socialMediaData.tiktok = accounts.map(account => ({
-        // Store the openId as an identifier but NOT the tokens
-        accountId: account.accountId || account.openId,
-        username: account.username || account.userInfo?.username || 'TikTok User',
-        displayName: account.displayName || account.userInfo?.display_name || '',
-        avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
-        avatarUrl100: account.avatarUrl100 || account.userInfo?.avatar_url_100 || '',
-        index: account.index || 0
-      }));
+      socialMediaData.tiktok = accounts.map(account => {
+        console.log('Processing account for localStorage:', {
+          hasAvatarUrl: !!account.avatarUrl,
+          hasAvatarUrl100: !!account.avatarUrl100,
+          hasUserInfoAvatarUrl100: !!(account.userInfo?.avatarUrl100),
+          hasUserInfoAvatar_url_100: !!(account.userInfo?.avatar_url_100)
+        });
+        
+        return {
+          // Store the openId as an identifier but NOT the tokens
+          accountId: account.accountId || account.openId,
+          username: account.username || account.userInfo?.username || 'TikTok User',
+          displayName: account.displayName || account.userInfo?.display_name || '',
+          // Use original avatarUrl from TikTok
+          avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
+          // Use R2 URL for avatarUrl100
+          avatarUrl100: account.avatarUrl100 || account.userInfo?.avatarUrl100 || account.userInfo?.avatar_url_100 || '',
+          index: account.index || 0
+        };
+      });
       
       localStorage.setItem('socialMediaData', JSON.stringify(socialMediaData));
       localStorage.setItem('socialMediaDataUpdated', Date.now().toString());
@@ -79,7 +90,8 @@ export default function TikTok() {
         accountId: account.accountId,
         username: account.username,
         hasDisplayName: !!account.displayName,
-        hasAvatarUrl: !!account.avatarUrl
+        hasAvatarUrl: !!account.avatarUrl,
+        hasAvatarUrl100: !!account.avatarUrl100
       })));
     } catch (error) {
       console.error('Error saving TikTok accounts to socialMediaData:', error);
@@ -164,16 +176,29 @@ export default function TikTok() {
         // Found TikTok accounts in the user data
         const tiktokAccounts = userData.data.providerData.tiktok;
         
-        console.log(`Found ${tiktokAccounts.length} TikTok accounts in user data:`, tiktokAccounts);
+        console.log(`Found ${Array.isArray(tiktokAccounts) ? tiktokAccounts.length : 'unknown'} TikTok accounts in user data:`, tiktokAccounts);
         
         // Format and store the accounts in localStorage
-        const formattedAccounts = tiktokAccounts.map(account => ({
-          accountId: account.openId || account.accountId, // Use openId as accountId if needed
-          username: account.username || account.userInfo?.username || '',
-          displayName: account.displayName || account.userInfo?.display_name || '',
-          avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || account.avatarUrl100 || account.userInfo?.avatar_url_100 || '',
-          userInfo: account.userInfo || {}
-        }));
+        const formattedAccounts = Array.isArray(tiktokAccounts) ? tiktokAccounts.map(account => {
+          // Log the account data for debugging
+          console.log('Account from backend:', {
+            hasAvatarUrl: !!account.avatarUrl,
+            hasAvatarUrl100: !!account.avatarUrl100,
+            hasUserInfoAvatarUrl: !!(account.userInfo?.avatar_url),
+            hasUserInfoAvatarUrl100: !!(account.userInfo?.avatar_url_100)
+          });
+          
+          return {
+            accountId: account.openId || account.accountId, // Use openId as accountId if needed
+            username: account.username || account.userInfo?.username || '',
+            displayName: account.displayName || account.userInfo?.display_name || '',
+            // Use original TikTok avatarUrl
+            avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
+            // Use R2 URL for avatarUrl100
+            avatarUrl100: account.avatarUrl100 || account.userInfo?.avatarUrl100 || account.userInfo?.avatar_url_100 || '',
+            userInfo: account.userInfo || {}
+          };
+        }) : [];
         
         // Save the accounts to localStorage
         saveTikTokAccounts(formattedAccounts);
@@ -288,7 +313,8 @@ export default function TikTok() {
               hasUsername: !!userInfoObj?.username,
               hasDisplayName: !!userInfoObj?.display_name,
               hasAvatarUrl: !!userInfoObj?.avatar_url,
-              hasAvatarUrl100: !!userInfoObj?.avatar_url_100
+              hasAvatarUrl100: !!userInfoObj?.avatarUrl100,
+              hasAvatar_url_100: !!userInfoObj?.avatar_url_100 
             });
           } catch (e) {
             console.error('Failed to parse user_info:', e);
@@ -297,6 +323,12 @@ export default function TikTok() {
           console.warn('No user_info received from TikTok callback');
         }
         
+        // Keep original TikTok avatar URL
+        const avatarUrl = userInfoObj?.avatarUrl || userInfoObj?.avatar_url || '';
+        
+        // Use avatarUrl100 from R2
+        const avatarUrl100 = userInfoObj?.avatarUrl100 || userInfoObj?.avatar_url_100 || '';
+        
         const accountData = {
           accessToken: access_token,
           openId: open_id,
@@ -304,14 +336,17 @@ export default function TikTok() {
           userInfo: userInfoObj,
           username: userInfoObj?.username || 'TikTok User',
           displayName: userInfoObj?.display_name || '',
-          avatarUrl: userInfoObj?.avatar_url || '',
-          avatarUrl100: userInfoObj?.avatar_url_100 || ''
+          // Use original TikTok avatar URL
+          avatarUrl: avatarUrl,
+          // Use R2 URL for avatarUrl100
+          avatarUrl100: avatarUrl100
         };
         
         console.log('Saving account data to backend:', {
           hasUsername: !!accountData.username,
           hasDisplayName: !!accountData.displayName,
-          hasAvatarUrl: !!accountData.avatarUrl
+          hasAvatarUrl: !!accountData.avatarUrl,
+          hasAvatarUrl100: !!accountData.avatarUrl100
         });
         
         // Save token to backend
@@ -560,7 +595,8 @@ export default function TikTok() {
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                 {connectedAccounts.map(account => {
-                  const profilePic = account?.userInfo?.avatar_url_100 || account?.userInfo?.avatar_url || account?.avatarUrl || 'https://placehold.co/100x100?text=TikTok';
+                  // Always prioritize avatarUrl100 (R2 URL) for display
+                  const profilePic = account?.avatarUrl100 || account?.userInfo?.avatarUrl100 || account?.userInfo?.avatar_url_100 || 'https://placehold.co/100x100?text=TikTok';
                   const username = account?.userInfo?.username || account?.username || 'TikTok Account';
                   const displayName = account?.userInfo?.display_name || account?.displayName || username;
                   

@@ -896,7 +896,7 @@ function Twitter() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main className="py-8">
+      <main>
         {/* Header with back button */}
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">

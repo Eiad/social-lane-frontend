@@ -30,17 +30,30 @@ export default async function handler(req, res) {
       
       // Ensure all accounts have the required fields
       const validatedAccounts = accountsArray
-        .map(account => ({
-          accessToken: account?.accessToken || '',
-          openId: account?.openId || '',
-          refreshToken: account?.refreshToken || '',
-          username: account?.username || account?.userInfo?.username || `TikTok Account ${account?.index || 0}`,
-          displayName: account?.displayName || account?.userInfo?.display_name || '',
-          avatarUrl: account?.avatarUrl || account?.userInfo?.avatar_url || '',
-          avatarUrl100: account?.avatarUrl100 || account?.userInfo?.avatar_url_100 || '',
-          index: account?.index || 0,
-          userInfo: account?.userInfo || null
-        }))
+        .map(account => {
+          // Log what we're receiving for debugging
+          console.log('[USER TIKTOK] Account to validate:', {
+            hasUserInfo: !!account?.userInfo,
+            hasAvatarUrl: !!account?.avatarUrl,
+            hasAvatarUrl100: !!account?.avatarUrl100,
+            hasUserInfoAvatarUrl100: !!account?.userInfo?.avatarUrl100,
+            hasUserInfoAvatar_url_100: !!account?.userInfo?.avatar_url_100
+          });
+          
+          return {
+            accessToken: account?.accessToken || '',
+            openId: account?.openId || '',
+            refreshToken: account?.refreshToken || '',
+            username: account?.username || account?.userInfo?.username || `TikTok Account ${account?.index || 0}`,
+            displayName: account?.displayName || account?.userInfo?.display_name || '',
+            // Keep original avatarUrl
+            avatarUrl: account?.avatarUrl || account?.userInfo?.avatar_url || '',
+            // Prioritize and make sure avatarUrl100 is correctly set
+            avatarUrl100: account?.avatarUrl100 || account?.userInfo?.avatarUrl100 || account?.userInfo?.avatar_url_100 || '',
+            index: account?.index || 0,
+            userInfo: account?.userInfo || null
+          };
+        })
         .filter(account => account.accessToken && account.openId);
       
       if (validatedAccounts.length === 0) {

@@ -115,25 +115,30 @@ export default async function handler(req, res) {
             const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
             const uploadUrl = `${backendUrl}/upload`;
             
-            // Create a Node.js compatible FormData
-            const formData = new FormData();
-            // Append the file directly from the file path
-            formData.append('file', fs.createReadStream(tempFilePath), {
-              filename: newFilename,
-              contentType: file.mimetype || 'video/mp4'
-            });
+            // Get file stats to calculate size
+            const fileStats = fs.statSync(tempFilePath);
+            const fileSize = fileStats.size;
+            
+            // For large files, we'll use streaming directly
+            console.log(`[UPLOAD API] File size: ${(fileSize / (1024 * 1024)).toFixed(2)} MB`);
+            
+            // Create read stream from file
+            const fileStream = fs.createReadStream(tempFilePath);
             
             // Use axios with retry logic and increased timeout
             const uploadResponse = await axiosWithRetry({
               method: 'post',
               url: uploadUrl,
-              data: formData,
+              data: fileStream, // Stream the file directly
               headers: {
-                ...formData.getHeaders()
+                'Content-Type': file.mimetype || 'video/mp4',
+                'Content-Length': fileSize,
+                'X-File-Name': newFilename
               },
               maxContentLength: Infinity,
               maxBodyLength: Infinity,
-              timeout: 180000, // 3 minutes timeout
+              timeout: 600000, // 10 minutes timeout for large files
+              decompress: true, // Allow compressed responses
             });
             
             console.log('[UPLOAD API] R2 upload response:', uploadResponse?.data);
