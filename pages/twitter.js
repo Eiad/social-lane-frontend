@@ -5,6 +5,7 @@ import Link from 'next/link';
 import axios from 'axios';
 import ProtectedRoute from '../src/components/ProtectedRoute';
 import styles from '../styles/Twitter.module.css';
+import { useLoader } from '../src/context/LoaderContext';
 
 // API base URL
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
@@ -52,6 +53,8 @@ function Twitter() {
   const [caption, setCaption] = useState('');
   const [postError, setPostError] = useState(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const { showLoader, hideLoader } = useLoader(); // Add useLoader hook
+  const [connectedAccounts, setConnectedAccounts] = useState([]);
 
   // Define the upload process steps
   const uploadSteps = [
@@ -199,6 +202,9 @@ function Twitter() {
       setIsLoading(true);
       setAuthError(null);
       
+      // Show global loader
+      showLoader('Connecting to Twitter...');
+      
       // Get the auth URL from the backend
       console.log('Requesting Twitter auth URL from:', `${apiUrl}/twitter/auth`);
       
@@ -237,6 +243,7 @@ function Twitter() {
       setAuthError(error?.message || 'Network error. Please check your connection and try again.');
       setIsLoading(false);
       window.showToast?.error?.(error?.message || 'Error connecting to Twitter');
+      hideLoader(); // Hide loader on error
     }
   };
 
@@ -494,110 +501,123 @@ function Twitter() {
     }
   };
 
-  // Helper function to fetch Twitter accounts from the database if they're not in localStorage
+  // Refresh Twitter accounts from backend
   const fetchUserTwitterAccounts = async () => {
     try {
       setIsFetchingUserInfo(true);
+      showLoader('Loading your Twitter accounts...'); // Show loader when fetching
       
       // Get current user ID from localStorage
-      const uid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
+      const uid = localStorage?.getItem('firebaseUid');
       
       if (!uid) {
-        console.error('No user ID found, cannot fetch Twitter accounts');
+        console.error('No Firebase UID found, cannot fetch Twitter accounts');
+        window.showToast?.error?.('Cannot retrieve accounts: Missing user ID');
         setIsFetchingUserInfo(false);
-        return null;
+        hideLoader(); // Hide loader if no user ID
+        return [];
       }
       
       console.log(`Fetching Twitter accounts for user ${uid} from database`);
       
-      // Call the backend API to get user data including social media accounts
-      const response = await fetch(`/api/users/${uid}`);
+      // Call the API with retry logic
+      let response;
+      let lastError;
+      const MAX_RETRIES = 3;
       
-      if (!response.ok) {
-        throw new Error(`Error fetching user data: ${response.status}`);
-      }
-      
-      const userData = await response.json();
-      
-      console.log('User data fetched:', userData);
-      
-      // Process the user data and store Twitter accounts
-      if (userData?.data) {
-        const twitterData = userData.data.providerData && userData.data.providerData.twitter;
-        
-        if (twitterData) {
-          console.log('Found Twitter data in user data:', twitterData);
-          
-          // Initialize socialMediaData structure
-        let socialMediaData = {};
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            const existingData = localStorage.getItem('socialMediaData');
-          if (existingData) {
-            socialMediaData = JSON.parse(existingData);
-          }
-          } catch (error) {
-            console.error('Error parsing existing socialMediaData:', error);
-          }
+          console.log(`Twitter fetch attempt ${attempt}/${MAX_RETRIES}`);
           
-          // Process Twitter accounts
-          const twitterAccounts = Array.isArray(twitterData) ? twitterData : [twitterData];
+          // Setup timeout handling
+          const fetchTimeout = 15000; // 15 seconds
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), fetchTimeout);
           
-          console.log(`Processing ${twitterAccounts.length} Twitter accounts from database`);
+          // Add cache busting
+          const cacheBuster = `nocache=${Date.now()}`;
           
-          // Map accounts to standardized format - without tokens
-          const formattedAccounts = twitterAccounts
-            .filter(account => account)
-            .map(account => ({
-              userId: account.userId || account.user_id,
-              username: account.username || account.screen_name || '',
-              name: account.name || account.displayName || account.username || 'Twitter User',
-              profileImageUrl: account.profileImageUrl || account.profile_image_url || ''
-            }))
-            .filter(account => account.userId); // Only filter by userId now
+          response = await fetch(`${apiUrl}/users/${uid}/social/twitter?${cacheBuster}`, {
+            signal: controller.signal,
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate'
+            }
+          });
           
-          console.log('Formatted Twitter accounts:', formattedAccounts.map(acc => ({
-            userId: acc.userId,
-            username: acc.username,
-            name: acc.name,
-            hasProfileImage: !!acc.profileImageUrl
-          })));
+          clearTimeout(timeoutId);
           
-          if (formattedAccounts.length > 0) {
-            // Store in socialMediaData structure
-            socialMediaData.twitter = formattedAccounts;
-            localStorage.setItem('socialMediaData', JSON.stringify(socialMediaData));
-            localStorage.setItem('socialMediaDataUpdated', Date.now().toString());
-            
-            console.log('Stored Twitter accounts in socialMediaData:', formattedAccounts);
-            window.showToast?.success?.(`${formattedAccounts.length} Twitter account(s) loaded successfully`);
-            
-            // Update UI state
-            setAuthSuccess(true);
-            setSelectedUsername(formattedAccounts[0].username || 'Twitter Account');
-            setSelectedProfileImage(formattedAccounts[0].profileImageUrl || '');
-            
-            // Refresh debug info
-            
-            return formattedAccounts;
+          if (response.ok) {
+            break; // Success, exit retry loop
           } else {
-            console.warn('No valid Twitter accounts found in user data');
-            window.showToast?.warning?.('No valid Twitter accounts found in your profile');
+            throw new Error(`Failed to fetch user data (${response.status})`);
           }
-        } else {
-          console.log('No Twitter data found in user data');
-          window.showToast?.info?.('No Twitter accounts found in your profile');
+        } catch (error) {
+          lastError = error;
+          console.error(`Error fetching Twitter accounts (attempt ${attempt}):`, error);
+          
+          if (attempt < MAX_RETRIES) {
+            // Exponential backoff
+            const delay = 1000 * Math.pow(2, attempt - 1);
+            console.log(`Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
         }
-      } else {
-        console.warn('Invalid user data format received');
-        window.showToast?.warning?.('Could not retrieve your account information');
       }
-      return null;
-    } catch (error) {
-      console.error('Error loading Twitter accounts from DB:', error);
-      window.showToast?.error?.('Failed to load Twitter accounts: ' + error.message);
-      return null;
-    } finally {
+      
+      if (!response?.ok) {
+        if (lastError?.name === 'AbortError') {
+          console.error('Twitter account fetch timed out');
+          window.showToast?.error?.('Failed to load Twitter accounts: Request timed out');
+        } else {
+          window.showToast?.error?.(`Failed to load Twitter accounts: ${lastError?.message || 'Server error'}`);
+        }
+        setIsFetchingUserInfo(false);
+        hideLoader(); // Hide loader on error
+        return [];
+      }
+      
+      const data = await response.json();
+      
+      if (data?.success && data?.data?.twitter) {
+        let twitterAccounts = data.data.twitter;
+        
+        // Ensure we have an array
+        if (!Array.isArray(twitterAccounts)) {
+          twitterAccounts = [twitterAccounts];
+        }
+        
+        // Filter out invalid accounts
+        twitterAccounts = twitterAccounts.filter(account => account && account.userId);
+        
+        console.log(`Found ${twitterAccounts.length} Twitter accounts in database`);
+        
+        if (twitterAccounts.length > 0) {
+          // Save accounts to socialMediaData
+          saveTwitterAccounts(twitterAccounts);
+          
+          // Update UI
+          setAuthSuccess(true);
+          setSelectedUsername(twitterAccounts[0]?.username || 'Twitter Account');
+          setSelectedProfileImage(twitterAccounts[0]?.profileImageUrl || '');
+          setConnectedAccounts(twitterAccounts);
+          
+          window.showToast?.success?.('Successfully loaded Twitter accounts');
+          setIsFetchingUserInfo(false);
+          hideLoader(); // Hide loader when successful
+          return twitterAccounts;
+        }
+      }
+      
+      console.log('No Twitter accounts found in database');
       setIsFetchingUserInfo(false);
+      hideLoader(); // Hide loader when finished
+      return [];
+    } catch (error) {
+      console.error('Error fetching Twitter accounts:', error);
+      window.showToast?.error?.('Failed to load Twitter accounts: ' + (error?.message || 'Unknown error'));
+      setIsFetchingUserInfo(false);
+      hideLoader(); // Hide loader on error
+      return [];
     }
   };
 
@@ -614,6 +634,7 @@ function Twitter() {
         setAuthSuccess(true);
         setSelectedUsername(account.username || 'Twitter Account');
         setSelectedProfileImage(account.profileImageUrl || '');
+        setConnectedAccounts(twitterAccounts);
         console.log('Twitter account detected, initializing UI with:', account.username);
       } else {
         // No accounts in localStorage, try to load from database
@@ -625,6 +646,7 @@ function Twitter() {
           setAuthSuccess(false);
           setSelectedUsername('Twitter Account');
           setSelectedProfileImage('');
+          setConnectedAccounts([]);
           console.log('No Twitter accounts found in database either');
         }
       }
@@ -663,6 +685,7 @@ function Twitter() {
         setAuthError(decodeURIComponent(error));
         window.showToast?.error?.(decodeURIComponent(error));
         router.replace('/twitter', undefined, { shallow: true });
+        hideLoader(); // Hide loader on error
         return;
       }
       
@@ -671,6 +694,7 @@ function Twitter() {
       if (oauth_token && oauth_verifier) {
         console.log('Twitter OAuth callback detected. The backend will process this.');
         setIsLoading(true);
+        showLoader('Processing Twitter authentication...'); // Show loader during OAuth callback
         return;
       }
       
@@ -681,6 +705,7 @@ function Twitter() {
           console.log('Twitter auth data detected in URL, processing credentials');
           setIsLoading(true);
           setAuthError(null);
+          showLoader('Finalizing Twitter connection...'); // Show loader when processing tokens
           
           // Create account object from URL parameters
           const twitterAccount = {
@@ -759,6 +784,7 @@ function Twitter() {
           setIsLoading(false);
           // Clear auth timestamp
           localStorage.removeItem('twitterAuthTimestamp');
+          hideLoader(); // Hide loader when finished
         }
       }
     };
@@ -778,6 +804,7 @@ function Twitter() {
       }
       
       setIsDisconnecting(true);
+      showLoader('Disconnecting Twitter account...'); // Show loader when disconnecting
       
       console.log('Disconnecting Twitter account:', accountToRemove.username || accountToRemove.userId);
       
@@ -786,6 +813,7 @@ function Twitter() {
       if (twitterAccounts.length === 0) {
         console.warn('No Twitter accounts found in socialMediaData');
         window.showToast?.warning?.('No Twitter accounts found');
+        hideLoader(); // Hide loader if no accounts found
         return;
       }
       
@@ -881,6 +909,7 @@ function Twitter() {
       window.showToast?.error?.('Error disconnecting Twitter account: ' + error.message);
     } finally {
       setIsDisconnecting(false);
+      hideLoader(); // Hide loader when finished
     }
   };
 

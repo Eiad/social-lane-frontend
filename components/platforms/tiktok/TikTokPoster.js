@@ -14,48 +14,73 @@ const TikTokPoster = {
   }) => {
     console.log(`Posting to ${selectedTiktokAccounts.length} TikTok accounts...`);
     
-    try {
-      // Create TikTok payload - updated for new security model
-      // We don't send tokens from frontend anymore, just accountIds
-      const tiktokPayload = {
-        userId: firebaseUid,
-        videoUrl: videoUrl,
-        caption: caption,
-        accounts: selectedTiktokAccounts.map(account => ({
-          accountId: account.accountId,
-          username: account.username || '',
-          displayName: account.displayName || account.userInfo?.display_name || account.username || ''
-        })),
-        scheduled: isScheduled,
-        scheduledAt: isScheduled ? scheduledAt.toISOString() : null
-      };
+    const API_BASE_URL = '/api';
+    let tiktokResults = [];
+    
+    // Enhanced fetch with timeout and retry
+    const fetchWithTimeoutAndRetry = async (url, options, timeout = 300000, maxRetries = 3) => {
+      let lastError;
       
-      console.log('TikTok payload:', {
-        videoUrl: tiktokPayload.videoUrl,
-        caption: tiktokPayload.caption,
-        accounts: `${tiktokPayload.accounts.length} accounts`
-      });
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        try {
+          console.log(`TikTok API attempt ${attempt}/${maxRetries}`);
+          const response = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          return response;
+        } catch (error) {
+          clearTimeout(timeoutId);
+          lastError = error;
+          console.error(`TikTok API attempt ${attempt} failed:`, error?.message || error);
+          
+          if (attempt < maxRetries) {
+            const delay = 2000 * Math.pow(2, attempt - 1);
+            console.log(`Retrying in ${delay/1000} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
+      }
       
-      let tiktokResults = [];
+      throw lastError || new Error('All retry attempts failed');
+    };
+    
+    if (isScheduled && scheduledAt) {
+      // Handle scheduled posts
+      console.log('Scheduling TikTok post for', scheduledAt);
       
-      if (isScheduled) {
-        // Handle scheduled posts
-        console.log('Scheduling TikTok post for', tiktokPayload.scheduledAt);
-        const scheduleResponse = await fetch(`${API_BASE_URL}/schedules`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
+      try {
+        // Use the enhanced fetch with timeout and retry for scheduling
+        const scheduleResponse = await fetchWithTimeoutAndRetry(
+          `${API_BASE_URL}/schedules`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+              'X-Timestamp': Date.now(), // Add timestamp to prevent caching
+            },
+            body: JSON.stringify({
+              userId: firebaseUid,
+              video_url: videoUrl,
+              post_description: caption,
+              platforms: ['tiktok'],
+              tiktok_accounts: selectedTiktokAccounts.map(account => ({
+                accountId: account.accountId || account.openId,
+                username: account.username || '',
+                displayName: account.displayName || ''
+              })),
+              isScheduled: true,
+              scheduledDate: scheduledAt.toISOString()
+            }),
           },
-          body: JSON.stringify({
-            userId: firebaseUid,
-            video_url: tiktokPayload.videoUrl,
-            post_description: tiktokPayload.caption,
-            platforms: ['tiktok'],
-            tiktok_accounts: tiktokPayload.accounts,
-            isScheduled: true,
-            scheduledDate: tiktokPayload.scheduledAt
-          }),
-        });
+          180000, // 3 minute timeout for scheduling
+          3       // 3 retry attempts
+        );
         
         let scheduleData;
         let scheduleError = null;
@@ -98,49 +123,67 @@ const TikTokPoster = {
             message: 'Post scheduled successfully'
           }));
         } else {
-          throw new Error(scheduleData?.error || scheduleError || 'Failed to schedule TikTok post');
+          // Handle specific error codes for better user feedback
+          if (scheduleResponse?.status === 400 && scheduleData?.error?.includes('validate')) {
+            throw new Error('Invalid scheduling data: Please check your caption and try again');
+          } else if (scheduleResponse?.status === 401) {
+            throw new Error('Authentication failed: Please reconnect your TikTok account');
+          } else if (scheduleResponse?.status === 413) {
+            throw new Error('Video file is too large: Try compressing the video or reducing its duration');
+          } else if (scheduleResponse?.status === 429) {
+            throw new Error('Too many requests: Please wait a few minutes and try again');
+          } else if (scheduleResponse?.status === 502 || scheduleResponse?.status === 504) {
+            throw new Error('Server gateway timeout: The video may be too large or the server is busy, please try again');
+          } else {
+            throw new Error(scheduleData?.error || scheduleError || 'Failed to schedule TikTok post');
+          }
         }
-      } else {
-        // Handle immediate posts
-        console.log('Sending immediate TikTok post with payload:', {
-          videoUrl: tiktokPayload.videoUrl,
-          caption: tiktokPayload.caption,
-          accountsCount: tiktokPayload.accounts.length,
-          firstAccount: tiktokPayload.accounts[0] ? {
-            hasAccountId: !!tiktokPayload.accounts[0].accountId
-          } : 'no accounts'
-        });
+      } catch (error) {
+        console.error('Error scheduling TikTok post:', error);
         
-        // Determine which endpoint to use based on number of accounts
-        const endpoint = tiktokPayload.accounts.length > 1 
-          ? '/api/tiktok/post-multi'  // Use multi-account endpoint
-          : '/api/tiktok/post-video'; // Use single account endpoint
+        // Generate detailed error messages for each account
+        tiktokResults = selectedTiktokAccounts.map(account => ({
+          displayName: account?.displayName || account?.userInfo?.display_name || account?.username || '',
+          username: account?.username || '', 
+          success: false, 
+          error: error?.message || 'Failed to schedule post'
+        }));
         
-        const postPayload = {
-          videoUrl: tiktokPayload.videoUrl,
-          caption: tiktokPayload.caption,
-          userId: tiktokPayload.userId
-        };
-        
-        // If posting to multiple accounts, include the accounts array
-        if (tiktokPayload.accounts.length > 1) {
-          postPayload.accounts = tiktokPayload.accounts;
-        } 
-        // For single account, we can include accountId for specific selection
-        else if (tiktokPayload.accounts.length === 1) {
-          postPayload.accountId = tiktokPayload.accounts[0].accountId;
-        }
-        
-        console.log(`Using ${tiktokPayload.accounts.length > 1 ? 'multi-account' : 'single-account'} endpoint: ${endpoint}`);
-        
-        // Call our frontend API route instead of the backend directly to avoid CORS issues
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
+        // Still throw the error to be handled by the main component
+        throw error;
+      }
+    } else {
+      // Handle immediate posts to multiple TikTok accounts
+      console.log('Sending immediate TikTok post for multiple accounts');
+      
+      // Create TikTok payload
+      const tiktokPayload = {
+        userId: firebaseUid,
+        videoUrl: videoUrl,
+        caption: caption,
+        accounts: selectedTiktokAccounts.map(account => ({
+          accountId: account.accountId || account.openId,
+          username: account.username || '',
+          displayName: account.displayName || ''
+        }))
+      };
+      
+      try {
+        // Use enhanced fetch with longer timeout and retry logic
+        const response = await fetchWithTimeoutAndRetry(
+          `${API_BASE_URL}/tiktok/post-multi`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache',
+              'X-Timestamp': Date.now(), // Add timestamp to prevent caching
+            },
+            body: JSON.stringify(tiktokPayload),
           },
-          body: JSON.stringify(postPayload),
-        });
+          300000, // 5 minute timeout for multiple TikTok posts
+          3       // 3 retry attempts
+        );
         
         let data;
         let responseError = null;
@@ -199,8 +242,6 @@ const TikTokPoster = {
             }));
           }
         } else {
-          let errorMessage = data?.error || responseError || 'Failed to post to TikTok';
-          
           // Special case: if we get a 502 Bad Gateway error but the API actually processed the request
           if (response?.status === 502 && (
             data?.message?.includes('posted successfully') || 
@@ -215,23 +256,39 @@ const TikTokPoster = {
               message: 'Post likely succeeded but returned ambiguous response'
             }));
           } else {
-            throw new Error(errorMessage);
+            // Handle specific error codes for better user feedback
+            if (response?.status === 400 && data?.error?.includes('validate')) {
+              throw new Error('Invalid post data: Please check your caption and try again');
+            } else if (response?.status === 401) {
+              throw new Error('Authentication failed: Please reconnect your TikTok account');
+            } else if (response?.status === 413) {
+              throw new Error('Video file is too large: Try compressing the video or reducing its duration');
+            } else if (response?.status === 429) {
+              throw new Error('Too many requests: Please wait a few minutes and try again');
+            } else if (response?.status === 502 || response?.status === 504) {
+              throw new Error('Server gateway timeout: The video may be too large or the server is busy, please try again');
+            } else {
+              throw new Error(data?.error || responseError || 'Failed to post to TikTok');
+            }
           }
         }
+      } catch (error) {
+        console.error('Error posting to TikTok:', error);
+        
+        // Generate detailed error messages for each account
+        tiktokResults = selectedTiktokAccounts.map(account => ({
+          displayName: account?.displayName || account?.userInfo?.display_name || account?.username || '',
+          username: account?.username || '', 
+          success: false, 
+          error: error?.message || 'Unknown error'
+        }));
+        
+        // Still throw the error to be handled by the main component
+        throw error;
       }
-      
-      return { success: true, results: tiktokResults };
-    } catch (error) {
-      console.error('Error posting to TikTok:', error);
-      const errorResults = selectedTiktokAccounts.map(account => ({
-        displayName: account?.displayName || account?.userInfo?.display_name || account?.username || '',
-        username: account?.username || '', 
-        success: false, 
-        error: error?.message || 'Unknown error'
-      }));
-      
-      return { success: false, results: errorResults, error: error?.message };
     }
+    
+    return { results: tiktokResults };
   },
   
   // Load TikTok accounts from localStorage

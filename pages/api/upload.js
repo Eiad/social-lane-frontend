@@ -3,6 +3,8 @@ import path from 'path';
 import { IncomingForm } from 'formidable';
 import axios from 'axios';
 import FormData from 'form-data';
+import http from 'http';
+import https from 'https';
 
 // Disable the default body parser to handle file uploads
 export const config = {
@@ -139,6 +141,14 @@ export default async function handler(req, res) {
               maxBodyLength: Infinity,
               timeout: 600000, // 10 minutes timeout for large files
               decompress: true, // Allow compressed responses
+              // Add these configurations to improve streaming behavior
+              maxRedirects: 0, // Avoid redirects which can break streams
+              validateStatus: status => status < 500, // Accept all non-server error responses
+              // Don't transform request data - important for streams
+              transformRequest: [(data) => data],
+              // Increase buffer size for better performance with large files
+              httpAgent: new http.Agent({ keepAlive: true, maxSockets: 1 }),
+              httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 1 }),
             });
             
             console.log('[UPLOAD API] R2 upload response:', uploadResponse?.data);

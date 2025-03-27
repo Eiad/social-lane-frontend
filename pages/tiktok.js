@@ -14,7 +14,6 @@ const API_BASE_URL =
     ? process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat' 
     : 'https://sociallane-backend.mindio.chat';
 
-
 export default function TikTok() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,6 +24,17 @@ export default function TikTok() {
   const [connectedAccounts, setConnectedAccounts] = useState([]);
   const [isHovering, setIsHovering] = useState(null);
   const { showLoader, hideLoader } = useLoader();
+
+  // Function to handle localStorage storage events
+  const handleStorageUpdate = useCallback(() => {
+    const updated = localStorage?.getItem('socialMediaDataUpdated');
+    if (updated) {
+      console.log('Social media data updated, refreshing TikTok accounts');
+      const refreshedAccounts = getTikTokAccounts();
+      setConnectedAccounts(refreshedAccounts);
+      setIsAuthenticated(refreshedAccounts.length > 0);
+    }
+  }, []);
 
   // Get TikTok accounts from socialMediaData
   const getTikTokAccounts = () => {
@@ -161,17 +171,76 @@ export default function TikTok() {
       
       console.log(`Fetching TikTok accounts for user ${uid} from database`);
       
-      // Call the backend API to get user data including social media accounts
-      const response = await fetch(`/api/users/${uid}`);
+      // First check if we have cached accounts in localStorage
+      const cachedAccounts = getTikTokAccounts();
+      let hasFetchError = false;
       
-      if (!response.ok) {
-        throw new Error(`Error fetching user data: ${response.status}`);
+      // Call the backend API to get user data including social media accounts
+      // Add retry logic with exponential backoff
+      let response;
+      let lastError;
+      const MAX_RETRIES = 3;
+      
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          console.log(`Attempt ${attempt}/${MAX_RETRIES} to fetch user data`);
+          
+          // Increase timeout with each retry
+          const fetchTimeout = 30000 * attempt; // 30s, 60s, 90s
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), fetchTimeout);
+          
+          // Add a cache-busting timestamp parameter
+          const cacheBuster = `no-cache=${Date.now()}`;
+          
+          response = await fetch(`/api/users/${uid}?${cacheBuster}`, {
+            signal: controller.signal,
+            // Add cache-busting headers to ensure fresh results
+            headers: {
+              'Cache-Control': 'no-cache, no-store',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            throw new Error(`Error fetching user data: ${response.status}`);
+          }
+          
+          // If successful, break out of retry loop
+          break;
+        } catch (error) {
+          lastError = error;
+          console.error(`Attempt ${attempt} failed:`, error?.message || error);
+          
+          // If we've exhausted all retries, set error flag but continue using cached data
+          if (attempt === MAX_RETRIES) {
+            hasFetchError = true;
+            // Don't throw - we'll handle this gracefully by using cached data
+          } else {
+            // Otherwise, wait with exponential backoff before retrying
+            const delay = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s, etc.
+            console.log(`Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
       }
       
-      const userData = await response.json();
+      // If we have response data from backend, use it
+      let userData = null;
+      if (response) {
+        try {
+          userData = await response.json();
+          console.log('User data fetched:', userData);
+        } catch (parseError) {
+          console.error('Error parsing user data JSON:', parseError);
+          hasFetchError = true;
+        }
+      }
       
-      console.log('User data fetched:', userData);
-      
+      // If we successfully fetched data from backend, update localStorage and UI
       if (userData?.success && userData?.data?.providerData?.tiktok) {
         // Found TikTok accounts in the user data
         const tiktokAccounts = userData.data.providerData.tiktok;
@@ -200,21 +269,43 @@ export default function TikTok() {
           };
         }) : [];
         
-        // Save the accounts to localStorage
+        // Clear existing accounts from localStorage before saving fresh ones
+        localStorage.removeItem('socialMediaData');
+        
+        // Save the fresh accounts
         saveTikTokAccounts(formattedAccounts);
         
-        // Update UI state
+        // Force UI update immediately - don't use setTimeout
         setConnectedAccounts(formattedAccounts);
+        setIsAuthenticated(formattedAccounts.length > 0);
+        console.log('TikTok accounts loaded from database and saved to localStorage');
+        
+        // Dispatch a storage event to notify other components
+        window.dispatchEvent(new Event('storage'));
+      } else if (hasFetchError && cachedAccounts && cachedAccounts.length > 0) {
+        // If there was an error fetching from backend but we have cached data, use it
+        console.log('Using cached TikTok accounts from localStorage due to backend fetch error');
+        setConnectedAccounts([...cachedAccounts]);
         setIsAuthenticated(true);
         
-        console.log('TikTok accounts loaded from database and saved to localStorage');
+        // Show a warning toast to the user
+        window.showToast?.warning?.('Using cached TikTok account data. Some information may be outdated.');
+      } else if (hasFetchError) {
+        // If there was an error and no cached data
+        console.log('No TikTok accounts found in user data or localStorage');
+        setConnectedAccounts([]);
+        setIsAuthenticated(false);
+        
+        throw new Error('Failed to load TikTok accounts from server and no cached data available');
       } else {
+        // No error but no accounts found
         console.log('No TikTok accounts found in user data');
         setConnectedAccounts([]);
         setIsAuthenticated(false);
       }
     } catch (error) {
       console.error('Error fetching user TikTok accounts:', error);
+      window.showToast?.error?.('Failed to load your TikTok accounts. Please refresh and try again.');
     } finally {
       hideLoader();
     }
@@ -231,32 +322,107 @@ export default function TikTok() {
     try {
       console.log(`Saving TikTok account for user ${firebaseUid} to database`);
       
-      const response = await fetch(`/api/users/${firebaseUid}/social/tiktok`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(accountData)
-      });
+      // Add retry logic with exponential backoff
+      let response;
+      let lastError;
+      const MAX_RETRIES = 3;
       
-      if (!response?.ok) {
-        const errorText = await response.text();
-        console.error('Server error saving TikTok account:', response.status, errorText);
-        throw new Error(`Failed to save TikTok account: ${response?.status}`);
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          console.log(`Attempt ${attempt}/${MAX_RETRIES} to save TikTok account`);
+          
+          // Create a timeout promise
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Request timeout')), 30000 * attempt);
+          });
+          
+          // Create the fetch promise
+          const fetchPromise = fetch(`/api/users/${firebaseUid}/social/tiktok`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(accountData)
+          });
+          
+          // Race them
+          response = await Promise.race([fetchPromise, timeoutPromise]);
+          
+          if (!response?.ok) {
+            const errorText = await response.text();
+            console.error('Server error saving TikTok account:', response.status, errorText);
+            throw new Error(`Failed to save TikTok account: ${response?.status}`);
+          }
+          
+          // If successful, break out of retry loop
+          break;
+        } catch (error) {
+          lastError = error;
+          console.error(`Attempt ${attempt} failed:`, error?.message || error);
+          
+          // If we've exhausted all retries, throw the error to be caught by the outer catch
+          if (attempt === MAX_RETRIES) {
+            throw error;
+          }
+          
+          // Otherwise, wait with exponential backoff before retrying
+          const delay = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s, etc.
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
       
       const data = await response?.json();
       console.log('Successfully saved TikTok account to database:', data);
       
-      // Refresh accounts from backend
+      // Add a delay before fetching accounts to give the backend time to fully process
+      console.log('Waiting 2 seconds before fetching updated accounts...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Save account info to localStorage first before fetching from backend
+      // This ensures we at least have the basic account data in case the fetch fails
+      try {
+        const localAccounts = getTikTokAccounts() || [];
+        const newAccount = {
+          accountId: accountData.openId,
+          username: accountData.username || 'TikTok User',
+          displayName: accountData.displayName || '',
+          avatarUrl: accountData.avatarUrl || '',
+          avatarUrl100: accountData.avatarUrl100 || ''
+        };
+        
+        // Add new account if not exists
+        if (!localAccounts.some(acc => acc.accountId === newAccount.accountId)) {
+          localAccounts.push(newAccount);
+          saveTikTokAccounts(localAccounts);
+          console.log('Added new TikTok account to localStorage as a fallback');
+        }
+        
+        // Update UI state with latest data
+        setConnectedAccounts(localAccounts);
+        setIsAuthenticated(true);
+      } catch (localStorageError) {
+        console.error('Error saving to localStorage:', localStorageError);
+      }
+      
+      // Now try to fetch full accounts from backend
       await fetchUserAccounts();
     } catch (error) {
       console.error('Error saving TikTok account to database:', error);
+      
+      // Even if the save fails, try to use any local data we might have
+      const localAccounts = getTikTokAccounts();
+      if (localAccounts?.length > 0) {
+        setConnectedAccounts(localAccounts);
+        setIsAuthenticated(true);
+      }
+      
       throw error;
     }
   };
 
-  // Check for existing accounts in localStorage on component mount
+  // Then remove the duplicate definition inside the first useEffect
+  // Modify the first useEffect to just use the function:
   useEffect(() => {
     setApiUrl(API_BASE_URL);
     const storedAccounts = getTikTokAccounts();
@@ -274,20 +440,52 @@ export default function TikTok() {
     }
     
     // Listen for possible social media data updates from other components
-    const handleStorageUpdate = () => {
-      const updated = localStorage?.getItem('socialMediaDataUpdated');
-      if (updated) {
-        console.log('Social media data updated, refreshing TikTok accounts');
-        const refreshedAccounts = getTikTokAccounts();
-        setConnectedAccounts(refreshedAccounts);
-        setIsAuthenticated(refreshedAccounts.length > 0);
-      }
-    };
-    
     window.addEventListener('storage', handleStorageUpdate);
     return () => window.removeEventListener('storage', handleStorageUpdate);
+  }, [handleStorageUpdate]);
+
+  useEffect(() => {
+    // Get user ID from localStorage
+    const uid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
+    if (!uid) {
+      console.error('No user ID found');
+      return;
+    }
+    
+    setUserId(uid);
+    
+    // Check if there's a connection success parameter in the URL
+    // This will detect when we return from the TikTok OAuth flow
+    const urlParams = new URLSearchParams(window.location.search);
+    const authSuccess = urlParams.get('auth_success');
+    const connectionError = urlParams.get('connection_error');
+    const hasTokenParams = urlParams.has('access_token') && urlParams.has('open_id');
+    
+    if (authSuccess === 'true' || hasTokenParams) {
+      console.log('Detected successful TikTok account connection, refreshing accounts list');
+      window.showToast?.success?.('TikTok account connected successfully');
+      
+      // Clear the auth_success parameter from URL for cleaner UX if no token params
+      if (authSuccess === 'true' && !hasTokenParams) {
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      }
+      
+      // Don't remove token params here since they are handled in the token-specific useEffect
+      
+      // Force a fresh fetch of accounts from the backend
+      fetchUserAccounts();
+    } else if (connectionError) {
+      console.error('TikTok connection error:', connectionError);
+      window.showToast?.error?.(`Failed to connect TikTok account: ${connectionError}`);
+      
+      // Clear the error parameter from URL for cleaner UX
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
   }, []);
 
+  // Add back the token parsing logic to the component to handle direct callback parameters
   useEffect(() => {
     // Check for token in URL (new flow)
     const { access_token, open_id, user_info, error: urlError } = router?.query || {};
@@ -370,42 +568,21 @@ export default function TikTok() {
     }
   }, [router?.query]);
 
+  // Keep the existing handleConnect function with direct auth URL navigation
   const handleConnect = async () => {
     try {
       showLoader('Connecting to TikTok...');
       
       // Make sure we're using the environment variable
-      const url = `${apiUrl}/tiktok/auth`;
+      const authUrl = `${apiUrl}/tiktok/auth`;
       
       // Debug logging
-      console.log('Connecting to TikTok with URL:', url);
+      console.log('Redirecting to TikTok auth URL:', authUrl);
       
-      // Try with fetch first
-      try {
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-        });
-        
-        if (!response?.ok) {
-          throw new Error(`HTTP error! Status: ${response?.status}`);
-        }
-        
-        const data = await response?.json?.();
-        
-        if (data?.authUrl) {
-          console.log('Redirecting to auth URL:', data.authUrl);
-          window.location.href = data.authUrl;
-          return;
-        }
-      } catch (fetchError) {
-        console.error('Fetch error:', fetchError);
-        // If fetch fails, try direct redirect as fallback
-        window.location.href = `${apiUrl}/tiktok/auth`;
-      }
+      // Directly navigate to the auth endpoint instead of trying to fetch it
+      // This avoids CORS issues with the redirect to TikTok
+      window.location.href = authUrl;
+      
     } catch (error) {
       console.error('Detailed auth error:', error);
       window.showToast?.error?.('Failed to initiate TikTok authentication: ' + (error?.message || 'Unknown error'));
@@ -413,6 +590,7 @@ export default function TikTok() {
     }
   };
 
+  // Enhance the handleDisconnect function for immediate UI feedback and proper state updates
   const handleDisconnect = async (account) => {
     if (!account?.accountId) {
       console.error('Cannot disconnect account: Missing account ID');
@@ -430,6 +608,13 @@ export default function TikTok() {
       
       console.log(`Disconnecting TikTok account ${account.accountId} for user ${firebaseUid}`);
       
+      // Immediately update UI before API call to provide a responsive feel
+      const updatedAccounts = connectedAccounts.filter(a => a.accountId !== account.accountId);
+      setConnectedAccounts([...updatedAccounts]); // Force a new array reference
+      if (updatedAccounts.length === 0) {
+        setIsAuthenticated(false);
+      }
+      
       // Call API to disconnect account
       const response = await fetch(`/api/users/${firebaseUid}/social/tiktok/${account.accountId}`, {
         method: 'DELETE',
@@ -441,20 +626,35 @@ export default function TikTok() {
       if (!response?.ok) {
         const errorText = await response?.text?.() || '';
         console.error('Server error disconnecting TikTok account:', response?.status, errorText);
+        
+        // Restore original accounts if API call fails
+        setConnectedAccounts([...connectedAccounts]); // Force a new array reference
+        if (connectedAccounts.length > 0) {
+          setIsAuthenticated(true);
+        }
+        
         throw new Error(`Failed to disconnect TikTok account: ${response?.status}`);
       }
       
       // Remove account from localStorage
       const accounts = getTikTokAccounts() || [];
-      const updatedAccounts = accounts.filter(a => a?.accountId !== account?.accountId);
-      saveTikTokAccounts(updatedAccounts);
+      const filteredAccounts = accounts.filter(a => a?.accountId !== account?.accountId);
       
-      // Update state
-      setConnectedAccounts(updatedAccounts);
-      if (updatedAccounts.length === 0) {
-        setIsAuthenticated(false);
-      }
+      // Clear and re-create the social media data to ensure a fresh state
+      localStorage.removeItem('socialMediaData');
+      saveTikTokAccounts(filteredAccounts);
       
+      // Set a flag to indicate the accounts were updated
+      localStorage.setItem('accountsUpdated', Date.now().toString());
+      
+      // Force refreshing the state with the new data
+      setConnectedAccounts([...filteredAccounts]);
+      setIsAuthenticated(filteredAccounts.length > 0);
+      
+      // Trigger a localStorage update event to notify other components
+      window.dispatchEvent(new Event('storage'));
+      
+      console.log('TikTok account disconnected successfully. Remaining accounts:', updatedAccounts.length);
       window.showToast?.success?.('Successfully disconnected TikTok account');
     } catch (error) {
       console.error('Error disconnecting TikTok account:', error);
@@ -607,16 +807,26 @@ export default function TikTok() {
                       onMouseEnter={() => setIsHovering(account.accountId)}
                       onMouseLeave={() => setIsHovering(null)}>
                       <div className="flex flex-col p-4">
-                        <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-4">
-                          <img 
-                            src={profilePic} 
-                            alt={`${displayName}'s profile`} 
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = 'https://placehold.co/100x100?text=TikTok';
-                            }}
-                          />
+                        <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-4 bg-gray-100 flex items-center justify-center">
+                          {account?.avatarUrl100 || account?.avatarUrl ? (
+                            <img 
+                              src={account?.avatarUrl100 || account?.avatarUrl || 'https://placehold.co/100x100?text=TikTok'} 
+                              alt={`${displayName}'s profile`} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                // Fall back to default image if both attempts fail
+                                e.target.src = 'https://placehold.co/100x100?text=TikTok';
+                                console.log(`Failed to load avatar for ${account.accountId}, using placeholder`);
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-500">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          )}
                         </div>
                         <h3 className="text-xl font-semibold text-center mb-1">{displayName}</h3>
                         <p className="text-gray-500 text-center text-sm">@{username}</p>

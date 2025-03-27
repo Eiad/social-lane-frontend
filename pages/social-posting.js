@@ -15,6 +15,38 @@ import {
 
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
 
+// Enhanced fetch with timeout and retry utility
+const fetchWithTimeoutAndRetry = async (url, options = {}, timeout = 120000, maxRetries = 3) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+      console.log(`API attempt ${attempt}/${maxRetries} for ${url}`);
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      lastError = error;
+      console.error(`API attempt ${attempt} failed:`, error?.message || error);
+      
+      if (attempt < maxRetries) {
+        const delay = 2000 * Math.pow(2, attempt - 1); // Exponential backoff
+        console.log(`Retrying in ${delay/1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError || new Error(`All ${maxRetries} retry attempts failed`);
+};
+
 function SocialPosting() {
   // State for managing current step
   const [currentStep, setCurrentStep] = useState(1);
@@ -48,6 +80,7 @@ function SocialPosting() {
   
   // State for managing posting
   const [isPosting, setIsPosting] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
   const [uploadError, setUploadError] = useState(null);
   const [postSuccess, setPostSuccess] = useState(false);
   const [platformResults, setPlatformResults] = useState({});
@@ -401,59 +434,82 @@ function SocialPosting() {
         throw new Error('File size exceeds 500MB limit');
       }
       
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const xhr = new XMLHttpRequest();
-      
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event?.lengthComputable) {
-          const percentCompleted = Math.round((event?.loaded * 100) / (event?.total || 1));
-          setUploadProgress(percentCompleted);
-          
-          // Set processing state when upload reaches 100%
-          if (percentCompleted === 100) {
-            setIsProcessing(true);
-          }
-        }
-      });
-
-      const uploadPromise = new Promise((resolve, reject) => {
-        xhr.onload = function() {
-          if (xhr?.status >= 200 && xhr?.status < 300) {
-            try {
-              const response = JSON.parse(xhr?.responseText);
-              resolve(response);
-            } catch (e) {
-              reject(new Error('Invalid response format'));
-            }
-          } else {
-            reject(new Error(`Upload failed with status ${xhr?.status}`));
-          }
-        };
+      // For large files, use improved chunked upload with progress tracking
+      const uploadWithProgress = async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
         
-        xhr.onerror = () => reject(new Error('Network error during upload'));
-      });
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event?.lengthComputable) {
+            const percentCompleted = Math.round((event?.loaded * 100) / (event?.total || 1));
+            setUploadProgress(percentCompleted);
+            
+            // Set processing state when upload reaches 100%
+            if (percentCompleted === 100) {
+              setIsProcessing(true);
+            }
+          }
+        });
 
-      xhr.open('POST', '/api/upload', true);
-      xhr.send(formData);
+        return new Promise((resolve, reject) => {
+          xhr.onload = function() {
+            if (xhr?.status >= 200 && xhr?.status < 300) {
+              try {
+                const response = JSON.parse(xhr?.responseText);
+                resolve(response);
+              } catch (e) {
+                reject(new Error('Invalid response format'));
+              }
+            } else {
+              reject(new Error(`Upload failed with status ${xhr?.status}: ${xhr?.statusText}`));
+            }
+          };
+          
+          xhr.onerror = () => reject(new Error('Network error during upload'));
+          xhr.ontimeout = () => reject(new Error('Upload timed out'));
+          
+          // Set longer timeout for large files
+          xhr.timeout = 600000; // 10 minutes
+          
+          // Add event listener for network errors
+          xhr.addEventListener('error', () => {
+            reject(new Error('Network error occurred during upload'));
+          });
+          
+          // Set up proper headers for streaming upload
+          xhr.open('POST', '/api/upload', true);
+          
+          // Don't set content-type header, let the browser set it with the boundary
+          xhr.setRequestHeader('X-File-Name', file.name);
+          
+          // Send the form data
+          xhr.send(formData);
+        });
+      };
       
-      const data = await uploadPromise;
+      // Use the improved upload function
+      const data = await uploadWithProgress(file);
       
       if (data?.success && data?.url) {
         setVideoUrl(data?.url);
+        setIsProcessing(false); // Clear processing state
+        setIsUploading(false); // Clear uploading state
         window.showToast?.success?.('File uploaded successfully');
+        // Automatically advance to the next step
         setCurrentStep(2);
       } else {
         throw new Error('Failed to get upload URL');
       }
     } catch (error) {
-      setUploadError(error?.message || 'Error uploading file');
-      window.showToast?.error?.(error?.message || 'Error uploading file');
-    } finally {
+      console.error('Upload error:', error);
+      setUploadError(error?.message || 'Upload failed');
       setIsUploading(false);
-      setIsProcessing(false);
-      if (fileInputRef?.current) {
+      window.showToast?.error?.(error?.message || 'Upload failed');
+      
+      // Reset file input
+      if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     }
@@ -461,113 +517,128 @@ function SocialPosting() {
 
   const handlePost = async () => {
     try {
-      setIsPosting(true);
       setUploadError(null);
+      setPostSuccess(false);
       setPlatformResults({});
       
-      if (!videoUrl) {
-        throw new Error('Please upload a video first');
+      if (isScheduled) {
+        setIsScheduling(true);
+      } else {
+        setIsPosting(true);
       }
       
-      // Get Firebase UID
-      const firebaseUid = localStorage?.getItem('firebaseUid') || userId;
+      const scheduledAt = getScheduledDateTime();
+      const firebaseUid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
       
       if (!firebaseUid) {
-        throw new Error('User ID not found. Please refresh the page and try again.');
+        throw new Error('User ID not found. Please log in again.');
       }
       
-      console.log('Posting with user ID:', firebaseUid);
+      // Prepare platform results
+      const results = {};
       
-      // Validate platforms
-      if (!selectedPlatforms.includes('tiktok') && !selectedPlatforms.includes('twitter')) {
-        throw new Error('Please select at least one platform');
-      }
-      
-      // Validate that we have accounts selected for each platform
-      if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length === 0) {
-        throw new Error('Please select at least one TikTok account');
-      }
-      
-      if (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length === 0) {
-        throw new Error('Please select a Twitter account');
-      }
-      
-      // Prepare post data based on schedule
-      let scheduledAt = null;
-      if (isScheduled) {
-        if (!scheduledDate || !scheduledTime) {
-          throw new Error('Please select both date and time for scheduling');
-        }
-        
-        scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`);
-        
-        if (scheduledAt <= new Date()) {
-          throw new Error('Scheduled time must be in the future');
-        }
-        
-        console.log('Post scheduled for:', scheduledAt.toISOString());
-      }
-      
-      // Build the results object to track each platform's posting status
-      let results = {};
-      
-      // Post to TikTok if selected using the platform-specific component
+      // TikTok posting
       if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length > 0) {
-        const tiktokResult = await TikTokPoster.postToTikTok({
-          selectedTiktokAccounts,
-          videoUrl,
-          caption,
-          firebaseUid,
-          isScheduled,
-          scheduledAt
-        });
-        
-        results.tiktok = tiktokResult.results;
+        console.log('Posting to TikTok...');
+        try {
+          const tiktokResult = await TikTokPoster.postToTikTok({
+            selectedTiktokAccounts,
+            videoUrl,
+            caption,
+            firebaseUid,
+            isScheduled,
+            scheduledAt
+          });
+          
+          results.tiktok = tiktokResult.results;
+          
+          // If scheduling, show success message
+          if (isScheduled) {
+            window.showToast?.success?.(`Your post has been scheduled successfully for ${scheduledAt.toLocaleString()}`);
+          }
+        } catch (error) {
+          console.error('Error posting to TikTok:', error);
+          window.showToast?.error?.(error?.message || 'Error posting to TikTok');
+        }
       }
       
-      // Post to Twitter if selected using the platform-specific component
+      // Twitter posting
       if (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length > 0) {
-        const twitterResult = await TwitterPoster.postToTwitter({
-          selectedTwitterAccounts,
-          videoUrl,
-          caption,
-          firebaseUid,
-          isScheduled,
-          scheduledAt
+        console.log('Posting to Twitter...', {
+          accountCount: selectedTwitterAccounts.length,
+          accounts: selectedTwitterAccounts.map(acc => acc.username || acc.userId)
         });
         
-        results.twitter = twitterResult.results;
+        try {
+          const twitterResult = await TwitterPoster.postToTwitter({
+            selectedTwitterAccounts,
+            videoUrl,
+            caption,
+            firebaseUid,
+            isScheduled,
+            scheduledAt
+          });
+          
+          results.twitter = twitterResult.results;
+          console.log('Twitter posting results:', twitterResult);
+          
+          // Check if any accounts succeeded
+          const anySuccess = Array.isArray(twitterResult.results) && twitterResult.results.some(r => r.success);
+          
+          // If scheduling and at least one account succeeded, show success message
+          if (isScheduled && anySuccess) {
+            window.showToast?.success?.(`Your post has been scheduled successfully for ${scheduledAt.toLocaleString()}`);
+          }
+        } catch (error) {
+          console.error('Error posting to Twitter:', error);
+          console.error('Twitter error details:', error?.message || 'Unknown error');
+          
+          // Add error results for Twitter
+          results.twitter = selectedTwitterAccounts.map(account => ({
+            username: account.username || account.userId,
+            success: false,
+            error: error?.message || 'Failed to post to Twitter'
+          }));
+          
+          window.showToast?.error?.(error?.message || 'Error posting to Twitter');
+        }
       }
       
+      // Save results and update UI
       setPlatformResults(results);
       
-      const allSuccess = Object.values(results)?.every(result => {
+      // Check if any successful platforms
+      const hasSuccessfulPosts = Object.values(results).some(result => {
         if (Array.isArray(result)) {
-          return result?.every(r => r?.success);
+          return result.some(r => r.success);
+        } else {
+          return result.success;
         }
-        return result?.success;
       });
       
-      if (allSuccess) {
-        setPostSuccess(true);
-        window.showToast?.success?.('Posted successfully to all platforms!');
-        
-        setVideoUrl('');
-        setUploadedFile(null);
-        setSelectedPlatforms([]);
-        setSelectedTiktokAccounts([]);
-        setSelectedTwitterAccounts([]);
-        setCaption('');
-        setCurrentStep(1);
-      } else {
-        window.showToast?.warning?.('Some posts failed. Check the results for details.');
+      setPostSuccess(hasSuccessfulPosts);
+      
+      // If all were successful, show success toast
+      if (hasSuccessfulPosts && !isScheduled) {
+        window.showToast?.success?.('Your content has been posted successfully!');
       }
+      
+      // If we get here, all posting operations completed
+      console.log('Posting completed with results:', results);
+      
     } catch (error) {
-      console.error('Error posting:', error);
-      setUploadError(error?.message);
+      console.error('Error in post handling:', error);
+      setUploadError(error.message);
+      setPostSuccess(false);
+      setIsPosting(false);
+      setIsScheduling(false);
       window.showToast?.error?.(error?.message);
     } finally {
-      setIsPosting(false);
+      // Use a slight delay to update state so it feels more natural
+      setTimeout(() => {
+        setIsPosting(false);
+        setIsScheduling(false);
+      }, 500);
     }
   };
 
@@ -1119,9 +1190,9 @@ function SocialPosting() {
               <button
                 className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={handlePost}
-                disabled={isPosting || !hasValidPlatforms() || (isScheduled && (!scheduledDate || !scheduledTime))}
+                disabled={isPosting || isScheduling || !hasValidPlatforms() || (isScheduled && (!scheduledDate || !scheduledTime))}
               >
-                {isPosting ? 'Posting...' : isScheduled ? 'Schedule Post' : 'Post Now'}
+                {isScheduling ? 'Scheduling...' : isPosting ? 'Posting...' : isScheduled ? 'Schedule Post' : 'Post Now'}
               </button>
             </div>
 
@@ -1282,6 +1353,24 @@ function SocialPosting() {
       
       return newSelectedAccounts;
     });
+  };
+
+  // Get scheduled date and time as a Date object
+  const getScheduledDateTime = () => {
+    if (!isScheduled || !scheduledDate || !scheduledTime) {
+      return null;
+    }
+    
+    // Create Date object from scheduled date and time
+    const scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`);
+    
+    // Validate scheduled time is in the future
+    if (scheduledAt <= new Date()) {
+      throw new Error('Scheduled time must be in the future');
+    }
+    
+    console.log('Post scheduled for:', scheduledAt.toISOString());
+    return scheduledAt;
   };
 
   return (

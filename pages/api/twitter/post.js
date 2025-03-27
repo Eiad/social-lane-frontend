@@ -1,75 +1,47 @@
-import axios from 'axios';
-
-// Function to retry failed requests
-const axiosWithRetry = async (config, maxRetries = 3, baseDelay = 1000) => {
-  let lastError = null;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`[TIKTOK POST] Request attempt ${attempt} of ${maxRetries}`);
-      return await axios(config);
-    } catch (error) {
-      lastError = error;
-      console.error(`[TIKTOK POST] Attempt ${attempt} failed:`, error.message);
-      
-      // Check if we should retry
-      if (attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(1.5, attempt - 1); // Exponential backoff
-        console.log(`[TIKTOK POST] Retrying in ${delay/1000} seconds...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-  
-  throw lastError || new Error('All retry attempts failed');
-};
+// Next.js API route for Twitter posting
+// This acts as a proxy to avoid CORS issues with direct browser-to-backend requests
 
 export default async function handler(req, res) {
-  console.log('[TIKTOK POST] Post video request received');
+  console.log('[TWITTER POST] Post to Twitter accounts request received');
   
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { videoUrl, accessToken, refreshToken, caption, userId, accountId } = req.body;
+    const { videoUrl, text, userId, accounts } = req.body;
     
     if (!videoUrl) {
       return res.status(400).json({ error: 'Missing video URL' });
+    }
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'Missing user ID' });
+    }
+    
+    if (!accounts || !Array.isArray(accounts) || accounts.length === 0) {
+      return res.status(400).json({ error: 'Must provide at least one account' });
     }
 
     // Prepare the data to send to backend
     const postData = {
       videoUrl,
-      caption
+      text,
+      userId,
+      accounts: accounts.map(account => ({
+        userId: account.userId,
+        username: account.username || ''
+      }))
     };
     
-    // Send userId if available (preferred method)
-    if (userId) {
-      postData.userId = userId;
-      console.log('[TIKTOK POST] Using userId for authentication:', userId);
-      
-      // Also send accountId if available for specific account selection
-      if (accountId) {
-        postData.accountId = accountId;
-      }
-    } 
-    // Fallback to direct tokens if provided (legacy method)
-    else if (accessToken && refreshToken) {
-      postData.accessToken = accessToken;
-      postData.refreshToken = refreshToken;
-      console.log('[TIKTOK POST] Using direct token authentication (legacy method)');
-    }
-    else {
-      return res.status(400).json({ error: 'Authentication required. Please provide either userId or tokens.' });
-    }
+    console.log(`[TWITTER POST] Posting to ${accounts.length} Twitter accounts for user ${userId.substring(0, 8)}...`);
 
     // Forward the request to the backend
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
-    const apiUrl = `${backendUrl}/tiktok/post-video`;
+    const apiUrl = `${backendUrl}/social/twitter/post`;
     
-    console.log('[TIKTOK POST] Forwarding request to backend:', apiUrl);
-
+    console.log('[TWITTER POST] Forwarding request to backend:', apiUrl);
+    
     // Function that wraps fetch with a timeout
     const fetchWithTimeout = async (url, options, timeout = 300000) => {
       const controller = new AbortController();
@@ -98,7 +70,7 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify(postData),
       },
-      300000 // 5 minute timeout
+      300000 // 5 minute timeout for multi-account posting
     );
 
     // Process response differently based on status and content type
@@ -107,24 +79,33 @@ export default async function handler(req, res) {
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.includes("application/json")) {
         const data = await response.json();
-        console.log('[TIKTOK POST] Backend returned success with data:', {
-          message: data.message || 'Video posted successfully',
-          status: response.status
+        console.log('[TWITTER POST] Backend returned success with data:', {
+          message: data.message || 'Tweets posted successfully',
+          accounts: data.results?.length || 'unknown'
         });
         
         return res.status(200).json({
           success: true,
-          message: data.message || 'Video posted successfully',
+          message: data.message || 'Tweets posted successfully',
           ...data
         });
       } else {
         // Handle non-JSON success response
         const text = await response.text();
-        console.log('[TIKTOK POST] Backend returned non-JSON success response');
+        console.log('[TWITTER POST] Backend returned non-JSON success response');
+        
+        // Create simulated successful results
+        const results = accounts.map(account => ({
+          userId: account.userId,
+          username: account.username || '',
+          success: true,
+          message: 'Tweet likely processed successfully'
+        }));
         
         return res.status(200).json({
           success: true,
-          message: 'Video posted successfully',
+          message: 'Tweets likely posted successfully, but response was not in JSON format',
+          results,
           rawResponse: text.substring(0, 100) + '...' // Only include beginning of response
         });
       }
@@ -143,33 +124,60 @@ export default async function handler(req, res) {
         errorData = { error: `Error parsing response: ${parseError.message}` };
       }
       
-      console.log('[TIKTOK POST] Backend returned error:', {
+      console.log('[TWITTER POST] Backend returned error:', {
         status: response.status,
         error: errorData.error || 'Unknown error'
       });
       
+      // Create results for each account
+      const results = accounts.map(account => ({
+        userId: account.userId,
+        username: account.username || '',
+        success: false,
+        error: errorData.error || `Server returned ${response.status}`
+      }));
+      
       return res.status(response.status).json({
         success: false,
         error: errorData.error || `Server returned ${response.status}`,
-        details: errorData.details || errorData.message || 'No additional details'
+        details: errorData.details || errorData.message || 'No additional details',
+        results
       });
     }
   } catch (error) {
-    console.log('[TIKTOK POST] Error posting video:', error);
+    console.error('[TWITTER POST] Error posting to Twitter accounts:', error);
     
     // Special handling for timeout errors
     if (error.name === 'AbortError') {
+      const { accounts } = req.body;
+      const results = accounts.map(account => ({
+        userId: account.userId,
+        username: account.username || '',
+        success: false,
+        error: 'The request timed out. The tweets may still be processing.'
+      }));
+      
       return res.status(504).json({
         success: false,
-        error: 'The request timed out. The video may still be processing on TikTok.',
-        details: 'TikTok processing can take some time. Check your TikTok account to confirm if the post was published.'
+        error: 'The request timed out. The tweets may still be processing.',
+        details: 'Twitter processing can take some time. Check your Twitter accounts to confirm if tweets were published.',
+        results
       });
     }
+    
+    const { accounts } = req.body || { accounts: [] };
+    const results = Array.isArray(accounts) ? accounts.map(account => ({
+      userId: account.userId,
+      username: account.username || '',
+      success: false,
+      error: error.message || 'Unknown error'
+    })) : [];
     
     return res.status(500).json({
       success: false,
       error: error.message || 'Unknown error occurred',
-      details: error.stack ? error.stack.split('\n')[0] : 'No additional details'
+      details: error.stack ? error.stack.split('\n')[0] : 'No additional details',
+      results
     });
   }
 } 
