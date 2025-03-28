@@ -64,6 +64,31 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Scheduled date is required for scheduled posts' });
     }
     
+    // Create a modified request body
+    const modifiedRequestBody = { ...req.body };
+    
+    // Fix Twitter accounts to include required token fields
+    // The backend will look up the actual tokens from the database using userId
+    if (platforms?.includes('twitter') && twitter_accounts?.length > 0) {
+      console.log('[SCHEDULES API] Modifying Twitter accounts to add required token fields');
+      
+      modifiedRequestBody.twitter_accounts = twitter_accounts.map(account => ({
+        ...account,
+        // Add placeholder tokens that will be replaced by the backend with real tokens from DB
+        accessToken: account.accessToken || 'placeholder_to_be_replaced_from_db',
+        accessTokenSecret: account.accessTokenSecret || 'placeholder_to_be_replaced_from_db'
+      }));
+      
+      console.log('[SCHEDULES API] Modified Twitter accounts:', 
+        modifiedRequestBody.twitter_accounts.map(acc => ({
+          userId: acc.userId,
+          username: acc.username,
+          hasAccessToken: !!acc.accessToken,
+          hasAccessTokenSecret: !!acc.accessTokenSecret
+        }))
+      );
+    }
+    
     // Forward the request to the backend
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
     const apiUrl = `${backendUrl}/posts`;
@@ -90,7 +115,7 @@ export default async function handler(req, res) {
             'Cache-Control': 'no-cache',
             'X-Timestamp': Date.now(), // Add timestamp to prevent caching
           },
-          body: JSON.stringify(req.body),
+          body: JSON.stringify(modifiedRequestBody), // Use the modified request body
           signal: controller.signal
         });
         
