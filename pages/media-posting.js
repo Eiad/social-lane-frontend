@@ -1048,70 +1048,19 @@ function MediaPosting() {
         );
       case 4:
         return (
-          <div className="w-full max-w-4xl mx-auto px-4">
-            {/* Header */}
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-1">Review Your Post</h2>
+          <div className="max-w-5xl mx-auto bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="text-center py-8 px-4 border-b">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Review Your Post</h2>
               <p className="text-gray-500">Review your content before publishing to your selected platforms</p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-1 mb-6">
-              
-            {/* Publishing Section */}
-            <div className="overflow-hidden p-6 mb-6">              
-              {/* TikTok Accounts */}
-              {selectedTiktokAccounts?.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-600 mb-2">TikTok Accounts</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedTiktokAccounts?.map(account => (
-                      <div key={`${account?.accountId}-result`} className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M19.6099 6.90989C17.9366 6.90989 16.5731 5.54646 16.5731 3.87312H12.1379V15.9837C12.1379 17.6477 10.7837 19.0019 9.11969 19.0019C7.45569 19.0019 6.1015 17.6477 6.1015 15.9837C6.1015 14.3197 7.45569 12.9655 9.11969 12.9655C9.51114 12.9655 9.88351 13.0447 10.2276 13.1855V8.69296C9.88351 8.65228 9.5301 8.63213 9.18077 8.63213C5.04351 8.63213 1.67578 12.0091 1.67578 16.1356C1.67578 20.2728 5.05271 23.639 9.18077 23.639C13.3088 23.639 16.6858 20.2728 16.6858 16.1356V9.93228C18.0322 10.9064 19.6743 11.445 21.427 11.445V7.10217C21.4178 7.10217 19.6191 7.10217 19.6099 6.90989Z" fill="black"/>
-                        </svg>
-                        <span className="text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded">{account?.displayName || account?.userInfo?.display_name || account?.username || (account?.accountId ? `@${account?.accountId.substring(0, 10)}...` : 'TikTok Account')}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* Twitter Account */}
-              {selectedPlatforms?.includes('twitter') && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-600 mb-2">Twitter / X</h4>
-                  <div className="flex flex-wrap gap-2">
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-100">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M18.901 1.50293H22.581L14.541 10.7825L24 22.4999H16.594L10.794 15.4626L4.156 22.4999H0.474L9.074 12.5626L0 1.50293H7.594L12.837 7.92235L18.901 1.50293ZM17.61 20.4208H19.649L6.486 3.48519H4.298L17.61 20.4208Z" fill="black"/>
-                      </svg>
-                      <span className="text-sm text-gray-700 bg-gray-50 px-2 py-1 rounded">
-                        {(() => {
-                          try {
-                            const socialMediaDataStr = localStorage?.getItem('socialMediaData');
-                            if (socialMediaDataStr) {
-                              const socialMediaData = JSON.parse(socialMediaDataStr);
-                              if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
-                                return socialMediaData.twitter[0].username || 'Twitter Account';
-                              }
-                            }
-                            return 'Twitter Account';
-                          } catch (error) {
-                            console.error('Error getting Twitter username:', error);
-                            return 'Twitter Account';
-                          }
-                        })()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>              
-           
-              {/* Media Section */}
-              <div className="bg-white overflow-hidden p-6">
-                <div className="cursor-pointer" onClick={() => setShowVideoModal(true)}>
-                  <div className="relative aspect-video bg-black rounded-lg mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+              {/* Media Preview Section */}
+              <div className="bg-gray-50 rounded-xl overflow-hidden p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Media Preview</h3>
+                
+                <div className="cursor-pointer relative" onClick={() => setShowVideoModal(true)}>
+                  <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
                     {videoUrl && (
                       <video
                         className="absolute inset-0 w-full h-full object-cover"
@@ -1121,140 +1070,369 @@ function MediaPosting() {
                         ref={videoRef}
                       />
                     )}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-16 h-16 rounded-full bg-gray-800/60 flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors">
+                      <div className="w-16 h-16 rounded-full bg-white/30 backdrop-blur-sm flex items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polygon points="5 3 19 12 5 21 5 3"></polygon>
                         </svg>
                       </div>
                     </div>
                   </div>
-                  <div className="text-gray-800 font-medium">{uploadedFile}</div>
-                  <div className="text-sm text-gray-500">{file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : ''}</div>
-                </div>
-              </div>              
-            </div>
-            {/* Caption Section */}
-            <div className="overflow-hidden p-6">
-                <div className="flex items-center gap-2 mb-4">
-
-                  <h4 className="font-medium text-gray-700">Post Caption</h4>
-                </div>
-                <div className="text-gray-700 flex items-center gap-2 px-4 py-2 border-l-4 bg-gray-100">{caption || 'No caption added'}</div>
-              </div>   
-            
-            {/* Schedule for later */}
-            <div className="p-4 mb-8">
-              <div className="flex items-center justify-start">
-                <span className="text-gray-700 text-xl mr-4 font-medium">Schedule post</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={isScheduled}
-                    onChange={(e) => setIsScheduled(e.target.checked)}
-                  />
-                  <div className={`w-14 h-7 rounded-full transition-colors duration-200 ease-in-out ${isScheduled ? 'bg-gray-600' : 'bg-gray-300'}`}>
-                    <div className={`absolute top-1 left-1 bg-white w-5 h-5 rounded-full transition-transform duration-200 ease-in-out ${isScheduled ? 'transform translate-x-7' : ''}`}></div>
+                  <div className="mt-3">
+                    <div className="text-gray-800 font-medium">{uploadedFile}</div>
+                    <div className="text-sm text-gray-500">{file ? `${(file.size / (1024 * 1024)).toFixed(2)} MB` : ''}</div>
                   </div>
-                </label>
+                </div>
+                
+                {/* Caption */}
+                <div className="mt-6">
+                  <h4 className="font-medium text-gray-700 mb-3">Post Caption</h4>
+                  <div className="text-gray-700 p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
+                    {caption || 'No caption added'}
+                  </div>
+                </div>
               </div>
+              
+              {/* Right Column - Either Publishing Details or Posting Results */}
+              {Object.keys(platformResults).length > 0 ? (
+                /* Posting Results - shown when available */
+                <div className="bg-gray-50 rounded-xl overflow-hidden p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Posting Results</h3>
+                  <div className="space-y-4 mb-8">
+                    {Object.entries(platformResults).map(([platform, result]) => (
+                      <div key={`${platform}-result`} className="mb-6 last:mb-0">
+                        <h4 className="text-lg font-medium text-gray-700 mb-3 flex items-center">
+                          {platform === 'tiktok' ? (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="mr-2">
+                              <path d="M19.6099 6.90989C17.9366 6.90989 16.5731 5.54646 16.5731 3.87312H12.1379V15.9837C12.1379 17.6477 10.7837 19.0019 9.11969 19.0019C7.45569 19.0019 6.1015 17.6477 6.1015 15.9837C6.1015 14.3197 7.45569 12.9655 9.11969 12.9655C9.51114 12.9655 9.88351 13.0447 10.2276 13.1855V8.69296C9.88351 8.65228 9.5301 8.63213 9.18077 8.63213C5.04351 8.63213 1.67578 12.0091 1.67578 16.1356C1.67578 20.2728 5.05271 23.639 9.18077 23.639C13.3088 23.639 16.6858 20.2728 16.6858 16.1356V9.93228C18.0322 10.9064 19.6743 11.445 21.427 11.445V7.10217C21.4178 7.10217 19.6191 7.10217 19.6099 6.90989Z" fill="black"/>
+                            </svg>
+                          ) : (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="mr-2">
+                              <path d="M18.901 1.50293H22.581L14.541 10.7825L24 22.4999H16.594L10.794 15.4626L4.156 22.4999H0.474L9.074 12.5626L0 1.50293H7.594L12.837 7.92235L18.901 1.50293ZM17.61 20.4208H19.649L6.486 3.48519H4.298L17.61 20.4208Z" fill="black"/>
+                            </svg>
+                          )}
+                          {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                        </h4>
+                        {Array.isArray(result) ? (
+                          <div className="space-y-3">
+                            {result.map((r, i) => (
+                              <div key={`${platform}-result-${i}`} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border">
+                                <div className="flex items-center gap-2">
+                                  {platform === 'tiktok' ? (
+                                    <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center flex-shrink-0">
+                                      {r?.avatarUrl || r?.userInfo?.avatar_url ? (
+                                        <img 
+                                          src={r?.avatarUrl || r?.userInfo?.avatar_url} 
+                                          alt={r?.displayName || 'TikTok'} 
+                                          className="w-full h-full rounded-full object-cover"
+                                        />
+                                      ) : (
+                                        <TikTokSimpleIcon width="14" height="14" />
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="w-8 h-8 bg-blue-400 rounded-full flex items-center justify-center flex-shrink-0">
+                                      {r?.profileImageUrl ? (
+                                        <img 
+                                          src={r.profileImageUrl} 
+                                          alt={r?.username || 'Twitter'} 
+                                          className="w-full h-full rounded-full object-cover"
+                                        />
+                                      ) : (
+                                        <TwitterIcon width="14" height="14" />
+                                      )}
+                                    </div>
+                                  )}
+                                  <span className="font-medium text-gray-700">{r?.displayName || r?.username}</span>
+                                </div>
+                                {r?.success ? (
+                                  <span className="text-green-600 flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </span>
+                                ) : (
+                                  <span className="text-red-600 flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    {r?.error}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border">
+                            <div className="flex items-center gap-2">
+                              {(() => {
+                                // Find the Twitter account with matching username to get profile image
+                                const account = selectedTwitterAccounts?.find(acc => 
+                                  acc?.username === result?.username || 
+                                  acc?.username === selectedTwitterAccounts?.[0]?.username
+                                ) || selectedTwitterAccounts?.[0];
+                                
+                                return (
+                                  <div className="w-8 h-8 bg-blue-400 rounded-full flex items-center justify-center flex-shrink-0">
+                                    {account?.profileImageUrl ? (
+                                      <img 
+                                        src={account.profileImageUrl} 
+                                        alt={account?.username || 'Twitter'} 
+                                        className="w-full h-full rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <TwitterIcon width="14" height="14" />
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                              <span className="font-medium text-gray-700">
+                                {selectedTwitterAccounts.map(acc => acc?.username || acc?.screenName || '@' + acc?.userId).join(', ')}
+                              </span>
+                            </div>
+                            {result?.success ? (
+                              <span className="text-green-600 flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </span>
+                            ) : (
+                              <span className="text-red-600 flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                {result?.error}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
 
-              {isScheduled && (
-                <div className="flex flex-col sm:flex-row gap-4 mt-4">
-                  <input
-                    type="date"
-                    value={scheduledDate}
-                    onChange={(e) => setScheduledDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                  />
-                  <input
-                    type="time"
-                    value={scheduledTime}
-                    onChange={(e) => setScheduledTime(e.target.value)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                  />
+                  {/* Create Another Post Button */}
+                  <button
+                    onClick={() => {
+                      // Reset states and go back to step 1
+                      setFile(null);
+                      setUploadedFile(null); 
+                      setVideoUrl('');
+                      setSelectedPlatforms([]);
+                      setSelectedTiktokAccounts([]);
+                      setSelectedTwitterAccounts([]);
+                      setCaption('');
+                      setIsScheduled(false);
+                      setScheduledDate('');
+                      setScheduledTime('');
+                      setPlatformResults({});
+                      setUploadError(null);
+                      setCurrentStep(1);
+                    }}
+                    className="w-full py-3 mt-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 flex items-center justify-center"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Create Another Post
+                  </button>
+                </div>
+              ) : (
+                /* Publishing Details - shown before posting */
+                <div className="bg-gray-50 rounded-xl overflow-hidden p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Publishing Details</h3>
+                  
+                  <div className="space-y-6">
+                    {/* Selected Platforms */}
+                    <div>
+                      <h4 className="font-medium text-gray-700 mb-3">Selected Platforms</h4>
+                      <div className="space-y-4">
+                        {/* TikTok Accounts */}
+                        {selectedTiktokAccounts?.length > 0 && (
+                          <div>
+                            <h5 className="text-sm font-medium text-gray-600 mb-2 flex items-center">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="mr-2">
+                                <path d="M19.6099 6.90989C17.9366 6.90989 16.5731 5.54646 16.5731 3.87312H12.1379V15.9837C12.1379 17.6477 10.7837 19.0019 9.11969 19.0019C7.45569 19.0019 6.1015 17.6477 6.1015 15.9837C6.1015 14.3197 7.45569 12.9655 9.11969 12.9655C9.51114 12.9655 9.88351 13.0447 10.2276 13.1855V8.69296C9.88351 8.65228 9.5301 8.63213 9.18077 8.63213C5.04351 8.63213 1.67578 12.0091 1.67578 16.1356C1.67578 20.2728 5.05271 23.639 9.18077 23.639C13.3088 23.639 16.6858 20.2728 16.6858 16.1356V9.93228C18.0322 10.9064 19.6743 11.445 21.427 11.445V7.10217C21.4178 7.10217 19.6191 7.10217 19.6099 6.90989Z" fill="black"/>
+                              </svg>
+                              TikTok ({selectedTiktokAccounts.length})
+                            </h5>
+                            <div className="grid grid-cols-1 gap-2">
+                              {selectedTiktokAccounts?.map(account => (
+                                <div key={`${account?.accountId}-review`} className="flex items-center gap-2 p-3 rounded-lg bg-white border border-gray-100 shadow-sm">
+                                  <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center flex-shrink-0">
+                                    {account?.avatarUrl || account?.userInfo?.avatar_url ? (
+                                      <img 
+                                        src={account?.avatarUrl || account?.userInfo?.avatar_url} 
+                                        alt={account?.displayName || 'TikTok'} 
+                                        className="w-full h-full rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M19.6099 6.90989C17.9366 6.90989 16.5731 5.54646 16.5731 3.87312H12.1379V15.9837C12.1379 17.6477 10.7837 19.0019 9.11969 19.0019C7.45569 19.0019 6.1015 17.6477 6.1015 15.9837C6.1015 14.3197 7.45569 12.9655 9.11969 12.9655C9.51114 12.9655 9.88351 13.0447 10.2276 13.1855V8.69296C9.88351 8.65228 9.5301 8.63213 9.18077 8.63213C5.04351 8.63213 1.67578 12.0091 1.67578 16.1356C1.67578 20.2728 5.05271 23.639 9.18077 23.639C13.3088 23.639 16.6858 20.2728 16.6858 16.1356V9.93228C18.0322 10.9064 19.6743 11.445 21.427 11.445V7.10217C21.4178 7.10217 19.6191 7.10217 19.6099 6.90989Z" fill="white"/>
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <span className="text-gray-800 font-medium">{account?.displayName || account?.userInfo?.display_name || account?.username || (account?.accountId ? `@${account?.accountId.substring(0, 10)}...` : 'TikTok Account')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Twitter Accounts */}
+                        {selectedTwitterAccounts?.length > 0 && (
+                          <div>
+                            <h5 className="text-sm font-medium text-gray-600 mb-2 flex items-center">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="mr-2">
+                                <path d="M18.901 1.50293H22.581L14.541 10.7825L24 22.4999H16.594L10.794 15.4626L4.156 22.4999H0.474L9.074 12.5626L0 1.50293H7.594L12.837 7.92235L18.901 1.50293ZM17.61 20.4208H19.649L6.486 3.48519H4.298L17.61 20.4208Z" fill="black"/>
+                              </svg>
+                              Twitter / X ({selectedTwitterAccounts.length})
+                            </h5>
+                            <div className="grid grid-cols-1 gap-2">
+                              {selectedTwitterAccounts.map(account => (
+                                <div key={`${account?.userId}-review`} className="flex items-center gap-2 p-3 rounded-lg bg-white border border-gray-100 shadow-sm">
+                                  <div className="w-8 h-8 bg-blue-400 rounded-full flex items-center justify-center flex-shrink-0">
+                                    {account?.profileImageUrl ? (
+                                      <img 
+                                        src={account.profileImageUrl} 
+                                        alt={account?.username || 'Twitter'} 
+                                        className="w-full h-full rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                        <path d="M18.901 1.50293H22.581L14.541 10.7825L24 22.4999H16.594L10.794 15.4626L4.156 22.4999H0.474L9.074 12.5626L0 1.50293H7.594L12.837 7.92235L18.901 1.50293ZM17.61 20.4208H19.649L6.486 3.48519H4.298L17.61 20.4208Z" fill="white"/>
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <span className="text-gray-800 font-medium">{account?.username || account?.screenName || '@' + account?.userId}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Schedule Post */}
+                    <div>
+                      <h4 className="font-medium text-gray-700 mb-3 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Scheduling
+                      </h4>
+                      <div className="p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-gray-700">Schedule post</span>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={isScheduled}
+                              onChange={(e) => setIsScheduled(e.target.checked)}
+                            />
+                            <div className={`w-11 h-6 rounded-full transition-colors duration-200 ease-in-out ${isScheduled ? 'bg-green-500' : 'bg-gray-300'}`}>
+                              <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out ${isScheduled ? 'transform translate-x-5' : ''}`}></div>
+                            </div>
+                          </label>
+                        </div>
+
+                        {isScheduled && (
+                          <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                            <div className="flex-1">
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
+                              <input
+                                type="date"
+                                value={scheduledDate}
+                                onChange={(e) => setScheduledDate(e.target.value)}
+                                min={new Date().toISOString().split('T')[0]}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Time</label>
+                              <input
+                                type="time"
+                                value={scheduledTime}
+                                onChange={(e) => setScheduledTime(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Post Button */}
+                    <button
+                      className="w-full py-3 mt-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center"
+                      onClick={handlePost}
+                      disabled={isPosting || isScheduling || !hasValidPlatforms() || (isScheduled && (!scheduledDate || !scheduledTime))}
+                    >
+                      {isScheduling ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Scheduling...
+                        </>
+                      ) : isPosting ? (
+                        <>
+                          <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Posting...
+                        </>
+                      ) : (
+                        <>
+                          {isScheduled ? (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              Schedule Post
+                            </>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                              </svg>
+                              Post Now
+                            </>
+                          )}
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-
-            <div className="flex justify-between mb-8">
-              <button
-                className="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                onClick={() => setCurrentStep(3)}
-                disabled={isPosting}
-              >
-                Edit
-              </button>
-              <button
-                className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                onClick={handlePost}
-                disabled={isPosting || isScheduling || !hasValidPlatforms() || (isScheduled && (!scheduledDate || !scheduledTime))}
-              >
-                {isScheduling ? 'Scheduling...' : isPosting ? 'Posting...' : isScheduled ? 'Schedule Post' : 'Post Now'}
-              </button>
-            </div>
-
-            {uploadError && (
-              <div className="p-4 mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-md">
-                {uploadError}
+            
+            {/* Action Buttons - Only shown before posting */}
+            {Object.keys(platformResults).length === 0 && (
+              <div className="flex justify-between items-center border-t p-6">
+                <button
+                  className="px-6 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center"
+                  onClick={() => setCurrentStep(3)}
+                  disabled={isPosting}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to Edit
+                </button>
               </div>
             )}
-
-            {Object.keys(platformResults).length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-8">
-                <h3 className="text-xl font-semibold text-gray-800 mb-6">Posting Results</h3>
-                {Object.entries(platformResults).map(([platform, result]) => (
-                  <div key={`${platform}-result`} className="mb-6 last:mb-0">
-                    <h4 className="text-lg font-medium text-gray-700 mb-3">{platform.charAt(0).toUpperCase() + platform.slice(1)}</h4>
-                    {Array.isArray(result) ? (
-                      <div className="space-y-3">
-                        {result.map((r, i) => (
-                          <div key={`${platform}-result-${i}`} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <TikTokSimpleIcon width="18" height="18" />
-                              <span className="font-medium text-gray-700">{r?.displayName || r?.username}</span>
-                            </div>
-                            {r?.success ? (
-                              <span className="text-green-600">{r?.message}</span>
-                            ) : (
-                              <span className="text-red-600">{r?.error}</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <TwitterIcon width="18" height="18" />
-                          <span className="font-medium text-gray-700">
-                            {(() => {
-                              try {
-                                const socialMediaDataStr = localStorage?.getItem('socialMediaData');
-                                if (socialMediaDataStr) {
-                                  const socialMediaData = JSON.parse(socialMediaDataStr);
-                                  if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
-                                    return socialMediaData.twitter[0].username || 'Twitter Account';
-                                  }
-                                }
-                                return 'Twitter Account';
-                              } catch (error) {
-                                console.error('Error getting Twitter username:', error);
-                                return 'Twitter Account';
-                              }
-                            })()}
-                          </span>
-                        </div>
-                        {result?.success ? (
-                          <span className="text-green-600">{result?.message}</span>
-                        ) : (
-                          <span className="text-red-600">{result?.error}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
+            
+            {uploadError && (
+              <div className="p-4 mb-6 bg-red-50 border-t border-red-100 text-red-700">
+                <div className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {uploadError}
+                </div>
               </div>
             )}
           </div>
@@ -1265,47 +1443,21 @@ function MediaPosting() {
   };
 
   const hasValidPlatforms = () => {
-    const validPlatforms = [];
+    // Check if either platform has valid accounts selected
+    const hasTiktok = selectedPlatforms?.includes('tiktok') && selectedTiktokAccounts?.length > 0;
+    const hasTwitter = selectedPlatforms?.includes('twitter') && selectedTwitterAccounts?.length > 0;
     
-    // Check Twitter
-    if (selectedPlatforms?.includes('twitter')) {
-      try {
-        const socialMediaDataStr = localStorage?.getItem('socialMediaData');
-        if (socialMediaDataStr) {
-          const socialMediaData = JSON.parse(socialMediaDataStr);
-          if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
-            // Check the first Twitter account (the one that will be used for posting)
-            const twitterAccount = socialMediaData.twitter[0];
-            
-            console.log('Twitter platform check:', {
-              hasAccount: !!twitterAccount,
-              hasAccessToken: !!twitterAccount?.accessToken,
-              hasAccessTokenSecret: !!twitterAccount?.accessTokenSecret,
-              username: twitterAccount?.username || 'unknown'
-            });
-            
-            if (twitterAccount?.accessToken && twitterAccount?.accessTokenSecret) {
-              console.log('Twitter platform is valid');
-              validPlatforms.push('twitter');
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error checking Twitter credentials:', error);
-      }
-    }
+    // Log validation status with more details
+    console.log(`Platform validation:
+    - TikTok selected: ${selectedPlatforms?.includes('tiktok')}
+    - TikTok accounts: ${selectedTiktokAccounts?.length} (${hasTiktok ? 'Valid' : 'Invalid'})
+    - Twitter selected: ${selectedPlatforms?.includes('twitter')}
+    - Twitter accounts: ${selectedTwitterAccounts?.length} (${hasTwitter ? 'Valid' : 'Invalid'})
+    - Overall validation: ${hasTiktok || hasTwitter ? 'Valid' : 'Invalid'}
+    `);
     
-    // Check TikTok
-    if (selectedPlatforms?.includes('tiktok') && selectedTiktokAccounts?.length > 0) {
-      console.log('TikTok platform is valid with', selectedTiktokAccounts.length, 'accounts');
-      validPlatforms.push('tiktok');
-    }
-    
-    // Log button state
-    const isValid = validPlatforms.length > 0;
-    console.log(`Post Now button should be ${isValid ? 'enabled' : 'disabled'}`);
-    
-    return isValid;
+    // Return true if either platform has at least one account selected
+    return hasTiktok || hasTwitter;
   };
 
   // Render the Connect buttons
@@ -1373,6 +1525,53 @@ function MediaPosting() {
     return scheduledAt;
   };
 
+  // Create a PostingLoader component
+  const PostingLoader = ({ isPosting }) => {
+    const [loadingText, setLoadingText] = useState('Processing your awesome video...');
+    
+    useEffect(() => {
+      if (!isPosting) return;
+      
+      const messages = [
+        'Processing your awesome video...',
+        'The bigger the files and number of accounts, the longer it takes...',
+        'We are almost there!',
+        'Just a bit more time needed...',
+        'Your content is being prepared for sharing...',
+        'Adding the finishing touches to your post...'
+      ];
+      
+      let messageIndex = 0;
+      const intervalId = setInterval(() => {
+        messageIndex = (messageIndex + 1) % (messages?.length || 1);
+        setLoadingText(messages?.[messageIndex] || 'Posting...');
+      }, 3000);
+      
+      return () => clearInterval(intervalId);
+    }, [isPosting]);
+    
+    if (!isPosting) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full mx-4">
+          <div className="flex flex-col items-center text-center">
+            <div className="w-16 h-16 mb-6 relative">
+              <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-t-green-500 animate-spin"></div>
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Posting in Progress</h3>
+            <p className="text-gray-600 mb-6">{loadingText}</p>
+            <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+              <div className="bg-green-500 h-2 rounded-full animate-pulse"></div>
+            </div>
+            <p className="text-xs text-gray-500">Please don&apos;t close this window</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <Head>
@@ -1438,13 +1637,15 @@ function MediaPosting() {
                   src={videoUrl}
                   controls
                   autoPlay
-                  playsInline
                 />
               )}
             </div>
           </div>
         </div>
       )}
+      
+      {/* Add the PostingLoader */}
+      <PostingLoader isPosting={isPosting || isScheduling} />
     </>
   );
 }
