@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 /**
  * Create or update a user in the database

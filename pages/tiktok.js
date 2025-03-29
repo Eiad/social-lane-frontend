@@ -11,7 +11,7 @@ import { useLoader } from '../src/context/LoaderContext';
 // With this approach that safely handles both server and client environments:
 const API_BASE_URL = 
   typeof window !== 'undefined' 
-    ? process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat' 
+    ? process.env.NEXT_PUBLIC_API_URL 
     : 'https://sociallane-backend.mindio.chat';
 
 export default function TikTok() {

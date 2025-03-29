@@ -3,7 +3,7 @@ import React from 'react';
 // Define the API base URL properly - for the frontend API routes
 const API_BASE_URL = '/api';
 // The backend URL is only used for logging purposes
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const TwitterPoster = {
   // Post to Twitter - handles both immediate and scheduled posts

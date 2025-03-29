@@ -537,19 +537,31 @@ function Twitter() {
           // Add cache busting
           const cacheBuster = `nocache=${Date.now()}`;
           
-          response = await fetch(`${apiUrl}/users/${uid}/social/twitter?${cacheBuster}`, {
+          // Use the API URL from state or fallback to the constant
+          const baseUrl = apiUrl || API_BASE_URL;
+          const requestUrl = `${baseUrl}/users/${uid}/social/twitter?${cacheBuster}`;
+          
+          console.log(`Making request to: ${requestUrl}`);
+          
+          response = await fetch(requestUrl, {
             signal: controller.signal,
+            method: 'GET',
             headers: {
+              'Content-Type': 'application/json',
               'Cache-Control': 'no-cache, no-store, must-revalidate'
-            }
+            },
+            credentials: 'include'
           });
           
           clearTimeout(timeoutId);
           
-          if (response.ok) {
+          console.log(`Response status: ${response?.status}, ok: ${response?.ok}`);
+          
+          if (response?.ok) {
             break; // Success, exit retry loop
           } else {
-            throw new Error(`Failed to fetch user data (${response.status})`);
+            console.error(`Error response: ${response?.status} ${response?.statusText}`);
+            throw new Error(`Failed to fetch user data (${response?.status || 'unknown status'})`);
           }
         } catch (error) {
           lastError = error;
@@ -565,33 +577,46 @@ function Twitter() {
       }
       
       if (!response?.ok) {
+        const errorMessage = lastError?.message || 'Server error';
         if (lastError?.name === 'AbortError') {
           console.error('Twitter account fetch timed out');
           window.showToast?.error?.('Failed to load Twitter accounts: Request timed out');
         } else {
-          window.showToast?.error?.(`Failed to load Twitter accounts: ${lastError?.message || 'Server error'}`);
+          console.error(`Failed to fetch Twitter accounts: ${errorMessage}`);
+          window.showToast?.error?.(`Failed to load Twitter accounts: ${errorMessage}`);
         }
         setIsFetchingUserInfo(false);
         hideLoader(); // Hide loader on error
         return [];
       }
       
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+        console.log('Twitter accounts response data:', data);
+      } catch (jsonError) {
+        console.error('Error parsing JSON response:', jsonError);
+        window.showToast?.error?.('Failed to parse server response');
+        setIsFetchingUserInfo(false);
+        hideLoader();
+        return [];
+      }
       
       if (data?.success && data?.data?.twitter) {
-        let twitterAccounts = data.data.twitter;
+        let twitterAccounts = data?.data?.twitter;
         
         // Ensure we have an array
         if (!Array.isArray(twitterAccounts)) {
+          console.log('Twitter accounts not in array format, converting to array');
           twitterAccounts = [twitterAccounts];
         }
         
         // Filter out invalid accounts
-        twitterAccounts = twitterAccounts.filter(account => account && account.userId);
+        twitterAccounts = twitterAccounts.filter(account => account && account?.userId);
         
-        console.log(`Found ${twitterAccounts.length} Twitter accounts in database`);
+        console.log(`Found ${twitterAccounts?.length || 0} Twitter accounts in database`);
         
-        if (twitterAccounts.length > 0) {
+        if (twitterAccounts?.length > 0) {
           // Save accounts to socialMediaData
           saveTwitterAccounts(twitterAccounts);
           
@@ -606,6 +631,8 @@ function Twitter() {
           hideLoader(); // Hide loader when successful
           return twitterAccounts;
         }
+      } else {
+        console.log('No Twitter data in response:', data);
       }
       
       console.log('No Twitter accounts found in database');

@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       console.log(`[USER TIKTOK VERIFY] Verifying ${accountIds.length} TikTok accounts`);
       
       // Get backend URL from environment or use default
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
       const backendEndpoint = `${apiBaseUrl}/users/${uid}/social/tiktok/verify`;
       
       console.log(`[USER TIKTOK VERIFY] Using backend endpoint: ${backendEndpoint}`);

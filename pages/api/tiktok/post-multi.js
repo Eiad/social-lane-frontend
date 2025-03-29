@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     console.log(`[TIKTOK MULTI] Posting to ${accounts.length} TikTok accounts for user ${userId}`);
 
     // Forward the request to the backend
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL;
     const apiUrl = `${backendUrl}/tiktok/post-video-multi`;
     
     console.log('[TIKTOK MULTI] Forwarding request to backend:', apiUrl);

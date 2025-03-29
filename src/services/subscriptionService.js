@@ -1,6 +1,6 @@
 import axiosInstance from './axiosConfig';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 /**
  * Create a PayPal subscription for a user

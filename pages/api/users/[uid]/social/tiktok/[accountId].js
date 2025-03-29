@@ -18,7 +18,7 @@ export default async function handler(req, res) {
       }
       
       // Forward the delete request to the backend
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL;
       const apiUrl = `${backendUrl}/users/${uid}/social/tiktok?openId=${accountId}`;
       
       console.log('[USER TIKTOK ACCOUNT] Forwarding DELETE request to backend:', apiUrl);

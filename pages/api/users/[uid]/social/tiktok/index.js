@@ -66,7 +66,7 @@ export default async function handler(req, res) {
       console.log(`[USER TIKTOK] Sending ${validatedAccounts.length} validated accounts to backend`);
       
       // Get backend URL from environment or use default
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
       const backendEndpoint = `${apiBaseUrl}/users/${uid}/social/tiktok`;
       
       console.log(`[USER TIKTOK] Using backend endpoint: ${backendEndpoint}`);
@@ -160,7 +160,7 @@ export default async function handler(req, res) {
       
       console.log(`[USER TIKTOK] Deleting TikTok account ${openId} for user ${uid}`);
       
-      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL;
       const backendEndpoint = `${apiBaseUrl}/users/${uid}/social/tiktok?openId=${openId}`;
       
       const response = await axios.delete(backendEndpoint);

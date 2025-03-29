@@ -114,7 +114,7 @@ export default async function handler(req, res) {
           try {
             // Upload to R2 via backend API
             console.log('[UPLOAD API] Uploading to R2 via backend');
-            const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+            const backendUrl = process.env.NEXT_PUBLIC_API_URL;
             const uploadUrl = `${backendUrl}/upload`;
             
             // Get file stats to calculate size

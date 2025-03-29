@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     console.log(`[TWITTER POST] Posting to ${accounts.length} Twitter accounts for user ${userId.substring(0, 8)}...`);
 
     // Forward the request to the backend
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL;
     const apiUrl = `${backendUrl}/social/twitter/post`;
     
     console.log('[TWITTER POST] Forwarding request to backend:', apiUrl);

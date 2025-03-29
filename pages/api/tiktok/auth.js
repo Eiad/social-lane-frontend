@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   try {
     // Get the backend URL from environment variables
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://sociallane-backend.mindio.chat';
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL;
     const authUrl = `${backendUrl}/tiktok/auth`;
     
     console.log('[TIKTOK AUTH] Redirecting to backend auth URL:', authUrl);
