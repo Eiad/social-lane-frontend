@@ -421,7 +421,7 @@ export const AuthProvider = ({ children }) => {
             
             // Check for post-login redirect
             if (redirectAfterLogin) {
-              window.location.href = '/social-posting';
+              window.location.href = '/media-posting';
               setRedirectAfterLogin(false);
             }
           } catch (error) {

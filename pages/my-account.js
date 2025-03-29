@@ -20,7 +20,7 @@ const MyAccount = () => {
     if (user && !loading) {
       if (redirectAfterLogin) {
         setRedirectAfterLogin(false);
-        router.push('/social-posting');
+        router.push('/media-posting');
       }
     }
   }, [user, loading, redirectAfterLogin, router, setRedirectAfterLogin]);

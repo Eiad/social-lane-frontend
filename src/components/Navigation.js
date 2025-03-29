@@ -109,10 +109,10 @@ export default function Navigation() {
 
   const navigationItems = [
     {
-      name: 'Dashboard',
-      href: '/social-posting',
+      name: 'Media Posting',
+      href: '/media-posting',
       icon: <HomeIcon />,
-      current: isActive('/social-posting')
+      current: isActive('/media-posting')
     },
     {
       name: 'Schedule Posts',

@@ -962,7 +962,7 @@ function Twitter() {
             </span>
           </h1>
           <Link 
-            href="/social-posting"
+            href="/media-posting"
             className="px-4 py-2 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center gap-2 transition-colors text-gray-700"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

@@ -305,7 +305,7 @@ function ScheduledPosts() {
                 <p className="text-base text-gray-600 mb-6">
                   Manage your upcoming social media posts
                 </p>
-                <Link href="/social-posting" className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-full shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all duration-200">
+                <Link href="/media-posting" className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-full shadow-sm text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -347,7 +347,7 @@ function ScheduledPosts() {
                   </div>
                   <h2 className="text-2xl font-medium text-gray-900 mb-2">No Scheduled Posts</h2>
                   <p className="text-gray-600 mb-8 max-w-md">You don&apos;t have any posts scheduled for publication.</p>
-                  <Link href="/social-posting" className="px-6 py-3 bg-primary text-white font-medium rounded-full hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow-sm transition-all duration-200">
+                  <Link href="/media-posting" className="px-6 py-3 bg-primary text-white font-medium rounded-full hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow-sm transition-all">
                     Create Your First Scheduled Post
                   </Link>
                 </div>

@@ -19,7 +19,7 @@ export default function Home() {
   // Redirect authenticated users to dashboard
   useEffect(() => {
     if (user) {
-      router.push('/social-posting');
+      router.push('/media-posting');
     }
   }, [user, router]);
 
