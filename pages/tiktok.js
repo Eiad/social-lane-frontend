@@ -74,9 +74,7 @@ export default function TikTok() {
       socialMediaData.tiktok = accounts.map(account => {
         console.log('Processing account for localStorage:', {
           hasAvatarUrl: !!account.avatarUrl,
-          hasAvatarUrl100: !!account.avatarUrl100,
-          hasUserInfoAvatarUrl100: !!(account.userInfo?.avatarUrl100),
-          hasUserInfoAvatar_url_100: !!(account.userInfo?.avatar_url_100)
+          hasAvatarUrl100: !!account.avatarUrl100
         });
         
         return {
@@ -86,8 +84,9 @@ export default function TikTok() {
           displayName: account.displayName || account.userInfo?.display_name || '',
           // Use original avatarUrl from TikTok
           avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
-          // Use R2 URL for avatarUrl100
-          avatarUrl100: account.avatarUrl100 || account.userInfo?.avatarUrl100 || account.userInfo?.avatar_url_100 || '',
+          // For avatarUrl100, prioritize the account's main property which should already have the R2 URL from DB
+          // Only use userInfo properties as fallback
+          avatarUrl100: account.avatarUrl100 || '',
           index: account.index || 0
         };
       });
@@ -252,20 +251,19 @@ export default function TikTok() {
           // Log the account data for debugging
           console.log('Account from backend:', {
             hasAvatarUrl: !!account.avatarUrl,
-            hasAvatarUrl100: !!account.avatarUrl100,
-            hasUserInfoAvatarUrl: !!(account.userInfo?.avatar_url),
-            hasUserInfoAvatarUrl100: !!(account.userInfo?.avatar_url_100)
+            hasAvatarUrl100: !!account.avatarUrl100
           });
           
+          // During login, we should prioritize using the R2 URL that's already in the database (avatarUrl100)
+          // rather than triggering a new R2 upload
           return {
             accountId: account.openId || account.accountId, // Use openId as accountId if needed
             username: account.username || account.userInfo?.username || '',
             displayName: account.displayName || account.userInfo?.display_name || '',
             // Use original TikTok avatarUrl
             avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
-            // Use R2 URL for avatarUrl100
-            avatarUrl100: account.avatarUrl100 || account.userInfo?.avatarUrl100 || account.userInfo?.avatar_url_100 || '',
-            userInfo: account.userInfo || {}
+            // Use R2 URL from DB - don't try to create a new one on login
+            avatarUrl100: account.avatarUrl100 || ''
           };
         }) : [];
         
@@ -388,6 +386,7 @@ export default function TikTok() {
           username: accountData.username || 'TikTok User',
           displayName: accountData.displayName || '',
           avatarUrl: accountData.avatarUrl || '',
+          // Use the avatarUrl100 from the account data (already uploaded to R2 by backend)
           avatarUrl100: accountData.avatarUrl100 || ''
         };
         
@@ -524,19 +523,19 @@ export default function TikTok() {
         // Keep original TikTok avatar URL
         const avatarUrl = userInfoObj?.avatarUrl || userInfoObj?.avatar_url || '';
         
-        // Use avatarUrl100 from R2
+        // When connecting a new account, use the avatarUrl100 from R2 (comes from backend)
+        // This is created by tiktokService.getUserInfo which uploads to R2
         const avatarUrl100 = userInfoObj?.avatarUrl100 || userInfoObj?.avatar_url_100 || '';
         
         const accountData = {
           accessToken: access_token,
           openId: open_id,
           refreshToken: router?.query?.refresh_token || '',
-          userInfo: userInfoObj,
           username: userInfoObj?.username || 'TikTok User',
           displayName: userInfoObj?.display_name || '',
           // Use original TikTok avatar URL
           avatarUrl: avatarUrl,
-          // Use R2 URL for avatarUrl100
+          // Use R2 URL for avatarUrl100 (already uploaded by backend during account connection)
           avatarUrl100: avatarUrl100
         };
         
@@ -796,9 +795,10 @@ export default function TikTok() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                 {connectedAccounts.map(account => {
                   // Always prioritize avatarUrl100 (R2 URL) for display
-                  const profilePic = account?.avatarUrl100 || account?.userInfo?.avatarUrl100 || account?.userInfo?.avatar_url_100 || 'https://placehold.co/100x100?text=TikTok';
-                  const username = account?.userInfo?.username || account?.username || 'TikTok Account';
-                  const displayName = account?.userInfo?.display_name || account?.displayName || username;
+                  // But only use the direct property, not from userInfo
+                  const profilePic = account?.avatarUrl100 || account?.avatarUrl || 'https://placehold.co/100x100?text=TikTok';
+                  const username = account?.username || 'TikTok Account';
+                  const displayName = account?.displayName || username;
                   
                   return (
                     <div 
@@ -810,7 +810,7 @@ export default function TikTok() {
                         <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-4 bg-gray-100 flex items-center justify-center">
                           {account?.avatarUrl100 || account?.avatarUrl ? (
                             <img 
-                              src={account?.avatarUrl100 || account?.avatarUrl || 'https://placehold.co/100x100?text=TikTok'} 
+                              src={profilePic} 
                               alt={`${displayName}'s profile`} 
                               className="w-full h-full object-cover"
                               onError={(e) => {

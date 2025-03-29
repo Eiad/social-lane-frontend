@@ -45,8 +45,7 @@ export default async function handler(req, res) {
           username: account?.username || account?.userInfo?.username || `TikTok Account`,
           displayName: account?.displayName || account?.userInfo?.display_name || '',
           avatarUrl: account?.avatarUrl || account?.userInfo?.avatar_url || '',
-          avatarUrl100: account?.avatarUrl100 || account?.userInfo?.avatarUrl100 || account?.userInfo?.avatar_url_100 || '',
-          userInfo: account?.userInfo || {}
+          avatarUrl100: account?.avatarUrl100 || ''
         };
       }).filter(account => account.openId);
       

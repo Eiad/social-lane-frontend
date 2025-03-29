@@ -128,8 +128,8 @@ export const AuthProvider = ({ children }) => {
               accountId,
               username: account.username || account.userInfo?.username || '',
               displayName: account.displayName || account.userInfo?.display_name || '',
-              avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || account.userInfo?.avatar_url_100 || '',
-              userInfo: account.userInfo || {}
+              avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
+              avatarUrl100: account.avatarUrl100 || ''
             };
           })
           .filter(account => account.accountId); // Ensure we only keep accounts with an accountId
@@ -346,8 +346,8 @@ export const AuthProvider = ({ children }) => {
               accountId,
               username: account.username || account.userInfo?.username || '',
               displayName: account.displayName || account.userInfo?.display_name || '',
-              avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || account.userInfo?.avatar_url_100 || '',
-              userInfo: account.userInfo || {}
+              avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
+              avatarUrl100: account.avatarUrl100 || ''
             };
           })
           .filter(account => account.accountId); // Ensure we only keep accounts with an accountId
