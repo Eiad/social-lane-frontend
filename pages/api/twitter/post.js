@@ -129,6 +129,25 @@ export default async function handler(req, res) {
         error: errorData.error || 'Unknown error'
       });
       
+      // Special handling for timeout errors
+      if (response.status === 524 || response.status === 504) {
+        console.log('[TWITTER POST] Detected timeout error. The posts may have still gone through.');
+        
+        // For timeouts, we create a more nuanced response since some posts might have succeeded
+        return res.status(202).json({
+          success: true, // Consider it potentially successful since timeouts often happen after processing
+          partial: true, // Flag to indicate uncertain/partial success
+          message: 'The request timed out, but some posts may have completed successfully. Check your Twitter accounts.',
+          results: accounts.map(account => ({
+            userId: account.userId,
+            username: account.username || '',
+            success: true, // Optimistically assume success
+            pending: true, // Flag to indicate uncertain status
+            message: 'Twitter posting request timed out. The tweet may have posted successfully. Please check your Twitter account.'
+          }))
+        });
+      }
+      
       // Create results for each account
       const results = accounts.map(account => ({
         userId: account.userId,
@@ -150,18 +169,21 @@ export default async function handler(req, res) {
     // Special handling for timeout errors
     if (error.name === 'AbortError') {
       const { accounts } = req.body;
-      const results = accounts.map(account => ({
-        userId: account.userId,
-        username: account.username || '',
-        success: false,
-        error: 'The request timed out. The tweets may still be processing.'
-      }));
       
-      return res.status(504).json({
-        success: false,
+      console.log('[TWITTER POST] Request aborted/timed out. Some posts may have completed successfully.');
+      
+      return res.status(202).json({
+        success: true, // Consider it potentially successful
+        partial: true, // Flag to indicate uncertain/partial success
         error: 'The request timed out. The tweets may still be processing.',
-        details: 'Twitter processing can take some time. Check your Twitter accounts to confirm if tweets were published.',
-        results
+        message: 'The request timed out, but some posts may have completed successfully. Check your Twitter accounts.',
+        results: accounts.map(account => ({
+          userId: account.userId,
+          username: account.username || '',
+          success: true, // Optimistically assume success
+          pending: true, // Flag to indicate uncertain status
+          message: 'Twitter posting request timed out. The tweet may have posted successfully. Please check your Twitter account.'
+        }))
       });
     }
     

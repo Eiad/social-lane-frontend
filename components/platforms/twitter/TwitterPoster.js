@@ -45,6 +45,21 @@ const TwitterPoster = {
             signal: controller.signal,
           });
           clearTimeout(timeoutId);
+          
+          // Check for non-200 responses before processing JSON
+          if (!response.ok) {
+            // Try to read response as text first to see if it's HTML
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('text/html')) {
+              const textResponse = await response.text();
+              console.error(`Server returned HTML instead of JSON (${response.status}):`);
+              console.error(textResponse.substring(0, 200) + '...');
+              throw new Error(`Server returned HTML instead of JSON (${response.status})`);
+            }
+            
+            throw new Error(`API request failed with status ${response.status}`);
+          }
+          
           return response;
         } catch (error) {
           clearTimeout(timeoutId);

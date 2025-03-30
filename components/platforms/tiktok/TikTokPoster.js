@@ -1,6 +1,6 @@
 import React from 'react';
 
-const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
+const API_BASE_URL = '/api'; // Relative path for Next.js API routes
 
 const TikTokPoster = {
   // Post to TikTok - handles both immediate and scheduled posts
@@ -14,7 +14,6 @@ const TikTokPoster = {
   }) => {
     console.log(`Posting to ${selectedTiktokAccounts.length} TikTok accounts...`);
     
-    const API_BASE_URL = '/api';
     let tiktokResults = [];
     
     // Enhanced fetch with timeout and retry
@@ -32,6 +31,21 @@ const TikTokPoster = {
             signal: controller.signal,
           });
           clearTimeout(timeoutId);
+          
+          // Check for non-200 responses before processing JSON
+          if (!response.ok) {
+            // Try to read response as text first to see if it's HTML
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('text/html')) {
+              const textResponse = await response.text();
+              console.error(`Server returned HTML instead of JSON (${response.status}):`);
+              console.error(textResponse.substring(0, 200) + '...');
+              throw new Error(`Server returned HTML instead of JSON (${response.status})`);
+            }
+            
+            throw new Error(`API request failed with status ${response.status}`);
+          }
+          
           return response;
         } catch (error) {
           clearTimeout(timeoutId);

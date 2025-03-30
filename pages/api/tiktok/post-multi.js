@@ -131,6 +131,38 @@ export default async function handler(req, res) {
         error: errorData.error || 'Unknown error'
       });
       
+      // Special handling for timeout errors
+      if (response.status === 524 || response.status === 504) {
+        console.log('[TIKTOK MULTI] Detected timeout error. The posts may have still gone through.');
+        
+        // For timeouts, we create a more nuanced response since some posts might have succeeded
+        return res.status(202).json({
+          success: true, // Consider it potentially successful
+          partial: true, // Flag to indicate uncertain status
+          message: 'The request timed out, but some videos may have completed successfully. Check your TikTok accounts.',
+          results: accounts.map(account => ({
+            accountId: account.accountId,
+            displayName: account.displayName || '',
+            username: account.username || '',
+            success: true, // Optimistically assume success for the UI
+            pending: true, // Flag to indicate uncertain status
+            message: 'TikTok posting request timed out. The video may have been posted successfully. Please check your TikTok account.'
+          }))
+        });
+      }
+      
+      // If the results array exists in the error data, use that (might contain partial successes)
+      if (errorData.results) {
+        console.log('[TIKTOK MULTI] Error response contains results array with status information.');
+        return res.status(207).json({ // 207 Multi-Status
+          success: errorData.results.some(r => r.success),
+          partial: true,
+          error: errorData.error || `Server returned ${response.status}`,
+          details: errorData.details || errorData.message || 'No additional details',
+          results: errorData.results
+        });
+      }
+      
       // Create results for each account
       const results = accounts.map(account => ({
         accountId: account.accountId,
@@ -153,19 +185,22 @@ export default async function handler(req, res) {
     // Special handling for timeout errors
     if (error.name === 'AbortError') {
       const { accounts } = req.body;
-      const results = accounts.map(account => ({
-        accountId: account.accountId,
-        displayName: account.displayName || '',
-        username: account.username || '',
-        success: false,
-        error: 'The request timed out. The videos may still be processing on TikTok.'
-      }));
       
-      return res.status(504).json({
-        success: false,
+      console.log('[TIKTOK MULTI] Request aborted/timed out. Some posts may have completed successfully.');
+      
+      return res.status(202).json({
+        success: true, // Consider it potentially successful
+        partial: true, // Flag to indicate uncertain status
         error: 'The request timed out. The videos may still be processing on TikTok.',
-        details: 'TikTok processing can take some time. Check your TikTok accounts to confirm if posts were published.',
-        results
+        message: 'The request timed out, but some videos may have completed successfully. Check your TikTok accounts.',
+        results: accounts.map(account => ({
+          accountId: account.accountId,
+          displayName: account.displayName || '',
+          username: account.username || '',
+          success: true, // Optimistically assume success for UI
+          pending: true, // Flag to indicate uncertain status
+          message: 'TikTok posting request timed out. The video may have been posted successfully. Please check your TikTok account.'
+        }))
       });
     }
     
