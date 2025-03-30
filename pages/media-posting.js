@@ -1289,57 +1289,6 @@ function MediaPosting() {
                     {caption || 'No caption added'}
                   </div>
                 </div>
-                
-                {/* Scheduled Date/Time - Only show if post was scheduled */}
-                {isScheduled && scheduledDate && scheduledTime && (
-                  <div className="mt-4">
-                    <h4 className="font-medium text-gray-700 mb-3 flex items-center">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Scheduled For
-                    </h4>
-                    <div className="text-gray-700 p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
-                      <div className="flex flex-col">
-                        <div className="flex items-center mb-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span>
-                            {new Date(`${scheduledDate}T${scheduledTime}`).toLocaleDateString(undefined, {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </span>
-                        </div>
-                        <div className="flex items-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span>
-                            {new Date(`${scheduledDate}T${scheduledTime}`).toLocaleTimeString(undefined, {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4">
-                      <Link href="/scheduled-posts" legacyBehavior>
-                        <a className="inline-flex items-center px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium rounded-lg transition-colors duration-200">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                          </svg>
-                          View All Scheduled Posts
-                        </a>
-                      </Link>
-                    </div>
-                  </div>
-                )}
               </div>
               
               {/* Right Column - Either Publishing Details or Posting Results */}
@@ -1363,7 +1312,7 @@ function MediaPosting() {
                           </span>
                         )}
                       </div>
-                      <div className="p-4">
+                      <div className="p-4 max-h-[300px] overflow-auto scroll-smooth">
                         <div className="space-y-3">
                           {platformResults.tiktok.map((account, index) => (
                             <div key={index} className="flex items-center justify-between">
@@ -1414,7 +1363,7 @@ function MediaPosting() {
                           </span>
                         )}
                       </div>
-                      <div className="p-4">
+                      <div className="p-4 max-h-[300px] overflow-auto scroll-smooth">
                         <div className="space-y-3">
                           {platformResults.twitter.map((account, index) => (
                             <div key={index} className="flex items-center justify-between">
@@ -1449,6 +1398,54 @@ function MediaPosting() {
                     </div>
                   )}
                   
+                  {/* Show scheduling information in the results view - BEFORE Create Another Post button */}
+                  {isScheduled && scheduledDate && scheduledTime && postSuccess && Object.keys(platformResults).length > 0 && (
+                    <div className="mb-6 bg-white rounded-lg border border-green-100 shadow-sm overflow-hidden">
+                      <div className="p-4 border-b border-green-50 flex items-center bg-green-50">
+                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mr-3">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <h4 className="font-medium text-gray-800">Your Post has been Scheduled</h4>
+                      </div>
+                      <div className="p-4 max-h-[300px] overflow-auto scroll-smooth">
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="text-gray-500 text-sm">Date</div>
+                              <div className="text-gray-800 font-medium">
+                                {formatScheduledDateTime('date')}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-gray-500 text-sm">Time</div>
+                              <div className="text-gray-800 font-medium">
+                                {formatScheduledDateTime('time')}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                          <div className="flex items-center text-green-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-sm">Your content will be posted automatically</span>
+                          </div>
+                          <Link href="/scheduled-posts" className="text-green-600 hover:text-green-800 font-medium flex items-center text-sm">
+                            Manage
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Create Another Post button */}
                   {postSuccess && (
                     <div className="my-4 flex justify-center">
                       <button
@@ -1762,6 +1759,33 @@ function MediaPosting() {
       
       return newSelectedAccounts;
     });
+  };
+
+  // Helper function to safely format date and time
+  const formatScheduledDateTime = (format) => {
+    try {
+      if (!scheduledDate || !scheduledTime) return '';
+      const dateObj = new Date(`${scheduledDate}T${scheduledTime}`);
+      if (isNaN(dateObj.getTime())) return '';
+      
+      if (format === 'date') {
+        return dateObj.toLocaleDateString(undefined, { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric'
+        });
+      } else if (format === 'time') {
+        return dateObj.toLocaleTimeString(undefined, {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+      return '';
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '';
+    }
   };
 
   // Get scheduled date and time as a Date object
