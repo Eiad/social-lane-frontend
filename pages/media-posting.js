@@ -54,6 +54,8 @@ function MediaPosting() {
   // State for managing file upload
   const [file, setFile] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileName, setFileName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -555,17 +557,143 @@ function MediaPosting() {
       
       setAccountStatus(initialStatus);
       
+      // Get scheduled date and time
+      const scheduledAt = getScheduledDateTime();
+      
+      let firebaseUid;
+      try {
+        firebaseUid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
+        
+        if (!firebaseUid) {
+          throw new Error('User ID not found. Please log in again.');
+        }
+      } catch (error) {
+        console.error('Error retrieving user ID:', error);
+        setUploadError('User ID not found. Please log in again.');
+        setIsPosting(false);
+        setIsScheduling(false);
+        return;
+      }
+      
+      // Set posting/scheduling state
       if (isScheduled) {
         setIsScheduling(true);
       } else {
         setIsPosting(true);
       }
       
-      const scheduledAt = getScheduledDateTime();
-      const firebaseUid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
-      
-      if (!firebaseUid) {
-        throw new Error('User ID not found. Please log in again.');
+      // Check for scheduled posts - handle differently than immediate posts
+      if (isScheduled) {
+        console.log('Creating scheduled post...');
+        try {
+          // Create the payload for the schedules API
+          const schedulesPayload = {
+            userId: firebaseUid,
+            video_url: videoUrl,
+            post_description: caption,
+            platforms: selectedPlatforms,
+            isScheduled: true,
+            scheduledDate: scheduledAt,
+          };
+          
+          // Add platform-specific account data
+          if (selectedPlatforms.includes('tiktok')) {
+            schedulesPayload.tiktok_accounts = selectedTiktokAccounts;
+          }
+          
+          if (selectedPlatforms.includes('twitter')) {
+            schedulesPayload.twitter_accounts = selectedTwitterAccounts;
+          }
+          
+          // Send request to schedules API
+          const response = await fetch('/api/schedules', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(schedulesPayload)
+          });
+          
+          if (!response.ok) {
+            const contentType = response.headers.get('content-type');
+            let errorMessage = `Failed with status ${response.status}`;
+            
+            try {
+              if (contentType && contentType.includes('application/json')) {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.message || errorMessage;
+              } else {
+                const text = await response.text();
+                errorMessage = text.substring(0, 100) || errorMessage;
+              }
+            } catch (parseError) {
+              console.error('Error parsing schedule response:', parseError);
+            }
+            
+            throw new Error(errorMessage);
+          }
+          
+          const responseData = await response.json();
+          console.log('Schedule created successfully:', responseData);
+          
+          // Update UI for success
+          setPostSuccess(true);
+          window.showToast?.success?.(`Your post has been scheduled successfully for ${scheduledAt.toLocaleString()}`);
+          
+          // Set account statuses to success
+          const successStatuses = {
+            tiktok: {},
+            twitter: {}
+          };
+          
+          selectedTiktokAccounts.forEach(account => {
+            successStatuses.tiktok[account.accountId] = {
+              status: 'success',
+              message: 'Scheduled successfully'
+            };
+          });
+          
+          selectedTwitterAccounts.forEach(account => {
+            successStatuses.twitter[account.userId] = {
+              status: 'success',
+              message: 'Scheduled successfully'
+            };
+          });
+          
+          setAccountStatus(successStatuses);
+          
+          // No need to continue with individual platform posting
+          return;
+        } catch (error) {
+          console.error('Error scheduling post:', error);
+          setUploadError(error.message);
+          setPostSuccess(false);
+          window.showToast?.error?.(error.message || 'Failed to schedule post');
+          
+          // Update all accounts with error status
+          const errorUpdate = {
+            tiktok: {},
+            twitter: {}
+          };
+          
+          selectedTiktokAccounts.forEach(account => {
+            errorUpdate.tiktok[account.accountId] = {
+              status: 'error',
+              message: error.message || 'Failed to schedule'
+            };
+          });
+          
+          selectedTwitterAccounts.forEach(account => {
+            errorUpdate.twitter[account.userId] = {
+              status: 'error',
+              message: error.message || 'Failed to schedule'
+            };
+          });
+          
+          setAccountStatus(errorUpdate);
+          setIsScheduling(false);
+          return;
+        }
       }
       
       // Prepare platform results
@@ -1784,90 +1912,132 @@ function MediaPosting() {
                         </svg>
                         Scheduling
                       </h4>
-                      <div className="p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-gray-700">Schedule post</span>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              className="sr-only"
-                              checked={isScheduled}
-                              onChange={(e) => setIsScheduled(e.target.checked)}
-                            />
-                            <div className={`w-11 h-6 rounded-full transition-colors duration-200 ease-in-out ${isScheduled ? 'bg-green-500' : 'bg-gray-300'}`}>
-                              <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out ${isScheduled ? 'transform translate-x-5' : ''}`}></div>
+                      
+                      {postSuccess && isScheduled ? (
+                        <div className="p-6 bg-white rounded-lg border border-green-100 shadow-sm">
+                          <div className="flex flex-col items-center text-center">
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-green-500 mb-4">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
                             </div>
-                          </label>
-                        </div>
-
-                        {isScheduled && (
-                          <div className="flex flex-col sm:flex-row gap-4 mt-4">
-                            <div className="flex-1">
-                              <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
-                              <input
-                                type="date"
-                                value={scheduledDate}
-                                onChange={(e) => setScheduledDate(e.target.value)}
-                                min={new Date().toISOString().split('T')[0]}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <label className="block text-xs font-medium text-gray-500 mb-1">Time</label>
-                              <input
-                                type="time"
-                                value={scheduledTime}
-                                onChange={(e) => setScheduledTime(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
-                              />
+                            <h3 className="text-xl font-bold text-gray-800 mb-2">Post Scheduled!</h3>
+                            <p className="text-gray-600 mb-6">
+                              Your post will be published on <span className="font-semibold">{new Date(scheduledDate + 'T' + scheduledTime).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span> at <span className="font-semibold">{new Date(scheduledDate + 'T' + scheduledTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+                            </p>
+                            
+                            <div className="flex flex-wrap justify-center gap-4 w-full">
+                            <Link 
+                                href="/media-posting"
+                                
+                                className="flex items-center justify-center bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 py-2 px-4 rounded-md text-sm font-medium transition-colors duration-200 shadow-sm w-auto mx-2"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                </svg>
+                                View Scheduled Posts
+                              </Link>
+                              <Link 
+                                href="/scheduled-posts"
+                                
+                                className="flex items-center justify-center bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 py-2 px-4 rounded-md text-sm font-medium transition-colors duration-200 shadow-sm w-auto mx-2"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                </svg>
+                                View Scheduled Posts
+                              </Link>
                             </div>
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-white rounded-lg border border-gray-100 shadow-sm">
+                          <div className="flex items-center justify-between mb-4">
+                            <span className="text-gray-700">Schedule post</span>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="sr-only"
+                                checked={isScheduled}
+                                onChange={(e) => setIsScheduled(e.target.checked)}
+                              />
+                              <div className={`w-11 h-6 rounded-full transition-colors duration-200 ease-in-out ${isScheduled ? 'bg-green-500' : 'bg-gray-300'}`}>
+                                <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out ${isScheduled ? 'transform translate-x-5' : ''}`}></div>
+                              </div>
+                            </label>
+                          </div>
+
+                          {isScheduled && (
+                            <div className="flex flex-col sm:flex-row gap-4 mt-4">
+                              <div className="flex-1">
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
+                                <input
+                                  type="date"
+                                  value={scheduledDate}
+                                  onChange={(e) => setScheduledDate(e.target.value)}
+                                  min={new Date().toISOString().split('T')[0]}
+                                  className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Time</label>
+                                <input
+                                  type="time"
+                                  value={scheduledTime}
+                                  onChange={(e) => setScheduledTime(e.target.value)}
+                                  className="w-full px-4 py-2 border border-gray-300 rounded-md text-gray-700 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Post Button */}
-                    <button
-                      className="w-full py-3 mt-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center"
-                      onClick={handlePost}
-                      disabled={isPosting || isScheduling || !hasValidPlatforms() || (isScheduled && (!scheduledDate || !scheduledTime))}
-                    >
-                      {isScheduling ? (
-                        <>
-                          <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Scheduling...
-                        </>
-                      ) : isPosting ? (
-                        <>
-                          <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Posting...
-                        </>
-                      ) : (
-                        <>
-                          {isScheduled ? (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              Schedule Post
-                            </>
-                          ) : (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                              </svg>
-                              Post Now
-                            </>
-                          )}
-                        </>
-                      )}
-                    </button>
+                    {/* Post Button - Hide when post is scheduled successfully */}
+                    {!(postSuccess && isScheduled) && (
+                      <button
+                        className="w-full py-3 mt-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center"
+                        onClick={handlePost}
+                        disabled={isPosting || isScheduling || !hasValidPlatforms() || (isScheduled && (!scheduledDate || !scheduledTime))}
+                      >
+                        {isScheduling ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Scheduling...
+                          </>
+                        ) : isPosting ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Posting...
+                          </>
+                        ) : (
+                          <>
+                            {isScheduled ? (
+                              <>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                Schedule Post
+                              </>
+                            ) : (
+                              <>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                                Post Now
+                              </>
+                            )}
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
