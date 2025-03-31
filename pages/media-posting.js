@@ -521,7 +521,6 @@ function MediaPosting() {
     }
   };
 
-  // Modify the handlePost function to properly handle scheduling
   const handlePost = async () => {
     try {
       setUploadError(null);
@@ -556,248 +555,507 @@ function MediaPosting() {
       
       setAccountStatus(initialStatus);
       
+      if (isScheduled) {
+        setIsScheduling(true);
+      } else {
+        setIsPosting(true);
+      }
+      
+      const scheduledAt = getScheduledDateTime();
       const firebaseUid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
       
       if (!firebaseUid) {
         throw new Error('User ID not found. Please log in again.');
       }
       
-      // Check if we're scheduling or posting immediately
-      if (isScheduled) {
-        // SCHEDULING PATH
-        setIsScheduling(true);
-        
-        // Get scheduled date/time
-        const scheduledAt = getScheduledDateTime();
-        if (!scheduledAt) {
-          throw new Error('Please select a valid date and time for scheduling');
-        }
-        
-        // Update all accounts to "scheduling" status
-        const updatedStatus = { ...initialStatus };
-        if (selectedPlatforms.includes('tiktok')) {
-          Object.keys(updatedStatus.tiktok).forEach(accountId => {
-            updatedStatus.tiktok[accountId] = {
-              status: 'loading',
-              message: 'Scheduling post...'
-            };
-          });
-        }
-        
-        if (selectedPlatforms.includes('twitter')) {
-          Object.keys(updatedStatus.twitter).forEach(userId => {
-            updatedStatus.twitter[userId] = {
-              status: 'loading',
-              message: 'Scheduling post...'
-            };
-          });
-        }
-        
-        setAccountStatus(updatedStatus);
-        
-        // Prepare data for scheduling API
-        const schedulingData = {
-          userId: firebaseUid,
-          video_url: videoUrl,
-          post_description: caption,
-          platforms: [],
-          isScheduled: true,
-          scheduledDate: scheduledAt.toISOString()
-        };
-        
-        // Add selected TikTok accounts if any
-        if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length > 0) {
-          schedulingData.platforms.push('tiktok');
-          schedulingData.tiktok_accounts = selectedTiktokAccounts.map(account => ({
-            accountId: account.accountId || account.openId,
-            username: account.username || '',
-            displayName: account.displayName || ''
-          }));
-        }
-        
-        // Add selected Twitter accounts if any
-        if (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length > 0) {
-          schedulingData.platforms.push('twitter');
-          schedulingData.twitter_accounts = selectedTwitterAccounts.map(account => ({
-            userId: account.userId,
-            username: account.username || ''
-          }));
-        }
-        
+      // Prepare platform results
+      const results = {};
+      
+      // TikTok posting
+      if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length > 0) {
+        console.log('Posting to TikTok...');
         try {
-          // Make a single API call to schedule the post
-          const response = await fetch('/api/schedules', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(schedulingData)
-          });
+          // Update all TikTok accounts to "loading" status for first account, rest "waiting"
+          const tiktokUpdate = { ...initialStatus.tiktok };
+          if (selectedTiktokAccounts.length > 0) {
+            tiktokUpdate[selectedTiktokAccounts[0].accountId] = {
+              status: 'loading',
+              message: 'Posting in progress...'
+            };
+            setAccountStatus(prev => ({
+              ...prev,
+              tiktok: tiktokUpdate
+            }));
+          }
           
-          // Handle non-OK responses
-          if (!response.ok) {
-            const contentType = response.headers.get('content-type');
-            let errorMessage = `Failed with status ${response.status}`;
-            
+          // Custom TikTok posting with progress tracking
+          const tiktokResultsPromise = new Promise(async (resolve, reject) => {
             try {
-              // Try to parse as JSON first
-              if (contentType && contentType.includes('application/json')) {
-                const errorData = await response.json();
-                errorMessage = errorData.error || errorData.message || errorMessage;
-              } else {
-                // If not JSON, try to get text
-                const text = await response.text();
-                if (text.includes('<!DOCTYPE html>')) {
-                  errorMessage = 'Server returned HTML instead of JSON. Check network connectivity.';
-                  console.error('HTML response from server:', text.substring(0, 200));
-                } else {
-                  errorMessage = text.substring(0, 100) || errorMessage;
+              // Prepare for sequential account processing
+              const results = [];
+              
+              for (let i = 0; i < selectedTiktokAccounts.length; i++) {
+                const account = selectedTiktokAccounts[i];
+                
+                // Update current account status to "loading"
+                setAccountStatus(prev => ({
+                  ...prev,
+                  tiktok: {
+                    ...prev.tiktok,
+                    [account.accountId]: {
+                      status: 'loading',
+                      message: 'Posting in progress...'
+                    }
+                  }
+                }));
+                
+                try {
+                  // Call backend for this specific account
+                  const singleAccountData = {
+                    videoUrl,
+                    caption,
+                    userId: firebaseUid,
+                    accounts: [account]
+                  };
+                  
+                  // API call for individual account - use relative path
+                  const response = await fetch(`/api/tiktok/post-multi`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(singleAccountData)
+                  });
+                  
+                  // Handle non-OK responses
+                  if (!response.ok) {
+                    const contentType = response.headers.get('content-type');
+                    let errorMessage = `Failed with status ${response.status}`;
+                    
+                    try {
+                      // Try to parse as JSON first
+                      if (contentType && contentType.includes('application/json')) {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorData.message || errorMessage;
+                      } else {
+                        // If not JSON, try to get text
+                        const text = await response.text();
+                        if (text.includes('<!DOCTYPE html>')) {
+                          errorMessage = 'Server returned HTML instead of JSON. Check network connectivity.';
+                          console.error('HTML response from server:', text.substring(0, 200));
+                        } else {
+                          errorMessage = text.substring(0, 100) || errorMessage;
+                        }
+                      }
+                    } catch (parseError) {
+                      console.error('Error parsing response:', parseError);
+                    }
+                    
+                    throw new Error(errorMessage);
+                  }
+                  
+                  const data = await response.json();
+                  
+                  // Extract first result from the response
+                  const accountResult = data.results?.[0] || {
+                    accountId: account.accountId,
+                    displayName: account.displayName || account.username || '',
+                    success: response.ok,
+                    error: response.ok ? null : 'Failed to post'
+                  };
+                  
+                  results.push(accountResult);
+                  
+                  // Update account status based on result
+                  setAccountStatus(prev => ({
+                    ...prev,
+                    tiktok: {
+                      ...prev.tiktok,
+                      [account.accountId]: {
+                        status: accountResult.success ? 'success' : 'error',
+                        message: accountResult.success 
+                          ? 'Posted successfully' 
+                          : (accountResult.error || 'Failed to post')
+                      }
+                    }
+                  }));
+                  
+                  // If there's another account coming up, set it to "next"
+                  if (i < selectedTiktokAccounts.length - 1) {
+                    const nextAccount = selectedTiktokAccounts[i + 1];
+                    setAccountStatus(prev => ({
+                      ...prev,
+                      tiktok: {
+                        ...prev.tiktok,
+                        [nextAccount.accountId]: {
+                          status: 'next',
+                          message: 'Next to process...'
+                        }
+                      }
+                    }));
+                  }
+                  
+                  // Small delay between accounts to avoid rate limiting
+                  if (i < selectedTiktokAccounts.length - 1) {
+                    await new Promise(r => setTimeout(r, 1000));
+                  }
+                } catch (accountError) {
+                  // Handle individual account error
+                  console.error(`Error posting to TikTok account ${account.displayName || account.accountId}:`, accountError);
+                  
+                  results.push({
+                    accountId: account.accountId,
+                    displayName: account.displayName || account.username || '',
+                    success: false,
+                    error: accountError.message || 'Unknown error'
+                  });
+                  
+                  // Update account status to error
+                  setAccountStatus(prev => ({
+                    ...prev,
+                    tiktok: {
+                      ...prev.tiktok,
+                      [account.accountId]: {
+                        status: 'error',
+                        message: accountError.message || 'Failed to post'
+                      }
+                    }
+                  }));
                 }
               }
-            } catch (parseError) {
-              console.error('Error parsing response:', parseError);
+              
+              resolve({
+                success: results.some(r => r.success),
+                results,
+                partial: results.some(r => r.success) && results.some(r => !r.success)
+              });
+            } catch (error) {
+              reject(error);
             }
-            
-            throw new Error(errorMessage);
-          }
-          
-          const data = await response.json();
-          console.log('Schedule response:', data);
-          
-          // Create result objects to show success in the UI
-          const results = {};
-          
-          if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length > 0) {
-            results.tiktok = selectedTiktokAccounts.map(account => ({
-              accountId: account.accountId,
-              displayName: account.displayName || account.username || '',
-              success: true,
-              scheduled: true,
-              message: 'Post scheduled successfully'
-            }));
-            
-            // Update all TikTok accounts with success status
-            const tiktokSuccessUpdate = {};
-            selectedTiktokAccounts.forEach(account => {
-              tiktokSuccessUpdate[account.accountId] = {
-                status: 'success',
-                message: 'Post scheduled successfully'
-              };
-            });
-            
-            setAccountStatus(prev => ({
-              ...prev,
-              tiktok: {
-                ...prev.tiktok,
-                ...tiktokSuccessUpdate
-              }
-            }));
-          }
-          
-          if (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length > 0) {
-            results.twitter = selectedTwitterAccounts.map(account => ({
-              userId: account.userId,
-              username: account.username || '',
-              success: true,
-              scheduled: true,
-              message: 'Post scheduled successfully'
-            }));
-            
-            // Update all Twitter accounts with success status
-            const twitterSuccessUpdate = {};
-            selectedTwitterAccounts.forEach(account => {
-              twitterSuccessUpdate[account.userId] = {
-                status: 'success',
-                message: 'Post scheduled successfully'
-              };
-            });
-            
-            setAccountStatus(prev => ({
-              ...prev,
-              twitter: {
-                ...prev.twitter,
-                ...twitterSuccessUpdate
-              }
-            }));
-          }
-          
-          setPlatformResults(results);
-          setPostSuccess(true);
-          window.showToast?.success?.(`Your post has been scheduled successfully for ${scheduledAt.toLocaleString()}`);
-        } catch (error) {
-          console.error('Error scheduling post:', error);
-          
-          // Update all accounts with error status
-          const errorUpdate = {
-            tiktok: {},
-            twitter: {}
-          };
-          
-          selectedTiktokAccounts.forEach(account => {
-            errorUpdate.tiktok[account.accountId] = {
-              status: 'error',
-              message: error.message || 'Failed to schedule post'
-            };
           });
           
-          selectedTwitterAccounts.forEach(account => {
-            errorUpdate.twitter[account.userId] = {
+          const tiktokResult = await tiktokResultsPromise;
+          
+          // Handle both full and partial success responses
+          results.tiktok = tiktokResult.results;
+          results.tiktokPartial = tiktokResult.partial || false;
+          
+          // If scheduling, show success message
+          if (isScheduled) {
+            window.showToast?.success?.(`Your post has been scheduled successfully for ${scheduledAt.toLocaleString()}`);
+          }
+        } catch (error) {
+          console.error('Error posting to TikTok:', error);
+          
+          // Update all TikTok accounts with error status
+          const tiktokErrorUpdate = {};
+          selectedTiktokAccounts.forEach(account => {
+            tiktokErrorUpdate[account.accountId] = {
               status: 'error',
-              message: error.message || 'Failed to schedule post'
+              message: error.message || 'Failed to post'
             };
           });
           
           setAccountStatus(prev => ({
-            tiktok: { ...prev.tiktok, ...errorUpdate.tiktok },
-            twitter: { ...prev.twitter, ...errorUpdate.twitter }
+            ...prev,
+            tiktok: {
+              ...prev.tiktok,
+              ...tiktokErrorUpdate
+            }
           }));
           
-          // Create error results
-          const errorResults = {};
-          
-          if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length > 0) {
-            errorResults.tiktok = selectedTiktokAccounts.map(account => ({
+          // Check if the error contains partial success information
+          if (error?.response?.data?.results) {
+            results.tiktok = error.response.data.results;
+            results.tiktokPartial = true;
+            
+            // Show partial success toast
+            if (error.response.data.results.some(r => r.success)) {
+              window.showToast?.info?.('Some TikTok posts were successful, but others failed');
+            } else {
+              window.showToast?.error?.(error?.message || 'Error posting to TikTok');
+            }
+          } else {
+            // Create an error result for each account
+            results.tiktok = selectedTiktokAccounts.map(account => ({
               accountId: account.accountId,
               displayName: account.displayName || account.username || '',
-              success: false,
-              error: error.message || 'Failed to schedule post'
-            }));
-          }
-          
-          if (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length > 0) {
-            errorResults.twitter = selectedTwitterAccounts.map(account => ({
-              userId: account.userId,
               username: account.username || '',
               success: false,
-              error: error.message || 'Failed to schedule post'
+              error: error?.message || 'Failed to post to TikTok'
+            }));
+            window.showToast?.error?.(error?.message || 'Error posting to TikTok');
+          }
+        }
+      }
+      
+      // Twitter posting
+      if (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length > 0) {
+        console.log('Posting to Twitter...', {
+          accountCount: selectedTwitterAccounts.length,
+          accounts: selectedTwitterAccounts.map(acc => acc.username || acc.userId)
+        });
+        
+        try {
+          // Update all Twitter accounts to "loading" status for first account, rest "waiting"
+          const twitterUpdate = { ...initialStatus.twitter };
+          if (selectedTwitterAccounts.length > 0) {
+            twitterUpdate[selectedTwitterAccounts[0].userId] = {
+              status: 'loading',
+              message: 'Posting in progress...'
+            };
+            setAccountStatus(prev => ({
+              ...prev,
+              twitter: twitterUpdate
             }));
           }
           
-          setPlatformResults(errorResults);
-          setUploadError(error.message);
-          window.showToast?.error?.(error?.message || 'Error scheduling post');
-        }
-      } else {
-        // IMMEDIATE POSTING PATH - Continue with the existing code for immediate posting
-        setIsPosting(true);
-        
-        // Prepare platform results
-        const results = {};
-        
-        // Existing TikTok posting code
-        if (selectedPlatforms.includes('tiktok') && selectedTiktokAccounts.length > 0) {
-          // Existing TikTok posting implementation goes here
-          console.log('Posting to TikTok immediately...');
-          // ... (keep existing TikTok posting code) ...
-        }
-        
-        // Existing Twitter posting code
-        if (selectedPlatforms.includes('twitter') && selectedTwitterAccounts.length > 0) {
-          // Existing Twitter posting implementation goes here
-          console.log('Posting to Twitter immediately...');
-          // ... (keep existing Twitter posting code) ...
+          // Custom Twitter posting with progress tracking
+          const twitterResultsPromise = new Promise(async (resolve, reject) => {
+            try {
+              // Prepare for sequential account processing
+              const results = [];
+              
+              for (let i = 0; i < selectedTwitterAccounts.length; i++) {
+                const account = selectedTwitterAccounts[i];
+                
+                // Update current account status to "loading"
+                setAccountStatus(prev => ({
+                  ...prev,
+                  twitter: {
+                    ...prev.twitter,
+                    [account.userId]: {
+                      status: 'loading',
+                      message: 'Posting in progress...'
+                    }
+                  }
+                }));
+                
+                try {
+                  // Call backend for this specific account
+                  const singleAccountData = {
+                    videoUrl,
+                    text: caption,
+                    userId: firebaseUid,
+                    accounts: [account]
+                  };
+                  
+                  // API call for individual account - use relative path
+                  const response = await fetch(`/api/twitter/post`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(singleAccountData)
+                  });
+                  
+                  // Handle non-OK responses
+                  if (!response.ok) {
+                    const contentType = response.headers.get('content-type');
+                    let errorMessage = `Failed with status ${response.status}`;
+                    
+                    try {
+                      // Try to parse as JSON first
+                      if (contentType && contentType.includes('application/json')) {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorData.message || errorMessage;
+                      } else {
+                        // If not JSON, try to get text
+                        const text = await response.text();
+                        if (text.includes('<!DOCTYPE html>')) {
+                          errorMessage = 'Server returned HTML instead of JSON. Check network connectivity.';
+                          console.error('HTML response from server:', text.substring(0, 200));
+                        } else {
+                          errorMessage = text.substring(0, 100) || errorMessage;
+                        }
+                      }
+                    } catch (parseError) {
+                      console.error('Error parsing response:', parseError);
+                    }
+                    
+                    throw new Error(errorMessage);
+                  }
+                  
+                  const data = await response.json();
+                  
+                  // Extract first result from the response
+                  const accountResult = data.results?.[0] || {
+                    userId: account.userId,
+                    username: account.username || '',
+                    success: response.ok,
+                    error: response.ok ? null : 'Failed to post'
+                  };
+                  
+                  results.push(accountResult);
+                  
+                  // Update account status based on result
+                  setAccountStatus(prev => ({
+                    ...prev,
+                    twitter: {
+                      ...prev.twitter,
+                      [account.userId]: {
+                        status: accountResult.success ? 'success' : 'error',
+                        message: accountResult.success 
+                          ? 'Posted successfully' 
+                          : (accountResult.error || 'Failed to post')
+                      }
+                    }
+                  }));
+                  
+                  // If there's another account coming up, set it to "next"
+                  if (i < selectedTwitterAccounts.length - 1) {
+                    const nextAccount = selectedTwitterAccounts[i + 1];
+                    setAccountStatus(prev => ({
+                      ...prev,
+                      twitter: {
+                        ...prev.twitter,
+                        [nextAccount.userId]: {
+                          status: 'next',
+                          message: 'Next to process...'
+                        }
+                      }
+                    }));
+                  }
+                  
+                  // Small delay between accounts to avoid rate limiting
+                  if (i < selectedTwitterAccounts.length - 1) {
+                    await new Promise(r => setTimeout(r, 1000));
+                  }
+                } catch (accountError) {
+                  // Handle individual account error
+                  console.error(`Error posting to Twitter account ${account.username || account.userId}:`, accountError);
+                  
+                  results.push({
+                    userId: account.userId,
+                    username: account.username || '',
+                    success: false,
+                    error: accountError.message || 'Unknown error'
+                  });
+                  
+                  // Update account status to error
+                  setAccountStatus(prev => ({
+                    ...prev,
+                    twitter: {
+                      ...prev.twitter,
+                      [account.userId]: {
+                        status: 'error',
+                        message: accountError.message || 'Failed to post'
+                      }
+                    }
+                  }));
+                }
+              }
+              
+              resolve({
+                success: results.some(r => r.success),
+                results,
+                partial: results.some(r => r.success) && results.some(r => !r.success)
+              });
+            } catch (error) {
+              reject(error);
+            }
+          });
+          
+          const twitterResult = await twitterResultsPromise;
+          
+          // Handle both full and partial success responses
+          results.twitter = twitterResult.results;
+          results.twitterPartial = twitterResult.partial || false;
+          
+          console.log('Twitter posting results:', twitterResult);
+          
+          // Check if any accounts succeeded
+          const anySuccess = Array.isArray(twitterResult.results) && twitterResult.results.some(r => r.success);
+          
+          // If scheduling and at least one account succeeded, show success message
+          if (isScheduled && anySuccess) {
+            window.showToast?.success?.(`Your post has been scheduled successfully for ${scheduledAt.toLocaleString()}`);
+          }
+          
+          // If partial success, show info toast
+          if (twitterResult.partial && anySuccess) {
+            window.showToast?.info?.('Some Twitter posts were successful, but others failed or are still processing');
+          }
+        } catch (error) {
+          console.error('Error posting to Twitter:', error);
+          console.error('Twitter error details:', error?.message || 'Unknown error');
+          
+          // Update all Twitter accounts with error status
+          const twitterErrorUpdate = {};
+          selectedTwitterAccounts.forEach(account => {
+            twitterErrorUpdate[account.userId] = {
+              status: 'error',
+              message: error.message || 'Failed to post'
+            };
+          });
+          
+          setAccountStatus(prev => ({
+            ...prev,
+            twitter: {
+              ...prev.twitter,
+              ...twitterErrorUpdate
+            }
+          }));
+          
+          // Check if the error contains partial success information
+          if (error?.response?.data?.results) {
+            results.twitter = error.response.data.results;
+            results.twitterPartial = true;
+            
+            // Show partial success toast
+            if (error.response.data.results.some(r => r.success)) {
+              window.showToast?.info?.('Some Twitter posts were successful, but others failed');
+            } else {
+              window.showToast?.error?.(error?.message || 'Error posting to Twitter');
+            }
+          } else {
+            // Create an error result for each account
+            results.twitter = selectedTwitterAccounts.map(account => ({
+              userId: account.userId,
+              username: account.username || account.userId,
+              success: false,
+              error: error?.message || 'Failed to post to Twitter'
+            }));
+            window.showToast?.error?.(error?.message || 'Error posting to Twitter');
+          }
         }
       }
+      
+      // Save results and update UI
+      setPlatformResults(results);
+      
+      // Check if any successful platforms
+      const hasSuccessfulPosts = Object.values(results).some(result => {
+        if (Array.isArray(result)) {
+          return result.some(r => r.success);
+        } else if (typeof result === 'object' && !Array.isArray(result)) {
+          return result.success;
+        } else {
+          return false;
+        }
+      });
+      
+      setPostSuccess(hasSuccessfulPosts);
+      
+      // If all were successful, show success toast
+      if (hasSuccessfulPosts && !isScheduled) {
+        // Check if all were successful or partial success
+        const allSuccess = Object.keys(results).filter(k => !k.includes('Partial')).every(platform => {
+          const platformResults = results[platform];
+          if (!Array.isArray(platformResults)) return false;
+          return platformResults.every(r => r.success);
+        });
+        
+        if (allSuccess) {
+          window.showToast?.success?.('Your content has been posted successfully!');
+        } else {
+          window.showToast?.info?.('Your content has been posted with some accounts. Check results for details.');
+        }
+      }
+      
+      // If we get here, all posting operations completed
+      console.log('Posting completed with results:', results);
+      
     } catch (error) {
       console.error('Error in post handling:', error);
       setUploadError(error.message);
@@ -1312,7 +1570,7 @@ function MediaPosting() {
                           </span>
                         )}
                       </div>
-                      <div className="p-4 max-h-[300px] overflow-auto scroll-smooth">
+                      <div className="p-4">
                         <div className="space-y-3">
                           {platformResults.tiktok.map((account, index) => (
                             <div key={index} className="flex items-center justify-between">
@@ -1363,7 +1621,7 @@ function MediaPosting() {
                           </span>
                         )}
                       </div>
-                      <div className="p-4 max-h-[300px] overflow-auto scroll-smooth">
+                      <div className="p-4">
                         <div className="space-y-3">
                           {platformResults.twitter.map((account, index) => (
                             <div key={index} className="flex items-center justify-between">
@@ -1398,54 +1656,6 @@ function MediaPosting() {
                     </div>
                   )}
                   
-                  {/* Show scheduling information in the results view - BEFORE Create Another Post button */}
-                  {isScheduled && scheduledDate && scheduledTime && postSuccess && Object.keys(platformResults).length > 0 && (
-                    <div className="mb-6 bg-white rounded-lg border border-green-100 shadow-sm overflow-hidden">
-                      <div className="p-4 border-b border-green-50 flex items-center bg-green-50">
-                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center mr-3">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <h4 className="font-medium text-gray-800">Your Post has been Scheduled</h4>
-                      </div>
-                      <div className="p-4 max-h-[300px] overflow-auto scroll-smooth">
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <div className="text-gray-500 text-sm">Date</div>
-                              <div className="text-gray-800 font-medium">
-                                {formatScheduledDateTime('date')}
-                              </div>
-                            </div>
-                            <div>
-                              <div className="text-gray-500 text-sm">Time</div>
-                              <div className="text-gray-800 font-medium">
-                                {formatScheduledDateTime('time')}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                          <div className="flex items-center text-green-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-sm">Your content will be posted automatically</span>
-                          </div>
-                          <Link href="/scheduled-posts" className="text-green-600 hover:text-green-800 font-medium flex items-center text-sm">
-                            Manage
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Create Another Post button */}
                   {postSuccess && (
                     <div className="my-4 flex justify-center">
                       <button
@@ -1759,33 +1969,6 @@ function MediaPosting() {
       
       return newSelectedAccounts;
     });
-  };
-
-  // Helper function to safely format date and time
-  const formatScheduledDateTime = (format) => {
-    try {
-      if (!scheduledDate || !scheduledTime) return '';
-      const dateObj = new Date(`${scheduledDate}T${scheduledTime}`);
-      if (isNaN(dateObj.getTime())) return '';
-      
-      if (format === 'date') {
-        return dateObj.toLocaleDateString(undefined, { 
-          weekday: 'long', 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric'
-        });
-      } else if (format === 'time') {
-        return dateObj.toLocaleTimeString(undefined, {
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-      }
-      return '';
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return '';
-    }
   };
 
   // Get scheduled date and time as a Date object
