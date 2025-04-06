@@ -106,7 +106,7 @@ function MediaPosting() {
                 const tiktokData = userData.data.providerData.tiktok;
                 if (tiktokData) {
                     const fetchedTiktok = Array.isArray(tiktokData) ? tiktokData : [tiktokData];
-                    const formattedTiktok = fetchedTiktok.filter(a => a?.accountId || a?.openId).map(a => ({ accountId: a.accountId || a.openId, username: a.username || a.userInfo?.username || '', displayName: a.displayName || a.userInfo?.display_name || '', avatarUrl: a.avatarUrl || a.userInfo?.avatar_url || a.avatarUrl100 || a.userInfo?.avatar_url_100 || '', userInfo: a.userInfo || {} }));
+                    const formattedTiktok = fetchedTiktok.filter(a => a?.accountId || a?.openId).map(a => ({ accountId: a.accountId || a.openId, username: a.username || a.userInfo?.username || '', displayName: a.displayName || a.userInfo?.display_name || '', avatarUrl: a.avatarUrl100 || a.userInfo?.avatar_url_100 || a.avatarUrl || a.userInfo?.avatar_url || '', userInfo: a.userInfo || {} }));
                     if (formattedTiktok.length > 0) { socialMediaData.tiktok = formattedTiktok; setTiktokAccounts(formattedTiktok); accountsFoundInDb = true; }
                 } else { console.log("No TikTok data in DB response for this user."); }
                 localStorage.setItem('socialMediaData', JSON.stringify(socialMediaData));
@@ -646,7 +646,7 @@ function MediaPosting() {
                                       title={tip} 
                                       className={`group relative w-14 h-14 rounded-full ${isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} border-2 ${s ? 'border-blue-600 ring-2 ring-blue-600 ring-offset-1' : 'border-gray-300 hover:border-blue-400'} transition-all flex-shrink-0`}
                                     >
-                                      <img src={a.avatarUrl || '/default-avatar.png'} alt={n} className="w-full h-full rounded-full object-cover" />
+                                      <img src={a.avatarUrl100 || a.avatarUrl || '/default-avatar.png'} alt={n} className="w-full h-full rounded-full object-cover" />
                                       <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white bg-black border-2 border-white shadow-md"><TikTokSimpleIcon width="10" height="10" fill="white" /></div>
                                       {s && (<div className="absolute inset-0 rounded-full bg-blue-600/60 flex items-center justify-center pointer-events-none"><svg className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clipRule="evenodd" /></svg></div>)}
                                     </div>
@@ -821,7 +821,7 @@ function MediaPosting() {
                                                     const id = account.accountId;
                                                     const status = accountStatus?.tiktok?.[id] || { status: 'idle', message: 'Waiting...' };
                                                     const name = account.displayName || account.username || `TikTok User`;
-                                                    const avatar = account.avatarUrl;
+                                                    const avatar = account.avatarUrl100 || account.avatarUrl;
                                                     return (
                                                         <div key={id} className="flex items-center justify-between text-sm">
                                                             <div className="flex items-center gap-2 min-w-0">
