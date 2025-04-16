@@ -158,8 +158,9 @@ export default function TikTok() {
     }
   };
 
-  // Helper function to fetch user accounts from the database if they're not in localStorage
+  // Helper function to fetch user accounts from the database
   const fetchUserAccounts = async () => {
+    let fetchedSuccessfully = false; // Flag to track success
     try {
       showLoader('Loading your TikTok accounts...');
       
@@ -169,7 +170,7 @@ export default function TikTok() {
       if (!uid) {
         console.error('No user ID found, cannot fetch TikTok accounts');
         hideLoader();
-        return;
+        return fetchedSuccessfully;
       }
       
       console.log(`Fetching TikTok accounts for user ${uid} from database`);
@@ -284,6 +285,7 @@ export default function TikTok() {
         
         // Dispatch a storage event to notify other components
         window.dispatchEvent(new Event('storage'));
+        fetchedSuccessfully = true; // Mark as successful
       } else if (hasFetchError && cachedAccounts && cachedAccounts.length > 0) {
         // If there was an error fetching from backend but we have cached data, use it
         console.log('Using cached TikTok accounts from localStorage due to backend fetch error');
@@ -311,6 +313,7 @@ export default function TikTok() {
     } finally {
       hideLoader();
     }
+    return fetchedSuccessfully;
   };
 
   // Function to save a single account to the backend
@@ -603,6 +606,33 @@ export default function TikTok() {
       fetchUserAccounts();
     }
   }, [userId, handleStorageUpdate]);
+
+  // NEW: Handle redirect back from TikTok authentication
+  useEffect(() => {
+    const handleTikTokCallback = async () => {
+      // Use 'auth_success' as the query parameter
+      if (router.query.auth_success === 'true') {
+        console.log('Detected successful TikTok authentication callback.');
+        showLoader('Finalizing TikTok connection...');
+        // Refetch accounts to get the latest data
+        await fetchUserAccounts();
+        // Clean the URL query parameters
+        router.replace('/tiktok', undefined, { shallow: true });
+        // hideLoader() is called within fetchUserAccounts finally block
+      } else if (router.query.error || router.query.connection_error) {
+        // Handle potential error parameters from backend redirect
+        const errorMsg = router.query.error || router.query.connection_error || 'Unknown error';
+        console.error('TikTok authentication error from redirect:', errorMsg);
+        window.showToast?.error?.(`TikTok Connection Error: ${decodeURIComponent(errorMsg)}`);
+        // Clean the URL query parameters
+        router.replace('/tiktok', undefined, { shallow: true });
+      }
+    };
+
+    if (router.isReady) {
+      handleTikTokCallback();
+    }
+  }, [router.isReady, router.query, fetchUserAccounts]); // Add fetchUserAccounts dependency
 
   // --- Derived state for checking limits ---
   const isAccountLimitReached = useMemo(() => {

@@ -60,6 +60,7 @@ function Twitter() {
   const [userLimits, setUserLimits] = useState(null);
   const [limitsLoading, setLimitsLoading] = useState(true);
   const [limitsError, setLimitsError] = useState(null);
+  const [isProcessingCallback, setIsProcessingCallback] = useState(false);
 
   // Define the upload process steps
   const uploadSteps = [
@@ -777,6 +778,12 @@ function Twitter() {
         error
       } = router.query;
       
+      // Only process if not already processing
+      if (isProcessingCallback) {
+        console.log('Callback processing already in progress, skipping.');
+        return;
+      }
+
       // Handle error redirects
       if (error) {
         console.error('Twitter authentication error:', error);
@@ -799,7 +806,14 @@ function Twitter() {
       // If we have access token and user data in the URL, the backend has processed the auth
       // and redirected back to us with the data
       if (access_token && access_token_secret && user_id) {
+        // Check if already processing this specific callback instance
+        if (isProcessingCallback) {
+          console.log('Callback processing already in progress for this token, skipping.');
+          return;
+        }
+
         try {
+          setIsProcessingCallback(true); // Set flag before starting async operations
           console.log('Twitter auth data detected in URL, processing credentials');
           setIsLoading(true);
           setAuthError(null);
@@ -883,6 +897,7 @@ function Twitter() {
           // Clear auth timestamp
           localStorage.removeItem('twitterAuthTimestamp');
           hideLoader(); // Hide loader when finished
+          setIsProcessingCallback(false); // Reset flag when done
         }
       }
     };
@@ -890,7 +905,7 @@ function Twitter() {
     if (router.isReady) {
       processTwitterCallback();
     }
-  }, [router.isReady, router.query]);
+  }, [router.isReady, router.query, isProcessingCallback]);
 
   // Disconnect a specific Twitter account
   const disconnectTwitterAccount = async (accountToRemove) => {

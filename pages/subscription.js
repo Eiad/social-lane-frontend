@@ -377,6 +377,29 @@ const Subscription = () => {
 
   // Add these functions to handle subscription cancellation:
 
+  // Function to open the confirmation modal
+  // Ensures we have the latest subscription details (including end date) first
+  const openConfirmCancelModal = async () => {
+    if (!user?.uid) {
+      setError('User not found. Cannot proceed with cancellation.');
+      return;
+    }
+    
+    // Ensure we have the latest details, especially the end date
+    // Set status to loading to show feedback
+    setSubscriptionStatus('loading');
+    try {
+      await fetchSubscriptionDetails(user.uid); // Fetch latest details
+    } catch (fetchError) {
+      setError('Could not fetch latest subscription details. Please try again.');
+      setSubscriptionStatus('error'); // Show error if fetch fails
+      return;
+    }
+    
+    // Once details are fetched, show the modal
+    setShowConfirmCancelModal(true);
+  };
+
   const handleCancelSubscription = async () => {
     if (!user?.uid || !subscriptionDetails?.subscriptionId) {
       setError('Unable to cancel subscription. Missing required information.');
@@ -384,30 +407,44 @@ const Subscription = () => {
       return;
     }
     
+    // Keep the button disabled and showing spinner
+    setIsCancelling(true);
+    
     try {
-      setIsCancelling(true);
-      
+      // Call the backend API
       const response = await cancelSubscription(user?.uid);
       
+      // Important: Only proceed on successful response
       if (response?.success) {
-        // Show success message and close the confirmation modal
+        // Update the local state *before* showing success modal for consistent date display
+        setSubscriptionDetails(prev => ({
+          ...prev,
+          status: 'CANCELLED',
+          // Use the end date returned from the API response if available, else keep existing
+          subscriptionEndDate: response?.subscriptionEndDate || prev?.subscriptionEndDate
+        }));
+        
+        // Close the confirmation modal *first*
         setShowConfirmCancelModal(false);
+        // Then show the success modal
         setShowCancelSuccessModal(true);
         
-        // Refresh subscription data after a short delay
-        setTimeout(() => {
-          setRefreshKey(prev => prev + 1);
-        }, 2000);
-        closeCancelModal();
+        // No need for setTimeout or refreshKey here, rely on closing the success modal
+        
       } else {
-        setError('Failed to cancel subscription. Please try again or contact support.');
-        setShowConfirmCancelModal(false);
+        // Handle API error - keep confirmation modal open or close and show error banner
+        setError(response?.message || 'Failed to cancel subscription. Please try again or contact support.');
+        setShowConfirmCancelModal(false); // Close confirm modal on error
+        // Let the error banner display
+        setSubscriptionStatus('error');
       }
     } catch (error) {
       console.error('Error cancelling subscription:', error);
       setError(error?.message || 'Failed to cancel subscription');
-      setShowConfirmCancelModal(false);
+      setShowConfirmCancelModal(false); // Close confirm modal on error
+      setSubscriptionStatus('error');
     } finally {
+      // Re-enable button only after everything is done (success or error handled)
       setIsCancelling(false);
     }
   };
@@ -420,8 +457,10 @@ const Subscription = () => {
     window.history.replaceState({}, '', url);
   };
 
+  // Refresh data when the success modal is closed
   const closeCancelSuccessModal = () => {
     setShowCancelSuccessModal(false);
+    setRefreshKey(prev => prev + 1); // Trigger refresh *after* success is acknowledged
   };
 
   // Now, let's render the appropriate view based on subscription status
@@ -526,7 +565,7 @@ const Subscription = () => {
             
             {subscriptionDetails?.subscriptionEndDate && (
               <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200 text-yellow-800">
-                <p className="font-medium">Your subscription will remain active until {formatDate(subscriptionDetails?.subscriptionEndDate)}</p>
+                <p className="font-medium">Your subscription will remain active until {formatDate(subscriptionDetails?.subscriptionEndDate) || 'your current billing period ends'}</p>
               </div>
             )}
             
