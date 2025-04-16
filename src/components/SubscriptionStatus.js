@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { getSubscription, cancelSubscription, checkExpiredSubscriptions } from '../services/subscriptionService';
 import { ConfirmCancelSubscriptionModal, SubscriptionCancelledModal } from './modals';
 
-const SubscriptionStatus = () => {
+const SubscriptionStatus = ({ onStatusChange }) => {
   const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -105,9 +105,17 @@ const SubscriptionStatus = () => {
         }
         
         setSubscription(response?.data);
+        // Call the callback with the fetched status
+        if (onStatusChange) {
+          onStatusChange(response?.data);
+        }
       } else {
         console.error('SubscriptionStatus: Failed to fetch subscription details');
         setError('Failed to fetch subscription details');
+        // Indicate no subscription to parent
+        if (onStatusChange) {
+          onStatusChange({ hasSubscription: false });
+        }
       }
     } catch (error) {
       console.error('SubscriptionStatus: Error fetching subscription:', error);

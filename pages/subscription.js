@@ -54,10 +54,14 @@ const Subscription = () => {
     }
 
     // Check for the action query parameter
-    if (router.query.action === 'cancel' && user?.role !== 'Starter') {
-      setShowConfirmCancelModal(true);
+    if (router.query.action === 'cancel' && 
+        user?.role !== 'Starter' && 
+        !isCancelling && 
+        subscriptionDetails?.status !== 'CANCELLED') {
+      console.log('URL action=cancel detected, opening confirmation modal.');
+      openConfirmCancelModal();
     }
-  }, [status, uid, message, user, refreshKey, router.query.action]);
+  }, [status, uid, message, user, router.query.action, subscriptionDetails?.status, isCancelling]);
 
   const fetchSubscriptionDetails = async (userId) => {
     try {
@@ -406,6 +410,10 @@ const Subscription = () => {
       setShowConfirmCancelModal(false);
       return;
     }
+    
+    // Remove action=cancel from URL immediately
+    console.log('handleCancelSubscription started, removing action=cancel from URL.');
+    closeCancelModal();
     
     // Keep the button disabled and showing spinner
     setIsCancelling(true);

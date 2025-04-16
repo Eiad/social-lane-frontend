@@ -14,6 +14,7 @@ const MyAccount = () => {
   const [authError, setAuthError] = useState('');
   const [subscriptionError, setSubscriptionError] = useState('');
   const [subscriptionSuccess, setSubscriptionSuccess] = useState(false);
+  const [currentSubscriptionStatus, setCurrentSubscriptionStatus] = useState(null);
 
   // Redirect to dashboard if user is already logged in
   useEffect(() => {
@@ -287,16 +288,16 @@ const MyAccount = () => {
                       </span>
                     </h3>
                     
-                    {/* If user has a subscription, show details */}
-                    <SubscriptionStatus />
+                    <p className="text-gray-600 text-sm mb-4">Manage your subscription details and billing information.</p>
                     
-                    {/* If user is on Starter plan or not on Scale yearly, show upgrade button */}
-                    {(user?.role === 'Starter' || (user?.role !== 'Scale' || user?.subscription?.planId?.includes('month'))) && (
+                    {/* Pass callback to SubscriptionStatus */}
+                    <SubscriptionStatus onStatusChange={setCurrentSubscriptionStatus} />
+                    
+                    {/* Button Actions */}
+                    {user?.role !== 'Starter' && (
                       <div className="mt-6 flex flex-col sm:flex-row gap-4">
-                        <Link href="/subscription" className="w-full">
-                          <button 
-                            className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center shadow-md hover:shadow-lg"
-                          >
+                        <Link href="/subscription" className="flex-1">
+                          <button className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
                             </svg>
@@ -304,8 +305,8 @@ const MyAccount = () => {
                           </button>
                         </Link>
                         
-                        {/* Only show Cancel Plan if user is not on Starter plan */}
-                        {user?.role !== 'Starter' && (
+                        {/* Only show Cancel Plan if user is not on Starter plan AND subscription is not already cancelled */}
+                        {user?.role !== 'Starter' && currentSubscriptionStatus?.status !== 'CANCELLED' && (
                           <button 
                             onClick={handleCancelSubscription}
                             className="w-full border border-red-500 text-red-500 hover:bg-red-50 font-bold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center"
