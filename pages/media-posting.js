@@ -73,6 +73,32 @@ function MediaPosting() {
     const [accountStatus, setAccountStatus] = useState({ tiktok: {}, twitter: {} });
     const [showLoader, setShowLoader] = useState(false); // Controls visibility of the PostingLoader modal
 
+    // --- Format Date Function ---
+    const formatDate = (dateString, timeString) => {
+        if (!dateString || !timeString) return 'Invalid Date/Time';
+        try {
+            // Combine date and time strings and create a Date object
+            // Assume dateString is YYYY-MM-DD and timeString is HH:MM
+            const dateTime = new Date(`${dateString}T${timeString}`);
+            if (isNaN(dateTime.getTime())) {
+                console.error('Invalid date/time combination for formatting:', dateString, timeString);
+                return 'Invalid Date';
+            }
+            const options = { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true 
+            };
+            return dateTime.toLocaleString('en-US', options);
+        } catch (error) {
+            console.error('Error formatting date/time:', error);
+            return 'Error Formatting';
+        }
+    };
+
     // --- useEffects for loading user data and accounts ---
     useEffect(() => {
         const firebaseUid = localStorage?.getItem('firebaseUid');
@@ -436,10 +462,44 @@ function MediaPosting() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    if (!response.ok || !response.json()?.success) {
-                        throw new Error(response.json()?.error || 'Failed to schedule/post video.');
+
+                    // Read the JSON body ONCE
+                    let responseData = {};
+                    let parseError = null;
+                    try {
+                        // Only attempt to parse JSON if content-type indicates it
+                        const contentType = response.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
+                             responseData = await response.json();
+                        } else if (!response.ok) {
+                             // If not OK and not JSON, try to get text for error message
+                            const text = await response.text();
+                            throw new Error(`Server error (${response.status}): ${text.substring(0, 200)}`);
+                        } else {
+                            // If OK but not JSON, assume success but no data
+                            responseData = { success: true }; 
+                        }
+                    } catch (e) {
+                        console.error("Error parsing schedule response JSON:", e);
+                        parseError = e;
+                        // If parsing fails but status was OK, maybe treat as success? Or throw specific error.
+                        // Let's throw an error if parsing failed or status wasn't ok.
+                        if (!response.ok) {
+                           throw new Error(`Failed to schedule. Status: ${response.status}. ${e.message}`);
+                        } else {
+                           // If status OK but parsing failed (unexpected), throw parse error
+                            throw new Error(`Scheduled, but failed to parse response: ${e.message}`);
+                        }
                     }
-                    const data = await response.json();
+                    
+                    // Check response status and parsed data
+                    if (!response.ok || !responseData?.success) {
+                        // Use the parsed error message if available, otherwise provide a default
+                        throw new Error(responseData?.error || parseError?.message || 'Failed to schedule post.');
+                    }
+                    
+                    // Use the already parsed data
+                    const data = responseData; 
                     console.log('Schedule success response:', data);
                     setScheduleSuccess(true);
                     setPostSuccess(true);
@@ -1052,8 +1112,20 @@ function MediaPosting() {
                     disabled={!videoUrl || isUploading || isPosting || isProcessingUpload || (!selectedTiktokAccounts.length && !selectedTwitterAccounts.length) || isPostLimitReached || limitsLoading}
                     className="py-3 px-8 rounded-lg bg-primary hover:bg-primary-dark text-white font-semibold transition-colors duration-200 flex items-center justify-center gap-2 text-base disabled:opacity-50 disabled:cursor-not-allowed shadow-md disabled:shadow-none"
                 >
-                   {/* ... existing button text logic ... */} 
-                   {isPosting ? 'Processing...' : (isScheduled ? `Schedule Post for ${formatDateTime(scheduledDate, scheduledTime)}` : 'Post Now')}
+                   {/* Dynamically update button text based on state */}
+                   {isPosting ? (
+                       <>
+                           <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                           </svg>
+                           Processing...
+                       </>
+                   ) : isScheduled ? (
+                       `Schedule Post for ${formatDate(scheduledDate, scheduledTime)}`
+                   ) : (
+                       'Post Now'
+                   )}
                 </button>
             </div>
         </>
