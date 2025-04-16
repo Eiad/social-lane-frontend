@@ -398,6 +398,7 @@ const Subscription = () => {
         setTimeout(() => {
           setRefreshKey(prev => prev + 1);
         }, 2000);
+        closeCancelModal();
       } else {
         setError('Failed to cancel subscription. Please try again or contact support.');
         setShowConfirmCancelModal(false);
@@ -525,7 +526,7 @@ const Subscription = () => {
             
             {subscriptionDetails?.subscriptionEndDate && (
               <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200 text-yellow-800">
-                <p className="font-medium">Your subscription will remain active until {formatDate(subscriptionDetails.subscriptionEndDate)}</p>
+                <p className="font-medium">Your subscription will remain active until {formatDate(subscriptionDetails?.subscriptionEndDate)}</p>
               </div>
             )}
             

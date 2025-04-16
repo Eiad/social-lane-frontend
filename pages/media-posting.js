@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 import ProtectedRoute from '../src/components/ProtectedRoute';
+import { getUserLimits } from '../src/services/userService'; // Import getUserLimits
 
 // Enhanced fetch with timeout and retry utility - REMAINS UNCHANGED
 const fetchWithTimeoutAndRetry = async (url, options = {}, timeout = 120000, maxRetries = 3) => {
@@ -62,6 +63,9 @@ function MediaPosting() {
     const [platformResults, setPlatformResults] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [userId, setUserId] = useState('');
+    const [userLimits, setUserLimits] = useState(null); // Add state for user limits
+    const [limitsLoading, setLimitsLoading] = useState(true); // Loading state for limits
+    const [limitsError, setLimitsError] = useState(null); // Error state for limits
     const fileInputRef = useRef(null);
     const videoRef = useRef(null); // For the large preview video element
     const localVideoRef = useRef(null); // Ref for thumbnail generation video element
@@ -85,6 +89,34 @@ function MediaPosting() {
             }
         }
     }, []);
+
+    // Fetch user limits when userId changes
+    useEffect(() => {
+        const fetchLimits = async () => {
+            if (!userId) return;
+            setLimitsLoading(true);
+            setLimitsError(null);
+            try {
+                console.log(`Fetching limits for user ${userId}`);
+                const limitsResponse = await getUserLimits(userId);
+                if (limitsResponse?.success && limitsResponse?.data) {
+                    console.log('User limits received:', limitsResponse.data);
+                    setUserLimits(limitsResponse.data);
+                } else {
+                    console.error('Failed to fetch user limits:', limitsResponse?.error);
+                    setLimitsError(limitsResponse?.error || 'Failed to load usage limits.');
+                    setUserLimits(null); // Clear any previous limits
+                }
+            } catch (error) {
+                console.error('Error fetching user limits:', error);
+                setLimitsError('An error occurred while fetching usage limits.');
+                 setUserLimits(null);
+            } finally {
+                setLimitsLoading(false);
+            }
+        };
+        fetchLimits();
+    }, [userId]);
 
     const fetchSocialMediaAccounts = useCallback(async () => {
         if (!userId) { console.log("Skipping account fetch: userId not available yet."); return false; }
@@ -347,6 +379,13 @@ function MediaPosting() {
         const scheduledAtLocal = getScheduledDateTime();
         if (isScheduled && !scheduledAtLocal) { setUploadError("Invalid schedule date/time selected."); window.showToast?.error?.("Invalid schedule date/time selected."); return; }
 
+        // Check post limit before proceeding
+        if (isPostLimitReached) {
+            console.error('Post limit reached. Cannot post or schedule.');
+            window.showToast?.error?.(postLimitMessage || 'Post limit reached.');
+            return;
+        }
+
         // Show loader is managed by handleFileUpload now
         // --- STEP 1: Upload the file ---
         try {
@@ -382,15 +421,37 @@ function MediaPosting() {
                 const scheduledAtISO = scheduledAtLocal.toISOString();
                 console.log(`Scheduling post. Sending UTC to API: ${scheduledAtISO}`);
                 try {
-                    const payload = { userId: firebaseUid, video_url: uploadedVideoUrl, post_description: caption, platforms: selectedPlatforms, isScheduled: true, scheduledDate: scheduledAtISO, tiktok_accounts: selectedTiktokAccounts, twitter_accounts: selectedTwitterAccounts };
-                    const response = await fetch('/api/schedules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    if (!response.ok) { let m = `Schedule failed (${response.status})`; try { const d = await response.json(); m = d.error || d.message || m; } catch (e) { } throw new Error(m); }
-                    const data = await response.json(); console.log('Schedule success response:', data);
-                    setScheduleSuccess(true); setPostSuccess(true);
+                    const payload = {
+                        userId: firebaseUid,
+                        video_url: uploadedVideoUrl,
+                        post_description: caption,
+                        platforms: selectedPlatforms,
+                        tiktok_accounts: selectedTiktokAccounts.map(acc => ({ accountId: acc.accountId, username: acc.username, displayName: acc.displayName })),
+                        twitter_accounts: selectedTwitterAccounts.map(acc => ({ userId: acc.userId, username: acc.username })),
+                        isScheduled: true,
+                        scheduledDate: scheduledAtISO,
+                    };
+                    const response = await fetchWithTimeoutAndRetry('/api/schedules', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok || !response.json()?.success) {
+                        throw new Error(response.json()?.error || 'Failed to schedule/post video.');
+                    }
+                    const data = await response.json();
+                    console.log('Schedule success response:', data);
+                    setScheduleSuccess(true);
+                    setPostSuccess(true);
                     window.showToast?.success?.(`Post scheduled successfully for ${scheduledAtLocal.toLocaleString()}`);
                     const statuses = { t: {}, tw: {} }; selectedTiktokAccounts.forEach(a => { statuses.t[a.accountId] = { status: 'success', message: 'Scheduled' }; }); selectedTwitterAccounts.forEach(a => { statuses.tw[a.userId] = { status: 'success', message: 'Scheduled' }; }); setAccountStatus(p => ({ tiktok: { ...p.tiktok, ...statuses.t }, twitter: { ...p.twitter, ...statuses.tw } }));
                 } catch (error) {
-                    console.error('Error during schedule API call:', error); setUploadError(error.message); setScheduleSuccess(false); setPostSuccess(false); window.showToast?.error?.(error.message || 'Failed to schedule post'); const errUpd = { t: {}, tw: {} }; selectedTiktokAccounts.forEach(a => { errUpd.t[a.accountId] = { status: 'error', message: error.message || 'Fail' }; }); selectedTwitterAccounts.forEach(a => { errUpd.tw[a.userId] = { status: 'error', message: error.message || 'Fail' }; }); setAccountStatus(p => ({ tiktok: { ...p.tiktok, ...errUpd.t }, twitter: { ...p.twitter, ...errUpd.tw } }));
+                    console.error('Error during schedule API call:', error);
+                    setUploadError(error.message);
+                    setScheduleSuccess(false);
+                    setPostSuccess(false);
+                    window.showToast?.error?.(error.message || 'Failed to schedule post');
+                    const errUpd = { t: {}, tw: {} }; selectedTiktokAccounts.forEach(a => { errUpd.t[a.accountId] = { status: 'error', message: error.message || 'Fail' }; }); selectedTwitterAccounts.forEach(a => { errUpd.tw[a.userId] = { status: 'error', message: error.message || 'Fail' }; }); setAccountStatus(p => ({ tiktok: { ...p.tiktok, ...errUpd.t }, twitter: { ...p.twitter, ...errUpd.tw } }));
                 }
             }
             // --- Immediate Posting Logic ---
@@ -444,6 +505,33 @@ function MediaPosting() {
 
     // --- Helper: hasValidPlatforms ---
     const hasValidPlatforms = useCallback(() => selectedTiktokAccounts?.length > 0 || selectedTwitterAccounts?.length > 0, [selectedTiktokAccounts, selectedTwitterAccounts]);
+
+    // --- Derived state for checking limits ---
+    const isPostLimitReached = useMemo(() => {
+        if (!userLimits) return false; // Assume not reached if limits not loaded
+        
+        const limit = userLimits.scheduledPosts; // Use scheduledPosts limit for all posts
+        const currentCount = userLimits.currentPostsCount; 
+        
+        // Check if limit is defined (-1 means unlimited)
+        if (limit === -1) {
+            return false;
+        }
+        
+        // Check if current count meets or exceeds the limit
+        return currentCount >= limit;
+    }, [userLimits]);
+
+    const postLimitMessage = useMemo(() => {
+        if (!isPostLimitReached || !userLimits) return null;
+
+        const limit = userLimits.scheduledPosts;
+        if (userLimits.role === 'Starter') {
+            const resetDate = userLimits.cycleEndDate ? new Date(userLimits.cycleEndDate).toLocaleDateString() : 'your next cycle';
+            return `You've reached your free plan limit of ${limit} post${limit > 1 ? 's' : ''} this cycle. Your limit resets on ${resetDate}. Upgrade for unlimited posts!`;
+        }
+        return `You've reached your plan limit of ${limit} posts. Please upgrade your plan for more posts.`;
+    }, [isPostLimitReached, userLimits]);
 
     // --- PostingLoader Component (MODIFIED) ---
     const PostingLoader = ({ show, isUploading, isProcessingUpload, isPosting, isScheduling, progress, scheduleSuccess, postSuccess, platformResults, onClose }) => {
@@ -946,6 +1034,28 @@ function MediaPosting() {
             .border-trans { border-color: transparent; }
             .transition-width { transition: width 0.15s ease-out; }
         `}</style>
+
+            {/* Limit Warning Message */}    
+            {isPostLimitReached && postLimitMessage && (
+                <div className="max-w-4xl mx-auto mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+                    <p className="text-sm text-yellow-800">{postLimitMessage}</p>
+                    <Link href="/settings/billing" className="text-sm font-medium text-primary hover:text-primary-dark underline mt-1 inline-block">
+                        Upgrade Plan
+                    </Link>
+                </div>
+            )}
+
+            {/* Post Button - Update disabled condition */}
+            <div className="mt-8 flex justify-center">
+                <button 
+                    onClick={handlePost} 
+                    disabled={!videoUrl || isUploading || isPosting || isProcessingUpload || (!selectedTiktokAccounts.length && !selectedTwitterAccounts.length) || isPostLimitReached || limitsLoading}
+                    className="py-3 px-8 rounded-lg bg-primary hover:bg-primary-dark text-white font-semibold transition-colors duration-200 flex items-center justify-center gap-2 text-base disabled:opacity-50 disabled:cursor-not-allowed shadow-md disabled:shadow-none"
+                >
+                   {/* ... existing button text logic ... */} 
+                   {isPosting ? 'Processing...' : (isScheduled ? `Schedule Post for ${formatDateTime(scheduledDate, scheduledTime)}` : 'Post Now')}
+                </button>
+            </div>
         </>
     );
 }

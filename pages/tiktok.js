@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import styles from '../styles/Home.module.scss';
 import tikTokStyles from '../styles/TikTok.module.css';
@@ -7,6 +7,7 @@ import { TikTokSimpleIcon } from '../src/components/icons/SocialIcons';
 import Link from 'next/link';
 import axios from 'axios';
 import { useLoader } from '../src/context/LoaderContext';
+import { getUserLimits } from '../src/services/userService';
 
 // With this approach that safely handles both server and client environments:
 const API_BASE_URL = 
@@ -24,6 +25,9 @@ export default function TikTok() {
   const [connectedAccounts, setConnectedAccounts] = useState([]);
   const [isHovering, setIsHovering] = useState(null);
   const { showLoader, hideLoader } = useLoader();
+  const [userLimits, setUserLimits] = useState(null);
+  const [limitsLoading, setLimitsLoading] = useState(true);
+  const [limitsError, setLimitsError] = useState(null);
 
   // Function to handle localStorage storage events
   const handleStorageUpdate = useCallback(() => {
@@ -448,11 +452,36 @@ export default function TikTok() {
     const uid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
     if (!uid) {
       console.error('No user ID found');
+      setLimitsLoading(false);
       return;
     }
     
     setUserId(uid);
     
+    // Fetch Limits
+    const fetchLimits = async () => {
+      setLimitsLoading(true);
+      setLimitsError(null);
+      try {
+        console.log(`Fetching limits for user ${uid}`);
+        const limitsResponse = await getUserLimits(uid);
+        if (limitsResponse?.success && limitsResponse?.data) {
+          console.log('User limits received:', limitsResponse.data);
+          setUserLimits(limitsResponse.data);
+        } else {
+          console.error('Failed to fetch user limits:', limitsResponse?.error);
+          setLimitsError(limitsResponse?.error || 'Failed to load usage limits.');
+        }
+      } catch (error) {
+        console.error('Error fetching user limits:', error);
+        setLimitsError('An error occurred while fetching usage limits.');
+      } finally {
+        setLimitsLoading(false);
+      }
+    };
+
+    fetchLimits();
+
     // Check if there's a connection success parameter in the URL
     // This will detect when we return from the TikTok OAuth flow
     const urlParams = new URLSearchParams(window.location.search);
@@ -567,25 +596,58 @@ export default function TikTok() {
     }
   }, [router?.query]);
 
-  // Keep the existing handleConnect function with direct auth URL navigation
+  // Fetch accounts when userId is set or accounts change externally
+  useEffect(() => {
+    if (userId) {
+      console.log('Fetching accounts because userId changed or external update detected.');
+      fetchUserAccounts();
+    }
+  }, [userId, handleStorageUpdate]);
+
+  // --- Derived state for checking limits ---
+  const isAccountLimitReached = useMemo(() => {
+    if (!userLimits) return false; // Assume not reached if limits not loaded
+    
+    const limit = userLimits.socialAccounts;
+    const currentCount = userLimits.currentSocialAccounts;
+    
+    // Check if limit is defined (-1 means unlimited)
+    if (limit === -1) {
+        return false;
+    }
+    
+    // Check if current count meets or exceeds the limit
+    return currentCount >= limit;
+  }, [userLimits]);
+
+  const accountLimitMessage = useMemo(() => {
+    if (!isAccountLimitReached || !userLimits) return null;
+    const limit = userLimits.socialAccounts;
+    return `You've reached your plan limit of ${limit} connected social account${limit > 1 ? 's' : ''}. Please upgrade or disconnect an existing account.`;
+  }, [isAccountLimitReached, userLimits]);
+
+  // --- Connect Handler - Updated ---
   const handleConnect = async () => {
+    // Check limit before initiating connection
+    if (isAccountLimitReached) {
+        console.warn('Account limit reached. Cannot connect new account.');
+        window.showToast?.error?.(accountLimitMessage || 'Social account limit reached.');
+        return;
+    }
+    
+    if (!userId) {
+      console.error('User ID not found, cannot start TikTok connection.');
+      window.showToast?.error?.('User ID missing, cannot connect. Please login again.');
+      return;
+    }
+    setIsLoading(true);
     try {
-      showLoader('Connecting to TikTok...');
-      
-      // Make sure we're using the environment variable
-      const authUrl = `${apiUrl}/tiktok/auth`;
-      
-      // Debug logging
-      console.log('Redirecting to TikTok auth URL:', authUrl);
-      
-      // Directly navigate to the auth endpoint instead of trying to fetch it
-      // This avoids CORS issues with the redirect to TikTok
-      window.location.href = authUrl;
-      
+      // Redirect user to backend endpoint to start TikTok OAuth flow
+      window.location.href = `${apiUrl}/tiktok/auth?userId=${userId}`;
     } catch (error) {
-      console.error('Detailed auth error:', error);
-      window.showToast?.error?.('Failed to initiate TikTok authentication: ' + (error?.message || 'Unknown error'));
-      hideLoader();
+      console.error('Error redirecting to TikTok auth:', error);
+      window.showToast?.error?.('Failed to initiate TikTok connection.');
+      setIsLoading(false);
     }
   };
 
@@ -850,10 +912,11 @@ export default function TikTok() {
                   );
                 })}
                 
-                {/* Add Account Button */}
+                {/* Add Account Button - Updated */}
                 <div 
-                  onClick={handleConnect}
-                  className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={!isAccountLimitReached ? handleConnect : undefined}
+                  className={`bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow ${isAccountLimitReached || limitsLoading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                  title={isAccountLimitReached ? accountLimitMessage : (limitsLoading ? 'Loading limits...' : 'Connect a new TikTok account')}
                 >
                   <div className="flex flex-col p-4 items-center justify-center">
                     <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-4 bg-gray-100 flex items-center justify-center">
@@ -867,13 +930,25 @@ export default function TikTok() {
                   
                   <div className="p-4 border-t border-gray-100">
                     <button 
-                      className="w-full py-2 px-4 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md transition-colors font-medium text-sm">
-                      Connect Account
+                      disabled={isAccountLimitReached || limitsLoading}
+                      className="w-full py-2 px-4 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md transition-colors font-medium text-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                      {limitsLoading ? 'Checking limits...' : (isAccountLimitReached ? 'Limit Reached' : 'Connect Account')}
                     </button>
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Limit Warning Message */}    
+            {isAccountLimitReached && accountLimitMessage && (
+                <div className="max-w-4xl mx-auto mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+                    <p className="text-sm text-yellow-800">{accountLimitMessage}</p>
+                    <Link href="/settings/billing" className="text-sm font-medium text-primary hover:text-primary-dark underline mt-1 inline-block">
+                        Upgrade Plan
+                    </Link>
+                </div>
+            )}
 
             {/* Post Container - Show if there are any accounts */}
             {connectedAccounts.length > 0 && (

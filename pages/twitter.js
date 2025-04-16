@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -6,6 +6,7 @@ import axios from 'axios';
 import ProtectedRoute from '../src/components/ProtectedRoute';
 import styles from '../styles/Twitter.module.css';
 import { useLoader } from '../src/context/LoaderContext';
+import { getUserLimits } from '../src/services/userService';
 
 // API base URL
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
@@ -53,8 +54,12 @@ function Twitter() {
   const [caption, setCaption] = useState('');
   const [postError, setPostError] = useState(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const { showLoader, hideLoader } = useLoader(); // Add useLoader hook
+  const { showLoader, hideLoader } = useLoader();
   const [connectedAccounts, setConnectedAccounts] = useState([]);
+  const [userId, setUserId] = useState('');
+  const [userLimits, setUserLimits] = useState(null);
+  const [limitsLoading, setLimitsLoading] = useState(true);
+  const [limitsError, setLimitsError] = useState(null);
 
   // Define the upload process steps
   const uploadSteps = [
@@ -196,54 +201,120 @@ function Twitter() {
     }
   };
 
+  // Get user limits
+  useEffect(() => {
+    // Get user ID from localStorage
+    const uid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
+    if (!uid) {
+      console.error('No user ID found');
+      setLimitsLoading(false); // Stop loading if no user ID
+      return;
+    }
+    setUserId(uid);
+
+    // Fetch Limits
+    const fetchLimits = async () => {
+      setLimitsLoading(true);
+      setLimitsError(null);
+      try {
+        console.log(`Fetching limits for user ${uid}`);
+        const limitsResponse = await getUserLimits(uid);
+        if (limitsResponse?.success && limitsResponse?.data) {
+          console.log('User limits received:', limitsResponse.data);
+          setUserLimits(limitsResponse.data);
+        } else {
+          console.error('Failed to fetch user limits:', limitsResponse?.error);
+          setLimitsError(limitsResponse?.error || 'Failed to load usage limits.');
+        }
+      } catch (error) {
+        console.error('Error fetching user limits:', error);
+        setLimitsError('An error occurred while fetching usage limits.');
+      } finally {
+        setLimitsLoading(false);
+      }
+    };
+
+    fetchLimits();
+  }, []);
+
+  // Derived state for checking limits
+  const isAccountLimitReached = useMemo(() => {
+    if (!userLimits) return false; // Assume not reached if limits not loaded
+    
+    const limit = userLimits.socialAccounts;
+    const currentCount = userLimits.currentSocialAccounts;
+    
+    // Check if limit is defined (-1 means unlimited)
+    if (limit === -1) {
+        return false;
+    }
+    
+    // Check if current count meets or exceeds the limit
+    return currentCount >= limit;
+  }, [userLimits]);
+
+  const accountLimitMessage = useMemo(() => {
+    if (!isAccountLimitReached || !userLimits) return null;
+    const limit = userLimits.socialAccounts;
+    return `You've reached your plan limit of ${limit} connected social account${limit > 1 ? 's' : ''}. Please upgrade or disconnect an existing account.`;
+  }, [isAccountLimitReached, userLimits]);
+
   // Handle Twitter authentication
   const handleConnect = async () => {
+    // Check limit before initiating connection
+    if (isAccountLimitReached) {
+        console.warn('Account limit reached. Cannot connect new account.');
+        window.showToast?.error?.(accountLimitMessage || 'Social account limit reached.');
+        return;
+    }
+
+    if (!userId) { // Check if userId is available
+      console.error('User ID not found, cannot start Twitter connection.');
+      window.showToast?.error?.('User ID missing, cannot connect. Please login again.');
+      return;
+    }
+    setIsLoading(true);
+    setAuthError(null);
+    setAuthSuccess(false);
+    showLoader('Redirecting to Twitter...'); // Show loader
+    
     try {
-      setIsLoading(true);
-      setAuthError(null);
-      
-      // Show global loader
-      showLoader('Connecting to Twitter...');
-      
-      // Get the auth URL from the backend
-      console.log('Requesting Twitter auth URL from:', `${apiUrl}/twitter/auth`);
-      
-      const response = await fetch(`${apiUrl}/twitter/auth`)
-        .catch(error => {
-          console.error('Network error requesting auth URL:', error);
-          throw new Error('Network error. Please check your connection and try again.');
-        });
-      
-      if (!response?.ok) {
-        console.error('Failed to get auth URL, status:', response?.status);
-        const errorText = await response?.text?.() || 'Unknown error';
-        throw new Error(`Failed to connect to Twitter (${response?.status || 'unknown status'}): ${errorText}`);
+      // Generate a unique state parameter for CSRF protection
+      const state = Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('twitterAuthState', state);
+      // Store timestamp to check against callback age
+      localStorage.setItem('twitterAuthTimestamp', Date.now().toString());
+
+      // 1. Fetch the auth URL from the backend
+      const response = await fetch(`${API_BASE_URL}/twitter/auth?state=${state}&userId=${userId}`);
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          // Fallback if JSON parsing fails
+          errorData = { error: `HTTP error! status: ${response.status}` };
+        }
+        throw new Error(errorData?.error || `Failed to fetch auth URL: ${response.status}`);
       }
-      
-      const data = await response?.json?.()
-        .catch(error => {
-          console.error('Error parsing auth URL response:', error);
-          throw new Error('Invalid response from server. Please try again later.');
-        });
-      
-      if (data?.authUrl) {
-        console.log('Redirecting to Twitter auth URL...');
-        
-        // Save current timestamp for validation after redirect
-        localStorage.setItem('twitterAuthTimestamp', Date.now().toString());
-        
-        // Redirect to the Twitter auth URL
-        window.location.href = data.authUrl;
-      } else {
-        console.error('Failed to get auth URL:', data);
-        throw new Error(data?.error || 'Failed to connect to Twitter. Please try again.');
+
+      const data = await response.json();
+
+      if (!data?.authUrl) {
+        throw new Error('Auth URL not found in response from backend.');
       }
+
+      console.log('Received Twitter auth URL from backend:', data.authUrl);
+
+      // 2. Redirect the user to the actual Twitter authorization URL
+      window.location.href = data.authUrl;
+
     } catch (error) {
-      console.error('Error connecting to Twitter:', error?.message);
-      setAuthError(error?.message || 'Network error. Please check your connection and try again.');
-      setIsLoading(false);
-      window.showToast?.error?.(error?.message || 'Error connecting to Twitter');
+      console.error('Error initiating Twitter auth:', error);
+      setAuthError('Could not initiate Twitter connection. Please try again.');
       hideLoader(); // Hide loader on error
+      setIsLoading(false);
     }
   };
 
@@ -1071,10 +1142,11 @@ function Twitter() {
                       </div>
                     ))}
                     
-                    {/* Add Account Button */}
+                    {/* Add Account Button - Updated */}
                     <div 
-                      onClick={handleConnect}
-                      className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                      onClick={!isAccountLimitReached ? handleConnect : undefined} // Only allow click if limit not reached
+                      className={`bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow ${isAccountLimitReached || limitsLoading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                      title={isAccountLimitReached ? accountLimitMessage : (limitsLoading ? 'Loading limits...' : 'Connect a new Twitter account')}
                     >
                       <div className="flex flex-col p-4 items-center justify-center">
                         <div className="w-24 h-24 mx-auto rounded-full overflow-hidden mb-4 bg-gray-100 flex items-center justify-center">
@@ -1088,13 +1160,24 @@ function Twitter() {
                       
                       <div className="p-4 border-t border-gray-100">
                         <button 
-                          className="w-full py-2 px-4 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md transition-colors font-medium text-sm"
+                          disabled={isAccountLimitReached || limitsLoading} // Disable button based on limit
+                          className="w-full py-2 px-4 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md transition-colors font-medium text-sm disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                          Connect Account
+                          {limitsLoading ? 'Checking limits...' : (isAccountLimitReached ? 'Limit Reached' : 'Connect Account')}
                         </button>
                       </div>
                     </div>
                   </div>
+
+                  {/* Limit Warning Message */}    
+                  {isAccountLimitReached && accountLimitMessage && (
+                      <div className="max-w-4xl mx-auto mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+                          <p className="text-sm text-yellow-800">{accountLimitMessage}</p>
+                          <Link href="/settings/billing" className="text-sm font-medium text-primary hover:text-primary-dark underline mt-1 inline-block">
+                              Upgrade Plan
+                          </Link>
+                      </div>
+                  )}
                 </>
               )}
             </div>

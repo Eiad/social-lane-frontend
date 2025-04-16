@@ -56,4 +56,29 @@ export const checkUserProStatus = async (uid) => {
     console.error('Error checking Pro status:', error);
     return false;
   }
+};
+
+/**
+ * Get user limits and features by UID
+ * @param {string} uid - Firebase UID
+ * @returns {Promise<Object>} - User limits data
+ */
+export const getUserLimits = async (uid) => {
+  try {
+    if (!uid) {
+      console.error('No UID provided to getUserLimits');
+      return { success: false, data: null };
+    }
+    
+    const response = await axios.get(`${API_URL}/users/${uid}/limits`);
+    return response?.data; // Should contain { success: true, data: { ...limits } }
+  } catch (error) {
+    console.error('Error fetching user limits:', error?.response?.data || error?.message);
+    // Return error structure consistent with backend
+    return { 
+      success: false, 
+      error: error?.response?.data?.error || 'Failed to fetch limits',
+      data: null 
+    };
+  }
 }; 

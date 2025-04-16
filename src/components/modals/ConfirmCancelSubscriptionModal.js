@@ -12,8 +12,12 @@ const ConfirmCancelSubscriptionModal = ({
 }) => {
   // Format date function
   const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return 'your current billing period ends';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      console.error('ConfirmCancelSubscriptionModal: Invalid date passed to formatDate:', dateString);
+      return 'your current billing period ends';
+    }
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',

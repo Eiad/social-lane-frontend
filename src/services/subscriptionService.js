@@ -82,7 +82,7 @@ export const cancelSubscription = async (uid, reason = 'Cancelled by user') => {
         const verifyResponse = await getSubscription(uid);
         console.log(`Verified subscription status after cancellation: ${verifyResponse?.data?.status || 'N/A'}`);
       } catch (error) {
-        console.error('Error verifying cancellation:', error);
+        console.error('Error verifying cancellation:', error?.response?.data || error?.message);
       }
     }, 2000);
     
