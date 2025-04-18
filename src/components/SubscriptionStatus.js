@@ -268,10 +268,10 @@ const SubscriptionStatus = ({ onStatusChange }) => {
                 <span className="text-gray-800 font-mono text-sm break-all">{subscription?.subscriptionId}</span>
               </div>
               
-              {/* Show plan tier/role */}
+              {/* Show plan tier/role based on user context */}
               <div className="flex justify-between items-center pb-2 border-b border-dashed border-gray-200 hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200">
                 <span className="text-gray-600 font-medium">Plan:</span>
-                <span className="text-gray-800">{subscription?.planTier || subscription?.role || 'Starter'}</span>
+                <span className="text-gray-800">{user?.role || 'Starter'}</span>
               </div>
               
               {/* Only show cancellation info if the subscription is cancelled but still active */}
