@@ -81,4 +81,29 @@ export const getUserLimits = async (uid) => {
       data: null 
     };
   }
+};
+
+/**
+ * Get post usage statistics for a user
+ * @param {string} uid - Firebase UID
+ * @returns {Promise<Object>} - Post usage data
+ */
+export const getPostUsage = async (uid) => {
+  try {
+    if (!uid) {
+      console.error('No UID provided to getPostUsage');
+      return { success: false, data: null };
+    }
+    
+    const response = await axios.get(`${API_URL}/users/${uid}/post-usage`);
+    return response?.data; // Should contain { success: true, data: { ...usage } }
+  } catch (error) {
+    console.error('Error fetching post usage:', error?.response?.data || error?.message);
+    // Return error structure consistent with backend
+    return { 
+      success: false, 
+      error: error?.response?.data?.error || 'Failed to fetch post usage',
+      data: null 
+    };
+  }
 }; 

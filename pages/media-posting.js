@@ -3,7 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 import ProtectedRoute from '../src/components/ProtectedRoute';
-import { getUserLimits } from '../src/services/userService'; // Import getUserLimits
+import { getUserLimits, getPostUsage } from '../src/services/userService'; // Add getPostUsage
 
 // Enhanced fetch with timeout and retry utility - REMAINS UNCHANGED
 const fetchWithTimeoutAndRetry = async (url, options = {}, timeout = 120000, maxRetries = 3) => {
@@ -66,12 +66,40 @@ function MediaPosting() {
     const [userLimits, setUserLimits] = useState(null); // Add state for user limits
     const [limitsLoading, setLimitsLoading] = useState(true); // Loading state for limits
     const [limitsError, setLimitsError] = useState(null); // Error state for limits
+    const [postUsage, setPostUsage] = useState(null);
+    const [postUsageLoading, setPostUsageLoading] = useState(true);
+    const [postUsageError, setPostUsageError] = useState(null);
     const fileInputRef = useRef(null);
     const videoRef = useRef(null); // For the large preview video element
     const localVideoRef = useRef(null); // Ref for thumbnail generation video element
     const [showVideoModal, setShowVideoModal] = useState(false);
     const [accountStatus, setAccountStatus] = useState({ tiktok: {}, twitter: {} });
     const [showLoader, setShowLoader] = useState(false); // Controls visibility of the PostingLoader modal
+
+    // Define fetchPostUsage with useCallback so it can be called from handlePost
+    const fetchPostUsage = useCallback(async () => {
+        if (!userId) return;
+        setPostUsageLoading(true);
+        setPostUsageError(null);
+        try {
+            // Assuming getPostUsage is imported correctly
+            const usageResponse = await getPostUsage(userId);
+            if (usageResponse?.success && usageResponse?.data) {
+                console.log('Post usage received:', usageResponse.data);
+                setPostUsage(usageResponse.data);
+            } else {
+                console.error('Failed to fetch post usage:', usageResponse?.error);
+                setPostUsageError(usageResponse?.error || 'Failed to load post usage data.');
+                setPostUsage(null);
+            }
+        } catch (error) {
+            console.error('Error fetching post usage:', error);
+            setPostUsageError('An error occurred while fetching post usage data.');
+            setPostUsage(null);
+        } finally {
+            setPostUsageLoading(false);
+        }
+    }, [userId, setPostUsageLoading, setPostUsageError, setPostUsage]); // Add dependencies
 
     // --- Format Date Function ---
     const formatDate = (dateString, timeString) => {
@@ -144,6 +172,11 @@ function MediaPosting() {
         fetchLimits();
     }, [userId]);
 
+    // Fetch post usage when userId changes - NOW CALLS the useCallback version
+    useEffect(() => {
+        fetchPostUsage(); // Call the function defined above
+    }, [fetchPostUsage]); // Depend on the useCallback function
+
     const fetchSocialMediaAccounts = useCallback(async () => {
         if (!userId) { console.log("Skipping account fetch: userId not available yet."); return false; }
         try {
@@ -211,23 +244,61 @@ function MediaPosting() {
 
     // --- Account toggle handlers ---
     const handleTikTokAccountToggle = (account) => {
-        if (!account?.accountId) return;
+        if (isPostLimitReached || !account?.accountId) return;
         setSelectedTiktokAccounts(prev => {
             const isSelected = prev.some(acc => acc?.accountId === account?.accountId);
-            return isSelected ? prev.filter(acc => acc?.accountId !== account?.accountId) : [...prev, account];
+            
+            // If removing an account, always allow it
+            if (isSelected) {
+                return prev.filter(acc => acc?.accountId !== account?.accountId);
+            }
+            
+            // If adding an account, check against the user's plan limit
+            if (userLimits && userLimits.role === 'Starter') {
+                const currentSelectedCount = prev.length + selectedTwitterAccounts.length;
+                const accountLimit = userLimits.socialAccounts;
+                
+                // Show error message if limit reached
+                if (currentSelectedCount >= accountLimit) {
+                    window.showToast?.error?.(`Your ${userLimits.role} plan allows only ${accountLimit} social account(s). Please upgrade your plan or deselect another account.`);
+                    return prev;
+                }
+            }
+            
+            return [...prev, account];
         });
     };
+    
     const handleTwitterAccountToggle = (account) => {
-        if (!account?.userId) return;
+        if (isPostLimitReached || !account?.userId) return;
         setSelectedTwitterAccounts(prev => {
             const isSelected = prev.some(acc => acc?.userId === account?.userId);
-            return isSelected ? prev.filter(acc => acc?.userId !== account?.userId) : [...prev, account];
+            
+            // If removing an account, always allow it
+            if (isSelected) {
+                return prev.filter(acc => acc?.userId !== account?.userId);
+            }
+            
+            // If adding an account, check against the user's plan limit
+            if (userLimits && userLimits.role === 'Starter') {
+                const currentSelectedCount = prev.length + selectedTiktokAccounts.length;
+                const accountLimit = userLimits.socialAccounts;
+                
+                // Show error message if limit reached
+                if (currentSelectedCount >= accountLimit) {
+                    window.showToast?.error?.(`Your ${userLimits.role} plan allows only ${accountLimit} social account(s). Please upgrade your plan or deselect another account.`);
+                    return prev;
+                }
+            }
+            
+            return [...prev, account];
         });
     };
 
 
     // --- File handling logic ---
     const handleFileChange = (e) => {
+        if (isPostLimitReached) return;
         const selectedFile = e?.target?.files?.[0];
         if (selectedFile) {
              if (!selectedFile.type.startsWith('video/')) {
@@ -256,17 +327,19 @@ function MediaPosting() {
         setShowLoader(false); // Hide loader modal
         if (fileInputRef.current) fileInputRef.current.value = '';
         window.scrollTo(0, 0);
+        // Add page reload
+        window.location.reload(); 
     };
 
     const handleReplaceMediaClick = () => {
-        if (isUploading || isProcessingUpload || isPosting || isScheduling) return;
+        if (isPostLimitReached || isUploading || isProcessingUpload || isPosting || isScheduling) return;
         setFile(null); setUploadedFileName(''); setLocalPreviewUrl(''); setVideoUrl(''); setVideoThumbnail(''); setUploadError(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
         setTimeout(() => { fileInputRef.current?.click(); }, 50);
     };
 
     const handleUploadClick = () => {
-        if (isUploading || isProcessingUpload || isPosting || isScheduling) return;
+        if (isPostLimitReached || isUploading || isProcessingUpload || isPosting || isScheduling) return;
         fileInputRef.current?.click();
     };
 
@@ -431,33 +504,37 @@ function MediaPosting() {
             return;
         }
 
-        // --- STEP 2: Proceed with Scheduling or Immediate Posting ---
-        // At this point, upload is done (isUploading=false), processing has started (isProcessingUpload=true), loader is visible.
+        // --- STEP 2: Proceed with Scheduling or Immediate Posting --- (MODIFY THIS PART)
         setIsPosting(true); // Set general posting flag
         if (isScheduled) { setIsScheduling(true); }
 
         try {
-            // Simulate backend processing delay if needed for testing UI
-             // await new Promise(resolve => setTimeout(resolve, 2000)); // e.g., 2 second delay
-
              setIsProcessingUpload(false); // Backend processing simulation ends, actual API calls will start
 
-            // --- Scheduling Logic ---
-            if (isScheduled && scheduledAtLocal) {
-                const scheduledAtISO = scheduledAtLocal.toISOString();
-                console.log(`Scheduling post. Sending UTC to API: ${scheduledAtISO}`);
-                try {
+            // --- UNIFIED PAYLOAD CREATION --- START
                     const payload = {
                         userId: firebaseUid,
                         video_url: uploadedVideoUrl,
                         post_description: caption,
                         platforms: selectedPlatforms,
+                // Pass simplified account identifiers. Backend will fetch tokens if needed.
                         tiktok_accounts: selectedTiktokAccounts.map(acc => ({ accountId: acc.accountId, username: acc.username, displayName: acc.displayName })),
                         twitter_accounts: selectedTwitterAccounts.map(acc => ({ userId: acc.userId, username: acc.username })),
-                        isScheduled: true,
-                        scheduledDate: scheduledAtISO,
-                    };
-                    const response = await fetchWithTimeoutAndRetry('/api/schedules', {
+                isScheduled: isScheduled,
+            };
+            if (isScheduled && scheduledAtLocal) {
+                payload.scheduledDate = scheduledAtLocal.toISOString(); // Add scheduledDate only if scheduling
+            }
+            // --- UNIFIED PAYLOAD CREATION --- END
+
+            // --- API Call to UNIFIED Endpoint (/posts or /schedules) --- START
+            // Use /posts as the primary endpoint now, as /schedules is just a forwarder
+            const apiEndpoint = '/posts'; // Path relative to backend
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sociallane-backend.mindio.chat'; // Use env var or default
+            const fullApiUrl = `${backendUrl}${apiEndpoint}`; // Construct full URL
+            console.log(`Sending ${isScheduled ? 'schedule' : 'immediate post'} request to ${fullApiUrl} with payload:`, payload);
+
+            const response = await fetchWithTimeoutAndRetry(fullApiUrl, { // Use fullApiUrl
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
@@ -467,91 +544,68 @@ function MediaPosting() {
                     let responseData = {};
                     let parseError = null;
                     try {
-                        // Only attempt to parse JSON if content-type indicates it
                         const contentType = response.headers.get('content-type');
                         if (contentType && contentType.includes('application/json')) {
                              responseData = await response.json();
                         } else if (!response.ok) {
-                             // If not OK and not JSON, try to get text for error message
                             const text = await response.text();
                             throw new Error(`Server error (${response.status}): ${text.substring(0, 200)}`);
                         } else {
-                            // If OK but not JSON, assume success but no data
-                            responseData = { success: true }; 
+                    responseData = { success: true }; // Assume success if OK but not JSON
                         }
                     } catch (e) {
-                        console.error("Error parsing schedule response JSON:", e);
+                console.error(`Error parsing ${isScheduled ? 'schedule' : 'post'} response JSON:`, e);
                         parseError = e;
-                        // If parsing fails but status was OK, maybe treat as success? Or throw specific error.
-                        // Let's throw an error if parsing failed or status wasn't ok.
                         if (!response.ok) {
-                           throw new Error(`Failed to schedule. Status: ${response.status}. ${e.message}`);
+                    throw new Error(`Failed to ${isScheduled ? 'schedule' : 'post'}. Status: ${response.status}. ${e.message}`);
                         } else {
-                           // If status OK but parsing failed (unexpected), throw parse error
-                            throw new Error(`Scheduled, but failed to parse response: ${e.message}`);
+                    throw new Error(`Request succeeded, but failed to parse response: ${e.message}`);
                         }
                     }
                     
                     // Check response status and parsed data
                     if (!response.ok || !responseData?.success) {
-                        // Use the parsed error message if available, otherwise provide a default
-                        throw new Error(responseData?.error || parseError?.message || 'Failed to schedule post.');
-                    }
-                    
-                    // Use the already parsed data
-                    const data = responseData; 
-                    console.log('Schedule success response:', data);
-                    setScheduleSuccess(true);
-                    setPostSuccess(true);
-                    window.showToast?.success?.(`Post scheduled successfully for ${scheduledAtLocal.toLocaleString()}`);
-                    const statuses = { t: {}, tw: {} }; selectedTiktokAccounts.forEach(a => { statuses.t[a.accountId] = { status: 'success', message: 'Scheduled' }; }); selectedTwitterAccounts.forEach(a => { statuses.tw[a.userId] = { status: 'success', message: 'Scheduled' }; }); setAccountStatus(p => ({ tiktok: { ...p.tiktok, ...statuses.t }, twitter: { ...p.twitter, ...statuses.tw } }));
-                } catch (error) {
-                    console.error('Error during schedule API call:', error);
-                    setUploadError(error.message);
-                    setScheduleSuccess(false);
-                    setPostSuccess(false);
-                    window.showToast?.error?.(error.message || 'Failed to schedule post');
-                    const errUpd = { t: {}, tw: {} }; selectedTiktokAccounts.forEach(a => { errUpd.t[a.accountId] = { status: 'error', message: error.message || 'Fail' }; }); selectedTwitterAccounts.forEach(a => { errUpd.tw[a.userId] = { status: 'error', message: error.message || 'Fail' }; }); setAccountStatus(p => ({ tiktok: { ...p.tiktok, ...errUpd.t }, twitter: { ...p.twitter, ...errUpd.tw } }));
-                }
+                throw new Error(responseData?.error || parseError?.message || `Failed to ${isScheduled ? 'schedule' : 'post'} post.`);
             }
-            // --- Immediate Posting Logic ---
-            else if (!isScheduled) {
-                const initialStatus = { tiktok: {}, twitter: {} }; selectedTiktokAccounts.forEach(a => { initialStatus.tiktok[a.accountId] = { status: 'idle', message: 'Waiting...' }; }); selectedTwitterAccounts.forEach(a => { initialStatus.twitter[a.userId] = { status: 'idle', message: 'Waiting...' }; }); setAccountStatus(initialStatus);
-                const results = {}; let overallSuccess = false;
+            // --- API Call to UNIFIED Endpoint --- END
 
-                if (selectedPlatforms.includes('tiktok')) {
-                    console.log('Posting immediately to TikTok...');
-                    try {
-                        if (selectedTiktokAccounts.length > 0) { setAccountStatus(prev => ({ ...prev, tiktok: { ...prev.tiktok, [selectedTiktokAccounts[0].accountId]: { status: 'loading', message: 'Posting...' } } })); }
-                        const tiktokResultsPromise = new Promise(async (resolve, reject) => { /* ... keep inner logic ... */
-                             try { const accRes = []; for (let i = 0; i < selectedTiktokAccounts.length; i++) { const acc = selectedTiktokAccounts[i]; setAccountStatus(p => ({ ...p, tiktok: { ...p.tiktok, [acc.accountId]: { status: 'loading', message: 'Posting...' } } })); try { const reqData = { videoUrl: uploadedVideoUrl, caption, userId: firebaseUid, accounts: [acc] }; const res = await fetch(`/api/tiktok/post-multi`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reqData) }); if (!res.ok) { let m = `TT fail(${res.status})`; try { const eD = await res.json(); m = eD.error || eD.message || m; } catch (e) { } throw new Error(m); } const d = await res.json(); const r = d.results?.[0] || { accountId: acc.accountId, success: res.ok, error: res.ok ? null : 'Fail' }; accRes.push({ ...r, displayName: acc.displayName || acc.username }); setAccountStatus(p => ({ ...p, tiktok: { ...p.tiktok, [acc.accountId]: { status: r.success ? 'success' : 'error', message: r.success ? 'Posted' : (r.error || 'Fail') } } })); if (i < selectedTiktokAccounts.length - 1) { const nA = selectedTiktokAccounts[i + 1]; setAccountStatus(p => ({ ...p, tiktok: { ...p.tiktok, [nA.accountId]: { status: 'next', message: 'Next...' } } })); await new Promise(r => setTimeout(r, 1000)); } } catch (aE) { console.error(`TT post error ${acc.displayName || acc.accountId}:`, aE); const msg = aE.message || 'Unknown error'; accRes.push({ accountId: acc.accountId, displayName: acc.displayName || acc.username, success: false, error: msg }); setAccountStatus(p => ({ ...p, tiktok: { ...p.tiktok, [acc.accountId]: { status: 'error', message: msg } } })); } } resolve({ success: accRes.some(r => r.success), results: accRes, partial: accRes.some(r => r.success) && accRes.some(r => !r.success) }); } catch (e) { reject(e); }
-                        });
-                        const tiktokResult = await tiktokResultsPromise; results.tiktok = tiktokResult.results; results.tiktokPartial = tiktokResult.partial || false; if (tiktokResult.success) overallSuccess = true;
-                    } catch (error) { console.error('Overall TT immediate post error:', error); const ttErrUpd = {}; selectedTiktokAccounts.forEach(a => { ttErrUpd[a.accountId] = { status: 'error', message: error.message || 'Fail' }; }); setAccountStatus(p => ({ ...p, tiktok: { ...p.tiktok, ...ttErrUpd } })); if (!results.tiktok) results.tiktok = selectedTiktokAccounts.map(a => ({ accountId: a.accountId, displayName: a.displayName || a.username, success: false, error: error?.message || 'Fail' })); window.showToast?.error?.(error?.message || 'TT post error'); }
-                }
-                if (selectedPlatforms.includes('twitter')) {
-                    console.log('Posting immediately to Twitter...');
-                    try {
-                        if (selectedTwitterAccounts.length > 0) { setAccountStatus(prev => ({ ...prev, twitter: { ...prev.twitter, [selectedTwitterAccounts[0].userId]: { status: 'loading', message: 'Posting...' } } })); }
-                        const twitterResultsPromise = new Promise(async (resolve, reject) => { /* ... keep inner logic ... */
-                            try { const accRes = []; for (let i = 0; i < selectedTwitterAccounts.length; i++) { const acc = selectedTwitterAccounts[i]; setAccountStatus(p => ({ ...p, twitter: { ...p.twitter, [acc.userId]: { status: 'loading', message: 'Posting...' } } })); try { const reqData = { videoUrl: uploadedVideoUrl, text: caption, userId: firebaseUid, accounts: [acc] }; const res = await fetch(`/api/twitter/post`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reqData) }); if (!res.ok) { let m = `TW fail(${res.status})`; try { const eD = await res.json(); m = eD.error || eD.message || m; } catch (e) { } throw new Error(m); } const d = await res.json(); const r = d.results?.[0] || { userId: acc.userId, success: res.ok, error: res.ok ? null : 'Fail' }; accRes.push({ ...r, username: acc.username || acc.userId }); setAccountStatus(p => ({ ...p, twitter: { ...p.twitter, [acc.userId]: { status: r.success ? 'success' : 'error', message: r.success ? 'Posted' : (r.error || 'Fail') } } })); if (i < selectedTwitterAccounts.length - 1) { const nA = selectedTwitterAccounts[i + 1]; setAccountStatus(p => ({ ...p, twitter: { ...p.twitter, [nA.userId]: { status: 'next', message: 'Next...' } } })); await new Promise(r => setTimeout(r, 1000)); } } catch (aE) { console.error(`TW post error ${acc.username || acc.userId}:`, aE); const msg = aE.message || 'Unknown error'; accRes.push({ userId: acc.userId, username: acc.username || acc.userId, success: false, error: msg }); setAccountStatus(p => ({ ...p, twitter: { ...p.twitter, [acc.userId]: { status: 'error', message: msg } } })); } } resolve({ success: accRes.some(r => r.success), results: accRes, partial: accRes.some(r => r.success) && accRes.some(r => !r.success) }); } catch (e) { reject(e); }
-                        });
-                        const twitterResult = await twitterResultsPromise; results.twitter = twitterResult.results; results.twitterPartial = twitterResult.partial || false; if (twitterResult.success) overallSuccess = true; if (twitterResult.partial && twitterResult.success) window.showToast?.info?.('Some Twitter posts failed or are processing');
-                    } catch (error) { console.error('Overall TW immediate post error:', error); const twErrUpd = {}; selectedTwitterAccounts.forEach(a => { twErrUpd[a.userId] = { status: 'error', message: error.message || 'Fail' }; }); setAccountStatus(p => ({ ...p, twitter: { ...p.twitter, ...twErrUpd } })); if (!results.twitter) results.twitter = selectedTwitterAccounts.map(a => ({ userId: a.userId, username: a.username || a.userId, success: false, error: error?.message || 'Fail' })); window.showToast?.error?.(error?.message || 'TW post error'); }
-                }
-                 setPlatformResults(results); setPostSuccess(overallSuccess);
-                 if (overallSuccess) { const allSucc = Object.keys(results).filter(k => !k.includes('Partial')).every(p => { const r = results[p]; return Array.isArray(r) ? r.every(i => i.success) : false; }); if (allSucc) window.showToast?.success?.('Posted successfully to all selected accounts!'); else window.showToast?.info?.('Posted successfully to some accounts.'); }
-                 else if (selectedPlatforms.length > 0) { window.showToast?.error?.('Posting failed for all selected accounts.'); }
-                 console.log('Immediate posting completed with results:', results);
+            // --- SUCCESS HANDLING --- START
+            console.log(`${isScheduled ? 'Schedule' : 'Immediate post'} success response:`, responseData);
+            setPostSuccess(true); // Mark overall success
+            if (isScheduled) {
+                    setScheduleSuccess(true);
+                    window.showToast?.success?.(`Post scheduled successfully for ${scheduledAtLocal.toLocaleString()}`);
+                // Update account status for scheduled posts
+                const statuses = { t: {}, tw: {} };
+                selectedTiktokAccounts.forEach(a => { statuses.t[a.accountId] = { status: 'success', message: 'Scheduled' }; });
+                selectedTwitterAccounts.forEach(a => { statuses.tw[a.userId] = { status: 'success', message: 'Scheduled' }; });
+                setAccountStatus(p => ({ tiktok: { ...p.tiktok, ...statuses.t }, twitter: { ...p.twitter, ...statuses.tw } }));
+            } else {
+                // For immediate posts, show a generic success/processing message
+                window.showToast?.success?.('Post sent for processing!');
+                // Reset account status for immediate posts (backend handles status updates via processPost)
+                setAccountStatus({ tiktok: {}, twitter: {} });
+                // Reset platform results as backend handles async processing
+                setPlatformResults({});
+                // Refresh post usage data to reflect the increment (after successful submission)
+                fetchPostUsage();
             }
+            // --- SUCCESS HANDLING --- END
 
         } catch (error) {
-            console.error('HandlePost critical error after upload:', error); setUploadError(error.message || 'An unexpected error occurred after upload.'); setPostSuccess(false); setScheduleSuccess(false);
-            const errUpd = { tiktok: {}, twitter: {} }; selectedTiktokAccounts.forEach(a => { errUpd.tiktok[a.accountId] = { status: 'error', message: error.message || 'Post Fail' }; }); selectedTwitterAccounts.forEach(a => { errUpd.twitter[a.userId] = { status: 'error', message: error.message || 'Post Fail' }; }); setAccountStatus(prev => ({ tiktok: { ...prev.tiktok, ...errUpd.tiktok }, twitter: { ...prev.twitter, ...errUpd.twitter } }));
-            window.showToast?.error?.(error.message || 'An error occurred during posting/scheduling');
+            // --- ERROR HANDLING --- START
+            console.error(`Error during ${isScheduled ? 'schedule' : 'post'} API call:`, error);
+            setUploadError(error.message);
+            setPostSuccess(false);
+            if (isScheduled) setScheduleSuccess(false);
+            window.showToast?.error?.(error.message || `Failed to ${isScheduled ? 'schedule' : 'post'} post`);
+            // Update account status on error
+            const errUpd = { t: {}, tw: {} };
+            selectedTiktokAccounts.forEach(a => { errUpd.t[a.accountId] = { status: 'error', message: error.message || 'Fail' }; });
+            selectedTwitterAccounts.forEach(a => { errUpd.tw[a.userId] = { status: 'error', message: error.message || 'Fail' }; });
+            setAccountStatus(p => ({ tiktok: { ...p.tiktok, ...errUpd.t }, twitter: { ...p.twitter, ...errUpd.tw } }));
+            // --- ERROR HANDLING --- END
         } finally {
-            // Ensure final loading states are reset
-            // isUploading and isProcessingUpload should already be false here
              setIsPosting(false);
              setIsScheduling(false);
              // Loader visibility is handled by PostingLoader's auto-close now
@@ -568,9 +622,11 @@ function MediaPosting() {
 
     // --- Derived state for checking limits ---
     const isPostLimitReached = useMemo(() => {
+        // If post usage data is not available, fall back to user limits
+        if (postUsageLoading || !postUsage) {
         if (!userLimits) return false; // Assume not reached if limits not loaded
         
-        const limit = userLimits.scheduledPosts; // Use scheduledPosts limit for all posts
+            const limit = userLimits.numberOfPosts; // Use numberOfPosts limit for all posts
         const currentCount = userLimits.currentPostsCount; 
         
         // Check if limit is defined (-1 means unlimited)
@@ -580,18 +636,40 @@ function MediaPosting() {
         
         // Check if current count meets or exceeds the limit
         return currentCount >= limit;
-    }, [userLimits]);
+        }
+        
+        // Use post usage data when available (more accurate)
+        if (postUsage.postsRemaining === -1) {
+            return false; // Unlimited posts
+        }
+        
+        return postUsage.postsRemaining <= 0 && !postUsage.needsCycleReset;
+    }, [postUsage, postUsageLoading, userLimits]);
 
+    // Enhanced post limit message using detailed usage data
     const postLimitMessage = useMemo(() => {
-        if (!isPostLimitReached || !userLimits) return null;
-
-        const limit = userLimits.scheduledPosts;
+        if (!isPostLimitReached) return null;
+        
+        // Prefer post usage data when available
+        if (postUsage) {
+            const limit = postUsage.limit;
+            const resetDate = postUsage.nextResetDate ? new Date(postUsage.nextResetDate).toLocaleDateString() : 'your next cycle';
+            return `You've reached your monthly limit of ${limit} post${limit > 1 ? 's' : ''} for the ${postUsage.userRole} plan. Your limit will reset on ${resetDate}. Upgrade for more posts!`;
+        }
+        
+        // Fall back to user limits
+        if (userLimits) {
+            const limit = userLimits.numberOfPosts;
         if (userLimits.role === 'Starter') {
             const resetDate = userLimits.cycleEndDate ? new Date(userLimits.cycleEndDate).toLocaleDateString() : 'your next cycle';
-            return `You've reached your free plan limit of ${limit} post${limit > 1 ? 's' : ''} this cycle. Your limit resets on ${resetDate}. Upgrade for unlimited posts!`;
+                return `You've reached your monthly limit of ${limit} post${limit > 1 ? 's' : ''} for the ${userLimits.role} plan. Your limit will reset on ${resetDate}. Upgrade for more posts!`;
         }
         return `You've reached your plan limit of ${limit} posts. Please upgrade your plan for more posts.`;
-    }, [isPostLimitReached, userLimits]);
+        }
+        
+        // Generic message if no data is available
+        return 'You have reached your post limit. Please upgrade your plan for more posts.';
+    }, [isPostLimitReached, postUsage, userLimits]);
 
     // --- PostingLoader Component (MODIFIED) ---
     const PostingLoader = ({ show, isUploading, isProcessingUpload, isPosting, isScheduling, progress, scheduleSuccess, postSuccess, platformResults, onClose }) => {
@@ -760,46 +838,116 @@ function MediaPosting() {
         return isDisabled;
     }, [file, isUploading, isProcessingUpload, isPosting, isScheduling, hasValidPlatforms, isScheduled, isScheduleDateTimeValid]);
 
+    // New derived state for overall page disable based on post limit
+    const isPageDisabledByLimit = useMemo(() => isPostLimitReached, [isPostLimitReached]);
 
     // --- JSX Structure ---
     return (
         <>
             <Head> <title>Create Post | Social Lane</title> <meta name="description" content="Post media" /> </Head>
 
-            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="video/*" disabled={isUploading || isProcessingUpload || isPosting || isScheduling} />
+            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="video/*" disabled={isPageDisabledByLimit || isUploading || isProcessingUpload || isPosting || isScheduling} />
 
-            <div className="flex flex-col lg:flex-row gap-4 p-4 bg-gray-100 min-h-screen">
+            {/* Post Limit Reached Banner */}
+            {isPageDisabledByLimit && (
+                <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-3 mb-4 mx-4 rounded-md shadow-md" role="alert">
+                    <div className="flex items-center">
+                        <svg className="w-6 h-6 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v4a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 10.586V5z" clipRule="evenodd" />
+                        </svg>
+                        <div>
+                            <p className="font-bold">Monthly Post Limit Reached</p>
+                            <p className="text-sm">{postLimitMessage || 'Upgrade your plan to continue posting.'}</p>
+                            <Link href="/subscription" className="text-sm font-medium text-primary hover:text-primary-dark underline mt-1 inline-block">
+                                Upgrade Plan
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className={`flex flex-col lg:flex-row gap-4 p-4 bg-gray-100 min-h-screen ${isPageDisabledByLimit ? 'opacity-60 pointer-events-none' : ''}`}>
 
                 {/* Left Column: Adjusted Width */}
                 <div className="w-full lg:w-2/5 flex flex-col gap-4 flex-shrink-0">
 
-                    {/* MERGED Search + Account Selection */}
+                    {/* MERGED Search + Account Selection - Disable input and toggles */}
                      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col gap-4">
                         <div> {/* Search */}
                             <label htmlFor="account-search" className="sr-only">Search Accounts</label>
-                            <div className="relative"> <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg></div> <input id="account-search" type="search" placeholder="Search accounts..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm" disabled={isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} /> </div>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg></div>
+                                <input 
+                                    id="account-search" 
+                                    type="search" 
+                                    placeholder="Search accounts..." 
+                                    value={searchTerm} 
+                                    onChange={(e) => setSearchTerm(e.target.value)} 
+                                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    disabled={isPageDisabledByLimit || isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} 
+                                />
                         </div>
-                        <div> {/* Accounts List */}
-                            <h3 className="text-base font-semibold mb-3 text-gray-700">Select Accounts</h3>
+                        </div>
+                        <div> {/* Accounts List - Apply disabled styling/logic */}
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="text-base font-semibold text-gray-700">Select Accounts</h3>
+                                {/* Moved Limit Indicator */}
+                                {userLimits?.role === 'Starter' && !isPageDisabledByLimit && (
+                                    <div className="text-xs text-gray-600 flex items-center">
+                                        <span className="mr-1">Selected:</span>
+                                        <span className="font-medium mr-0.5">{selectedTiktokAccounts.length + selectedTwitterAccounts.length}</span>/
+                                        <span className="font-medium mr-2">{userLimits.socialAccounts}</span>
+                                        {selectedTiktokAccounts.length + selectedTwitterAccounts.length >= userLimits.socialAccounts && (
+                                            <Link href="/subscription" className="text-primary font-medium hover:underline">
+                                                Upgrade
+                                            </Link>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Display Post Quota for Starter Users */} 
+                            {!postUsageLoading && postUsage && postUsage.userRole === 'Starter' && (
+                                <div className="mb-3 py-1 px-2 rounded border border-gray-200 bg-gray-50 text-xs text-gray-700">
+                                    Monthly Posts: <span className="font-medium">{postUsage.currentPostCount}/{postUsage.limit === -1 ? 'Unlimited' : postUsage.limit}</span> used.
+                                    {postUsage.limit !== -1 && (
+                                        <span className="ml-1">Resets on {new Date(postUsage.nextResetDate).toLocaleDateString()}.</span>
+                                    )}
+                                </div>
+                             )}
+
                             <div className="flex flex-wrap gap-4 max-h-60 overflow-y-auto custom-scrollbar pr-1">
                                 {filteredTiktokAccounts.map(a => { 
                                   const s = selectedTiktokAccounts.some(x => x.accountId === a.accountId); 
                                   const n = a.displayName || a.username || `TT ${a.accountId?.substring(0, 5)}`;
                                   const tip = `${n}${a.username ? ` (@${a.username})` : ''} - TikTok`;
-                                  const isDisabled = isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess;
+                                    // General disable based on page/posting state
+                                    const isDisabledGeneral = isPageDisabledByLimit || isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess;
+                                    // Specific disable for unselected accounts when limit is reached
+                                    const isLimitReached = userLimits?.role === 'Starter' && (selectedTiktokAccounts.length + selectedTwitterAccounts.length >= userLimits?.socialAccounts);
+                                    const isDisabledForSelection = !s && isLimitReached;
+                                    // Combine disable states
+                                    const isDisabled = isDisabledGeneral || isDisabledForSelection;
+
                                   return (
                                     <div 
                                       key={a.accountId} 
                                       onClick={() => isDisabled ? null : handleTikTokAccountToggle(a)} 
                                       title={tip} 
-                                      className={`group relative w-14 h-14 rounded-full ${isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} border-2 ${s ? 'border-blue-600 ring-2 ring-blue-600 ring-offset-1' : 'border-gray-300 hover:border-blue-400'} transition-all flex-shrink-0`}
+                                            className={`group relative w-14 h-14 rounded-full ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} border-2 ${s ? 'border-blue-600 ring-2 ring-blue-600 ring-offset-1' : 'border-gray-300 hover:border-blue-400'} transition-all flex-shrink-0`}
                                     >
                                       <img src={a.avatarUrl100 || a.avatarUrl || '/default-avatar.png'} alt={n} className="w-full h-full rounded-full object-cover" />
                                       <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center shadow-md">
                                         <TikTokSimpleIcon width="10" height="10" fill="#ffffff" />
                                       </div>
-                                      {s && (<div className="absolute inset-0 rounded-full bg-blue-600/60 flex items-center justify-center pointer-events-none">
-                                      <svg className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clipRule="evenodd" /></svg></div>)}
+                                            {s && !isDisabledGeneral && (<div className="absolute inset-0 rounded-full bg-blue-600/60 flex items-center justify-center pointer-events-none">
+                                                <svg className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clipRule="evenodd" /></svg>
+                                            </div>)}
+                                            {/* Add visual indicator for disabled selection */} 
+                                            {isDisabledForSelection && (
+                                                <div className="absolute inset-0 rounded-full bg-gray-500/50 flex items-center justify-center pointer-events-none">
+                                                </div>
+                                            )}
                                     </div>
                                   );
                                 })}
@@ -807,17 +955,29 @@ function MediaPosting() {
                                   const s = selectedTwitterAccounts.some(x => x.userId === a.userId); 
                                   const n = a.name || a.username || `TW ${a.userId}`;
                                   const tip = `${n}${a.username ? ` (@${a.username})` : ''} - Twitter`;
-                                  const isDisabled = isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess;
+                                    // General disable based on page/posting state
+                                    const isDisabledGeneral = isPageDisabledByLimit || isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess;
+                                     // Specific disable for unselected accounts when limit is reached
+                                    const isLimitReached = userLimits?.role === 'Starter' && (selectedTiktokAccounts.length + selectedTwitterAccounts.length >= userLimits?.socialAccounts);
+                                    const isDisabledForSelection = !s && isLimitReached;
+                                    // Combine disable states
+                                    const isDisabled = isDisabledGeneral || isDisabledForSelection;
+                                    
                                   return (
                                     <div 
                                       key={a.userId} 
                                       onClick={() => isDisabled ? null : handleTwitterAccountToggle(a)} 
                                       title={tip} 
-                                      className={`group relative w-14 h-14 rounded-full ${isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} border-2 ${s ? 'border-blue-600 ring-2 ring-blue-600 ring-offset-1' : 'border-gray-300 hover:border-blue-400'} transition-all flex-shrink-0`}
+                                            className={`group relative w-14 h-14 rounded-full ${isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} border-2 ${s ? 'border-blue-600 ring-2 ring-blue-600 ring-offset-1' : 'border-gray-300 hover:border-blue-400'} transition-all flex-shrink-0`}
                                     >
                                       <img src={a.profileImageUrl || '/default-avatar.png'} alt={n} className="w-full h-full rounded-full object-cover" />
                                       <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-white bg-blue-500 border-2 border-white shadow-md"><TwitterIcon width="10" height="10" fill="white" /></div>
-                                      {s && (<div className="absolute inset-0 rounded-full bg-blue-600/60 flex items-center justify-center pointer-events-none"><svg className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clipRule="evenodd" /></svg></div>)}
+                                            {s && !isDisabledGeneral && (<div className="absolute inset-0 rounded-full bg-blue-600/60 flex items-center justify-center pointer-events-none"><svg className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-8 8a1 1 0 01-1.4 0l-4-4a1 1 0 011.4-1.4L8 12.6l7.3-7.3a1 1 0 011.4 0z" clipRule="evenodd" /></svg></div>)}
+                                            {/* Add visual indicator for disabled selection */} 
+                                            {isDisabledForSelection && (
+                                                <div className="absolute inset-0 rounded-full bg-gray-500/50 flex items-center justify-center pointer-events-none">
+                                                </div>
+                                            )}
                                     </div>
                                   );
                                 })}
@@ -828,7 +988,7 @@ function MediaPosting() {
                     </div>
 
 
-                    {/* Media Upload/Preview Area (Small) */}
+                    {/* Media Upload/Preview Area (Small) - Disable buttons */}
                     <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                          {file && localPreviewUrl ? (
                              <div className="flex items-center gap-3">
@@ -838,38 +998,70 @@ function MediaPosting() {
                                  <div className="flex-grow min-w-0">
                                      <p className="text-sm font-medium text-gray-700 truncate" title={uploadedFileName || 'Video Selected'}>{uploadedFileName || 'Video Selected'}</p>
                                      <div className="flex gap-2 mt-1">
-                                         <button onClick={handleReplaceMediaClick} className="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} > <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2A8.001 8.001 0 0019.418 15m0 0H15" /></svg> Replace </button>
+                                         <button onClick={handleReplaceMediaClick} className="text-xs px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed" disabled={isPageDisabledByLimit || isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} > <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2A8.001 8.001 0 0019.418 15m0 0H15" /></svg> Replace </button>
                                          <button className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-400 cursor-not-allowed flex items-center gap-1" disabled title="Set Cover Image (Coming Soon)"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>Cover</button>
                                      </div>
                                  </div>
                              </div>
                          ) : (
-                             <button onClick={handleUploadClick} className="w-full h-24 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center text-gray-500 hover:border-blue-500 hover:text-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled={isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} > <svg className="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg> <span className="text-sm font-medium">Upload Media</span> <span className="text-xs">Click or Drag & Drop Video</span> </button>
+                             <div
+                                onClick={handleUploadClick}
+                                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors duration-300 ${
+                                    isPageDisabledByLimit 
+                                    ? 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-60' 
+                                    : 'border-gray-300 hover:border-primary hover:bg-blue-50 cursor-pointer'
+                                }`}
+                            >
+                                {isPostLimitReached ? (
+                                    <div className="flex flex-col items-center justify-center space-y-2">
+                                        <svg className="w-12 h-12 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                        </svg>
+                                        <p className="text-gray-500 text-base">Post limit reached. Upgrade your plan to continue posting.</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center space-y-2">
+                                        <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                        </svg>
+                                        <p className="text-gray-500 text-base">Drag & drop video or click to upload</p>
+                                        <p className="text-gray-400 text-sm">MP4, MOV, or WebM (max 500MB)</p>
+                                    </div>
+                                )}
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    accept="video/*"
+                                    className="hidden"
+                                    disabled={isPostLimitReached || isUploading || isPosting}
+                                />
+                            </div>
                          )}
                          {uploadError && !isUploading && !isProcessingUpload && !isPosting && !isScheduling && (<p className="text-xs text-red-600 mt-2">{uploadError}</p>)}
                     </div>
 
 
-                    {/* Caption Area */}
+                    {/* Caption Area - Disable textarea */}
                     <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                         <label htmlFor="main-caption" className="block text-base font-semibold mb-2 text-gray-700">Main Caption <span className="text-gray-400 text-xs font-normal ml-1">(Optional)</span></label>
                         <textarea 
                           id="main-caption" 
-                          className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-gray-100 disabled:text-gray-500"
+                          className="w-full h-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                           value={caption} 
                           onChange={(e) => setCaption(e.target.value)} 
                           placeholder="Start writing your post here..." 
                           maxLength={2200}
-                          disabled={isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess}
+                          disabled={isPageDisabledByLimit || isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess}
                         />
                         <p className="text-xs text-gray-400 text-right mt-1">{caption.length}/2200</p>
                     </div>
                 </div>
 
                 {/* Right Column: Adjusted Width and Layout */}
-                <div className="w-full lg:w-3/5 flex flex-col gap-4"> {/* Removed min-h-0, flex handles height */}
+                <div className="w-full lg:w-3/5 flex flex-col gap-4">
 
-                    {/* Media Preview (Large) */}
+                    {/* Media Preview (Large) - No changes needed, just display */} 
                     <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                         <h3 className="text-base font-semibold mb-3 text-gray-700">Media Preview</h3>
                         <div className="bg-white-900 rounded-md overflow-hidden relative flex items-center justify-center aspect-video">
@@ -879,7 +1071,7 @@ function MediaPosting() {
                     </div>
 
 
-                    {/* Schedule Post Section */}
+                    {/* Schedule Post Section - Disable toggle and inputs */}
                      {!postSuccess || scheduleSuccess ? (
                         <div className={`bg-white p-4 rounded-lg shadow-sm border border-gray-200 ${(postSuccess && !scheduleSuccess) ? 'hidden' : ''}`}>
                             <div className="flex items-center justify-between mb-3">
@@ -891,7 +1083,7 @@ function MediaPosting() {
                                       className="sr-only peer" 
                                       checked={isScheduled} 
                                       onChange={(e) => setIsScheduled(e.target.checked)} 
-                                      disabled={scheduleSuccess || isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} 
+                                      disabled={isPageDisabledByLimit || scheduleSuccess || isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} 
                                     /> 
                                     <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div> 
                                   </label>
@@ -931,7 +1123,7 @@ function MediaPosting() {
                                     onChange={(e) => setScheduledDate(e.target.value)} 
                                     min={new Date().toISOString().split('T')[0]} 
                                     className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed" 
-                                    disabled={isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} 
+                                    disabled={isPageDisabledByLimit || isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} 
                                   /> 
                                 </div>
                                 <div className="flex-1"> 
@@ -942,7 +1134,7 @@ function MediaPosting() {
                                     value={scheduledTime} 
                                     onChange={(e) => setScheduledTime(e.target.value)} 
                                     className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed" 
-                                    disabled={isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} 
+                                    disabled={isPageDisabledByLimit || isUploading || isProcessingUpload || isPosting || isScheduling || postSuccess} 
                                     step="60" 
                                   /> 
                                 </div>
@@ -952,7 +1144,7 @@ function MediaPosting() {
                         </div>
                     ) : null}
 
-                    {/* Posting Status/Results */}
+                    {/* Posting Status/Results - No changes needed */} 
                     <div id="posting-status">
                         {(Object.keys(platformResults).length > 0 || (isPosting && !isUploading && !isProcessingUpload && !scheduleSuccess) || (isScheduling && !isUploading && !isProcessingUpload && !scheduleSuccess)) && (
                             <div className="mt-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
@@ -1027,13 +1219,13 @@ function MediaPosting() {
                         )}
                     </div>
 
-                     {/* Action Button Area - Removed mt-auto */}
-                    <div className="mt-4"> {/* Changed from pt-4 to mt-4 to ensure spacing */}
+                     {/* Action Button Area - Main post button already has logic */} 
+                    <div className="mt-4"> 
                         {!postSuccess ? (
                             <button 
-                              className={`w-full py-2.5 px-4 rounded-lg text-white font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-base ${isPostButtonDisabled ? 'bg-gray-400 cursor-not-allowed' : (isScheduled ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700')}`} 
+                              className={`w-full py-2.5 px-4 rounded-lg text-white font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-base ${isPostButtonDisabled || isPageDisabledByLimit ? 'bg-gray-400 cursor-not-allowed' : (isScheduled ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700')}`}
                               onClick={handlePost} 
-                              disabled={isPostButtonDisabled} 
+                              disabled={isPostButtonDisabled || isPageDisabledByLimit}
                               aria-live="polite"
                             >
                                 {(isUploading || isProcessingUpload || isPosting || isScheduling) && (<svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"></circle><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor" className="opacity-75"></path></svg>)}
@@ -1053,7 +1245,6 @@ function MediaPosting() {
                         }
                     </div>
 
-                    {/* "Create Another Post" Button - Removed as we're handling it differently now */}
                 </div> {/* End Right Column */}
 
             </div> {/* End Main Flex Container */}
@@ -1097,10 +1288,16 @@ function MediaPosting() {
 
             {/* Limit Warning Message */}    
             {isPostLimitReached && postLimitMessage && (
-                <div className="max-w-4xl mx-auto mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
-                    <p className="text-sm text-yellow-800">{postLimitMessage}</p>
-                    <Link href="/settings/billing" className="text-sm font-medium text-primary hover:text-primary-dark underline mt-1 inline-block">
-                        Upgrade Plan
+                <div className="max-w-4xl mx-auto mt-4 p-6 bg-red-50 border-l-4 border-red-500 rounded-lg text-center shadow-md">
+                    <div className="flex items-center justify-center mb-3">
+                        <svg className="w-10 h-10 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                        <h3 className="text-lg font-semibold text-red-800">Monthly Post Limit Reached</h3>
+                    </div>
+                    <p className="text-md text-red-700 mb-2">{postLimitMessage}</p>
+                    <Link href="/subscription" className="inline-block mt-2 px-4 py-2 bg-primary text-white font-medium rounded hover:bg-primary-dark transition-colors duration-200">
+                        Upgrade Your Plan
                     </Link>
                 </div>
             )}
@@ -1109,11 +1306,17 @@ function MediaPosting() {
             <div className="mt-8 flex justify-center">
                 <button 
                     onClick={handlePost} 
-                    disabled={!videoUrl || isUploading || isPosting || isProcessingUpload || (!selectedTiktokAccounts.length && !selectedTwitterAccounts.length) || isPostLimitReached || limitsLoading}
+                    disabled={!videoUrl || isUploading || isPosting || isProcessingUpload || (!selectedTiktokAccounts.length && !selectedTwitterAccounts.length) || isPostLimitReached || limitsLoading || (userLimits?.role === 'Starter' && (selectedTiktokAccounts.length + selectedTwitterAccounts.length > userLimits?.socialAccounts))}
                     className="py-3 px-8 rounded-lg bg-primary hover:bg-primary-dark text-white font-semibold transition-colors duration-200 flex items-center justify-center gap-2 text-base disabled:opacity-50 disabled:cursor-not-allowed shadow-md disabled:shadow-none"
                 >
-                   {/* Dynamically update button text based on state */}
-                   {isPosting ? (
+                    {isPostLimitReached ? (
+                        <>
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clipRule="evenodd" />
+                            </svg>
+                            Post Limit Reached
+                        </>
+                    ) : isPosting ? (
                        <>
                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1122,7 +1325,7 @@ function MediaPosting() {
                            Processing...
                        </>
                    ) : isScheduled ? (
-                       `Schedule Post for ${formatDate(scheduledDate, scheduledTime)}`
+                        'Schedule Post'
                    ) : (
                        'Post Now'
                    )}

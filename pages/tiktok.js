@@ -974,7 +974,7 @@ export default function TikTok() {
             {isAccountLimitReached && accountLimitMessage && (
                 <div className="max-w-4xl mx-auto mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
                     <p className="text-sm text-yellow-800">{accountLimitMessage}</p>
-                    <Link href="/settings/billing" className="text-sm font-medium text-primary hover:text-primary-dark underline mt-1 inline-block">
+                    <Link href="/subscription" className="text-sm font-medium text-primary hover:text-primary-dark underline mt-1 inline-block">
                         Upgrade Plan
                     </Link>
                 </div>
