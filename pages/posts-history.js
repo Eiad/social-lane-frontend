@@ -18,6 +18,12 @@ function PostsHistory() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [isFetching, setIsFetching] = useState(false); // Add missing state for fetch status tracking
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPosts, setTotalPosts] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const postsPerPage = 10;
+  
   // Add a cache to avoid duplicate API calls
   const [postCache, setPostCache] = useState({});
 
@@ -43,9 +49,9 @@ function PostsHistory() {
   useEffect(() => {
     // Fetch posts when userId is available
     if (userId) {
-      fetchPosts();
+      fetchPosts(currentPage);
     }
-  }, [userId]);
+  }, [userId, currentPage]);
   
   // Apply filters when filter states change
   useEffect(() => {
@@ -55,16 +61,16 @@ function PostsHistory() {
     }
   }, [sortOrder, platformFilter, timeFilter, statusFilter, postTypeFilter, allPosts]);
 
-  const fetchPosts = async () => {
+  const fetchPosts = async (page = 1) => {
     if (isFetching) return;
     
     setIsFetching(true);
     setError(null);
     
     try {
-      // Fetch posts (both regular and processed scheduled posts)
-      console.log('Fetching posts history...');
-      const response = await fetch(`${API_URL}/posts/regular/${userId}`);
+      // Fetch posts (both regular and processed scheduled posts) with pagination
+      console.log(`Fetching posts history for page ${page}...`);
+      const response = await fetch(`${API_URL}/posts/regular/${userId}?page=${page}&limit=${postsPerPage}`);
       
       if (!response.ok) {
         throw new Error(`HTTP error fetching posts! Status: ${response.status}`);
@@ -72,7 +78,17 @@ function PostsHistory() {
       
       const data = await response.json();
       const fetchedPosts = data.posts || [];
-      console.log(`Fetched ${fetchedPosts.length} posts for history`);
+      console.log(`Fetched ${fetchedPosts.length} posts for history (page ${page})`);
+      
+      // If pagination data is available, update total counts
+      if (data.pagination) {
+        setTotalPosts(data.pagination.total || 0);
+        setTotalPages(data.pagination.pages || 1);
+      } else {
+        // Fallback to calculating based on current data
+        setTotalPosts(fetchedPosts.length);
+        setTotalPages(1);
+      }
       
       // Process the results
       const enhancedPosts = fetchedPosts.map(post => {
@@ -155,6 +171,9 @@ function PostsHistory() {
 
   // Handle filter change
   const handleFilterChange = (filterType, value) => {
+    // Reset to page 1 when filters change
+    setCurrentPage(1);
+    
     switch (filterType) {
       case 'sort':
         setSortOrder(value);
@@ -585,6 +604,67 @@ function PostsHistory() {
                   )}
                 </tbody>
               </table>
+            </div>
+            
+            {/* Pagination and Post Count */}
+            <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-1 rounded border ${
+                    currentPage === 1 
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Previous
+                </button>
+                
+                <div className="flex items-center space-x-1">
+                  {[...Array(totalPages).keys()].map(i => (
+                    <button
+                      key={i + 1}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        currentPage === i + 1
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  )).slice(0, 5)} {/* Show max 5 page buttons */}
+                  
+                  {totalPages > 5 && currentPage < totalPages - 2 && (
+                    <>
+                      <span className="px-1">...</span>
+                      <button
+                        onClick={() => setCurrentPage(totalPages)}
+                        className="w-8 h-8 rounded-full flex items-center justify-center bg-white text-gray-700 hover:bg-gray-50"
+                      >
+                        {totalPages}
+                      </button>
+                    </>
+                  )}
+                </div>
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className={`px-3 py-1 rounded border ${
+                    currentPage === totalPages 
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+              
+              <div className="text-sm text-gray-500">
+                Showing <span className="font-medium">{posts.length}</span> of <span className="font-medium">{totalPosts}</span> posts
+              </div>
             </div>
           </div>
         </main>
