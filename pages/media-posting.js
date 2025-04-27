@@ -837,7 +837,7 @@ function MediaPosting() {
                 message = isScheduling ? "Your post has been scheduled." : "Your post was published successfully.";
                 icon = <svg className="mr-3 h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>;
                 bgColor = "bg-green-600";
-                break;
+                 break;
             case 'done_partial':
                 title = "Partially Complete";
                 message = "Some platforms succeeded, others failed. Check details below.";
@@ -1303,15 +1303,15 @@ function MediaPosting() {
                             </button>
                          ) : (!scheduleSuccess && (
                             <div className="flex flex-col md:flex-row gap-3">
-                              <button 
+                            <button 
                                 className="flex-1 py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-base" 
-                                onClick={resetForNewPost}
-                              > 
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg> 
-                                Create Another Post 
-                              </button>
+                              onClick={resetForNewPost}
+                            > 
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg> 
+                              Create Another Post 
+                            </button>
                               
                               {/* Add View Post Details button next to Create Another Post */}
                               <Link 

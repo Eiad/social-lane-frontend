@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -6,6 +6,9 @@ import { TikTokSimpleIcon, TwitterIcon } from '../../src/components/icons/Social
 import ProtectedRoute from '../../src/components/ProtectedRoute';
 
 const API_URL = 'https://sociallane-backend.mindio.chat';
+
+// Create a cache outside the component to persist between renders
+const postCache = {};
 
 function PostDetails() {
   const router = useRouter();
@@ -15,46 +18,92 @@ function PostDetails() {
   const [postSummary, setPostSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showVideoPopup, setShowVideoPopup] = useState(false);
+  const [fetchingData, setFetchingData] = useState(false);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
-    // Fetch post details when ID is available
-    if (id) {
+    // Only fetch when ID is available, not currently fetching, and hasn't been fetched before
+    if (id && !fetchingData && !fetchedRef.current) {
+      fetchedRef.current = true;
       fetchPostDetails(id);
     }
-  }, [id]);
+  }, [id]); // Remove fetchingData from dependencies to prevent re-fetching
 
   const fetchPostDetails = async (postId) => {
     try {
       setLoading(true);
       setError(null);
+      setFetchingData(true);
+      
+      // Check if we have this post in cache
+      if (postCache[postId]) {
+        console.log("Using cached post data for:", postId);
+        const cachedData = postCache[postId];
+        setPost(cachedData.post);
+        setPostSummary(cachedData.summary);
+        setLoading(false);
+        setFetchingData(false);
+        return;
+      }
 
       // Fetch post details
       const postResponse = await fetch(`${API_URL}/posts/${postId}`);
       if (!postResponse.ok) {
-        throw new Error(`Failed to fetch post: ${postResponse.status} ${postResponse.statusText}`);
+        const status = postResponse.status;
+        
+        // Handle specific status codes
+        if (status === 429) {
+          throw new Error('Too many requests. Please try again in a moment.');
+        } else if (status === 404) {
+          throw new Error(`Post not found. The post may have been deleted or the ID is incorrect.`);
+        } else {
+          throw new Error(`Failed to fetch post: ${status} ${postResponse.statusText}`);
+        }
       }
       
       const postData = await postResponse.json();
+      console.log("Post data received:", postData); // Log to debug status value
       setPost(postData);
       
+      let summaryData = null;
+      
       // Try to fetch the post summary if it exists
-      if (postData.summaryId) {
+      if (postData?.summaryId) {
         try {
           const summaryResponse = await fetch(`${API_URL}/posts/summaries/${postData.summaryId}`);
           if (summaryResponse.ok) {
-            const summaryData = await summaryResponse.json();
+            summaryData = await summaryResponse.json();
+            console.log("Post summary:", summaryData); // Log to debug summary data
             setPostSummary(summaryData);
+            
+            // Update the post data with the summary status if available
+            // This ensures we show the most up-to-date status from the summary
+            if (summaryData?.status) {
+              setPost(prevPost => ({
+                ...prevPost,
+                status: summaryData.status
+              }));
+            }
           }
         } catch (summaryError) {
           console.warn('Could not fetch post summary:', summaryError);
           // This isn't a fatal error, we can still show the post without the summary
         }
       }
+      
+      // Cache the post and summary data
+      postCache[postId] = {
+        post: postData,
+        summary: summaryData,
+        timestamp: Date.now()
+      };
     } catch (err) {
       console.error('Error fetching post details:', err);
-      setError(err.message || 'Failed to load post details');
+      setError(err?.message || 'Failed to load post details');
     } finally {
       setLoading(false);
+      setFetchingData(false);
     }
   };
 
@@ -63,6 +112,10 @@ function PostDetails() {
     if (!dateString) return 'N/A';
     try {
       const date = new Date(dateString);
+      // Check if date is valid before formatting
+      if (isNaN(date.getTime())) {
+        return 'Invalid date';
+      }
       return date.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -82,7 +135,12 @@ function PostDetails() {
     const baseClasses = "px-2 py-1 rounded-full text-xs font-medium";
     let color = "";
     
-    switch(status?.toLowerCase()) {
+    // Convert status to lowercase and trim for consistent comparison
+    const normalizedStatus = status?.toLowerCase()?.trim() || '';
+    
+    console.log("Rendering status badge for:", normalizedStatus); // Debug the status value
+    
+    switch(normalizedStatus) {
       case 'completed':
       case 'success':
         color = "bg-green-100 text-green-800";
@@ -119,6 +177,84 @@ function PostDetails() {
     }
   };
 
+  // Video Popup Component
+  const VideoPopup = ({ videoUrl, onClose }) => {
+    const [videoError, setVideoError] = useState(false);
+    const [videoLoading, setVideoLoading] = useState(true);
+
+    // Reset error state when popup is opened with a new video
+    useEffect(() => {
+      if (showVideoPopup) {
+        setVideoError(false);
+        setVideoLoading(true);
+      }
+    }, [showVideoPopup]);
+
+    const handleVideoError = () => {
+      setVideoError(true);
+      setVideoLoading(false);
+    };
+
+    const handleVideoLoad = () => {
+      setVideoLoading(false);
+    };
+    
+    if (!showVideoPopup) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
+        <div className="relative bg-white rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
+          <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+            <h3 className="font-medium text-lg">Video Preview</h3>
+            <button 
+              onClick={onClose} 
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="p-4 flex-1 overflow-auto">
+            {!videoUrl ? (
+              <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex flex-col items-center justify-center p-4 rounded">
+                <svg className="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-gray-700 font-medium mb-1">No video available</p>
+                <p className="text-gray-500 text-sm text-center">The video URL is missing or invalid.</p>
+              </div>
+            ) : videoError ? (
+              <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex flex-col items-center justify-center p-4 rounded">
+                <svg className="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p className="text-gray-700 font-medium mb-1">Unable to play video</p>
+                <p className="text-gray-500 text-sm text-center">The video may be unavailable or in an unsupported format.</p>
+              </div>
+            ) : (
+              <div className="aspect-w-16 aspect-h-9 relative">
+                {videoLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
+                  </div>
+                )}
+                <video 
+                  src={videoUrl} 
+                  controls 
+                  autoPlay
+                  onError={handleVideoError}
+                  onLoadedData={handleVideoLoad}
+                  className="rounded object-contain w-full h-full"
+                ></video>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex justify-center items-center">
@@ -130,12 +266,32 @@ function PostDetails() {
   if (error) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center p-4">
-        <div className="text-red-500 text-xl mb-4">Error: {error}</div>
+        <div className="text-red-500 text-xl mb-4 text-center max-w-md">
+          {error.includes('429') || error.includes('Too many requests') ? (
+            <>
+              <h2 className="font-bold mb-2">Rate Limit Exceeded</h2>
+              <p>We&apos;re receiving too many requests right now. Please wait a moment and try again.</p>
+            </>
+          ) : error.includes('404') || error.includes('not found') ? (
+            <>
+              <h2 className="font-bold mb-2">Post Not Found</h2>
+              <p>This post may have been deleted or you may have an incorrect link.</p>
+            </>
+          ) : (
+            error
+          )}
+        </div>
         <button 
           onClick={() => router.push('/dashboard')}
           className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
         >
           Return to Dashboard
+        </button>
+        <button 
+          onClick={() => router.push('/posts-history')}
+          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded mt-2"
+        >
+          View All Posts
         </button>
       </div>
     );
@@ -156,206 +312,300 @@ function PostDetails() {
   }
 
   // Extract processing results from post
-  const processingResults = post.processing_results || {};
+  const processingResults = post?.processing_results || {};
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 pt-8">
         <Head>
           <title>Post Details - Social Lane</title>
           <meta name="description" content="View details of your social media post" />
-        </Head>
-
-        <main className="container mx-auto px-4 py-8">
-          <div className="mb-6">
-            <Link href="/dashboard" className="text-blue-500 hover:text-blue-700 flex items-center">
-              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        </Head>        
+        <main className="container mx-auto">
+        <div className="mb-6">
+            <Link href="/posts-history" className="text-blue-500 hover:text-blue-700 flex items-center">
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Back to Dashboard
+            </svg>
+            Back to posts history
             </Link>
-          </div>
+        </div>
 
-          <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white shadow rounded-lg overflow-hidden">
             {/* Header */}
             <div className="border-b border-gray-200 px-6 py-4">
-              <h1 className="text-xl font-semibold text-gray-900">Post Details</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Post Details</h1>
             </div>
 
-            {/* Post Info */}
+            {/* Two Column Layout */}
             <div className="px-6 py-4">
-              <div className="flex flex-wrap gap-4 mb-6">
-                <div>
-                  <span className="block text-sm font-medium text-gray-500">Status</span>
-                  <StatusBadge status={post.status} />
-                </div>
-                <div>
-                  <span className="block text-sm font-medium text-gray-500">Created</span>
-                  <span className="text-gray-900">{formatDate(post.createdAt || post.date)}</span>
-                </div>
-                {post.isScheduled && (
-                  <div>
-                    <span className="block text-sm font-medium text-gray-500">Scheduled For</span>
-                    <span className="text-gray-900">{formatDate(post.scheduledDate)}</span>
-                  </div>
-                )}
-                <div>
-                  <span className="block text-sm font-medium text-gray-500">Platforms</span>
-                  <div className="flex space-x-2 mt-1">
-                    {post.platforms.map(platform => (
-                      <div key={platform} className="flex items-center">
-                        <PlatformIcon platform={platform} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Video Preview */}
-              <div className="mb-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-2">Content</h2>
-                <div className="rounded-lg overflow-hidden bg-gray-100 p-4">
-                  <div className="aspect-w-16 aspect-h-9 mb-4">
-                    <video 
-                      src={post.video_url} 
-                      controls 
-                      className="rounded object-contain w-full"
-                    ></video>
-                  </div>
-                  
-                  {post.post_description && (
-                    <div className="mt-3">
-                      <h3 className="font-medium text-gray-700 mb-1">Caption</h3>
-                      <p className="text-gray-900">{post.post_description}</p>
+            {/* Status and Info - Top Row */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-6 border border-gray-100">
+                <div className="flex flex-wrap items-center gap-20">
+                <div className="flex items-center">
+                    <div className="bg-gray-200 p-2 rounded-full mr-3">
+                    <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                     </div>
-                  )}
+                    <div>
+                    <span className="block text-sm font-medium text-gray-500">Status</span>
+                    <StatusBadge status={postSummary?.status || post?.status} />
+                    </div>
                 </div>
-              </div>
 
-              {/* Platform Results */}
-              <div>
-                <h2 className="text-lg font-medium text-gray-900 mb-2">Platform Results</h2>
-                <div className="overflow-hidden border border-gray-200 rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Platform</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Post Link</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {/* Use data from postSummary if available, otherwise fallback to processing_results */}
-                      {postSummary && postSummary.platformResults ? (
-                        postSummary.platformResults.map((result, index) => (
-                          <tr key={`summary-${index}`}>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <PlatformIcon platform={result.platformName} />
-                                <span className="ml-2 text-gray-900 capitalize">{result.platformName}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-gray-900">
-                              {result.accountName || result.accountId || 'N/A'}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <StatusBadge status={result.success ? 'success' : 'failed'} />
-                            </td>
-                            <td className="px-4 py-3">
-                              {result.postLink ? (
-                                <a 
-                                  href={result.postLink} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="text-blue-500 hover:text-blue-700"
-                                >
-                                  View Post
-                                </a>
-                              ) : (
-                                <span className="text-gray-500">
-                                  {result.errorDetails || 'No link available'}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        // Fallback to processing_results
-                        Object.entries(processingResults).map(([platform, result], index) => {
-                          // Handle different result formats
-                          const results = Array.isArray(result) ? result : [result];
-                          
-                          return results.map((platformResult, i) => (
-                            <tr key={`${platform}-${i}`}>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <div className="flex items-center">
-                                  <PlatformIcon platform={platform} />
-                                  <span className="ml-2 text-gray-900 capitalize">{platform}</span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap text-gray-900">
-                                {platformResult.username || platformResult.accountId || 'N/A'}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <StatusBadge status={platformResult.success ? 'success' : 'failed'} />
-                              </td>
-                              <td className="px-4 py-3">
-                                {/* TikTok and Twitter have different result formats */}
-                                {platform === 'tiktok' && platformResult.success ? (
-                                  platformResult.postUrl ? (
-                                    <a 
-                                      href={platformResult.postUrl} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer" 
-                                      className="text-blue-500 hover:text-blue-700"
-                                    >
-                                      View Post
-                                    </a>
-                                  ) : (
-                                    <span className="text-gray-500">View on Profile</span>
-                                  )
-                                ) : platform === 'twitter' && platformResult.success ? (
-                                  // For Twitter, construct URL from tweet_id if available
-                                  platformResult.tweet_id || (platformResult.data && platformResult.data.id) ? (
-                                    <a 
-                                      href={`https://twitter.com/${platformResult.username || 'user'}/status/${platformResult.tweet_id || platformResult.data.id}`} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer" 
-                                      className="text-blue-500 hover:text-blue-700"
-                                    >
-                                      View Tweet
-                                    </a>
-                                  ) : (
-                                    <span className="text-gray-500">No link available</span>
-                                  )
-                                ) : (
-                                  <span className="text-gray-500">
-                                    {platformResult.error || 'Failed to post'}
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ));
-                        })
-                      )}
-
-                      {/* Show message if no results are available */}
-                      {(!postSummary || !postSummary.platformResults) && 
-                       (!processingResults || Object.keys(processingResults).length === 0) && (
-                        <tr>
-                          <td colSpan="4" className="px-4 py-4 text-center text-gray-500">
-                            No platform results available
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                <div className="flex items-center">
+                    <div className="bg-gray-200 p-2 rounded-full mr-3">
+                    <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    </div>
+                    <div>
+                    <span className="block text-sm font-medium text-gray-500">Created</span>
+                    <span className="text-gray-900">{formatDate(post?.createdAt || post?.date)}</span>
+                    </div>
                 </div>
-              </div>
+
+                {post?.isScheduled && (
+                    <div className="flex items-center">
+                    <div className="bg-gray-200 p-2 rounded-full mr-3">
+                        <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <span className="block text-sm font-medium text-gray-500">Scheduled For</span>
+                        <span className="text-gray-900">{formatDate(post?.scheduledDate)}</span>
+                    </div>
+                    </div>
+                )}
+
+                <div className="flex items-center">
+                    <div className="bg-gray-200 p-2 rounded-full mr-3">
+                    <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    </div>
+                    <div>
+                    <span className="block text-sm font-medium text-gray-500">Platforms</span>
+                    <div className="flex space-x-2 mt-1">
+                        {post?.platforms?.map(platform => (
+                        <div key={platform} className="flex items-center">
+                            <PlatformIcon platform={platform} />                            
+                        </div>
+                        ))}
+                    </div>
+                    </div>
+                </div>
+                </div>
             </div>
-          </div>
-        </main>
+
+            <div className="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-6">
+                {/* Left Column - 70% - Post Details */}
+                <div className="md:w-8/12">
+                {/* Caption Section */}
+                {post?.post_description && (
+                    <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 shadow-sm">
+                    <h4 className="font-medium text-gray-700 mb-2 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                        </svg>
+                        Caption
+                    </h4>
+                    <div className="p-3 bg-gray-50 rounded border border-gray-100">
+                        <p className="text-gray-900 whitespace-pre-line">{post?.post_description}</p>
+                    </div>
+                    </div>
+                )}
+
+                {/* Platform Results */}
+                <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                    <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Platform Results
+                    </h4>
+                    <div className="overflow-hidden border border-gray-200 rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Platform</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Post Link</th>
+                        </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                        {/* Use data from postSummary if available, otherwise fallback to processing_results */}
+                        {postSummary?.platformResults ? (
+                            postSummary.platformResults.map((result, index) => (
+                            <tr key={`summary-${index}`} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                <div className="flex items-center">
+                                    <PlatformIcon platform={result?.platformName} />
+                                    <span className="ml-2 text-gray-900 capitalize">{result?.platformName || ''}</span>
+                                </div>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-900">
+                                {result?.accountName || result?.accountId || 'N/A'}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                <StatusBadge status={result?.success ? 'success' : 'failed'} />
+                                </td>
+                                <td className="px-4 py-3">
+                                {result?.postLink ? (
+                                    <a 
+                                    href={result?.postLink} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="text-blue-500 hover:text-blue-700 flex items-center"
+                                    >
+                                    View Post
+                                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                    </a>
+                                ) : (
+                                    <span className="text-gray-500">
+                                    {result?.errorDetails || 'No link available'}
+                                    </span>
+                                )}
+                                </td>
+                            </tr>
+                            ))
+                        ) : (
+                            // Fallback to processing_results
+                            Object.entries(processingResults).map(([platform, result], index) => {
+                            // Handle different result formats
+                            const results = Array.isArray(result) ? result : [result];
+                            
+                            return results.map((platformResult, i) => (
+                                <tr key={`${platform}-${i}`} className="hover:bg-gray-50">
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                    <div className="flex items-center">
+                                    <PlatformIcon platform={platform} />
+                                    <span className="ml-2 text-gray-900 capitalize">{platform || ''}</span>
+                                    </div>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-gray-900">
+                                    {platformResult?.username || platformResult?.accountId || 'N/A'}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                    <StatusBadge status={platformResult?.success ? 'success' : 'failed'} />
+                                </td>
+                                <td className="px-4 py-3">
+                                    {/* TikTok and Twitter have different result formats */}
+                                    {platform === 'tiktok' && platformResult?.success ? (
+                                    platformResult?.postUrl ? (
+                                        <a 
+                                        href={platformResult.postUrl} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="text-blue-500 hover:text-blue-700 flex items-center"
+                                        >
+                                        View Post
+                                        <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                        </a>
+                                    ) : (
+                                        <span className="text-gray-500">View on Profile</span>
+                                    )
+                                    ) : platform === 'twitter' && platformResult?.success ? (
+                                    // For Twitter, construct URL from tweet_id if available
+                                    platformResult?.tweet_id || (platformResult?.data?.id) ? (
+                                        <a 
+                                        href={`https://twitter.com/${platformResult?.username || 'user'}/status/${platformResult?.tweet_id || platformResult?.data?.id}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="text-blue-500 hover:text-blue-700 flex items-center"
+                                        >
+                                        View Tweet
+                                        <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                        </a>
+                                    ) : (
+                                        <span className="text-gray-500">No link available</span>
+                                    )
+                                    ) : (
+                                    <span className="text-gray-500">
+                                        {platformResult?.error || 'Failed to post'}
+                                    </span>
+                                    )}
+                                </td>
+                                </tr>
+                            ));
+                            })
+                        )}
+
+                        {/* Show message if no results are available */}
+                        {(!postSummary || !postSummary.platformResults) && 
+                        (!processingResults || Object.keys(processingResults).length === 0) && (
+                            <tr>
+                            <td colSpan="4" className="px-4 py-4 text-center text-gray-500">
+                                No platform results available
+                            </td>
+                            </tr>
+                        )}
+                        </tbody>
+                    </table>
+                    </div>
+                </div>
+                </div>
+
+                {/* Right Column - 30% - Video Thumbnail */}
+                <div className="md:w-4/12">
+                <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                    <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Video Content
+                    </h2>
+                    
+                    {post?.video_url ? (
+                      <>
+                        <div className="bg-gray-100 rounded-lg p-4 mb-3 text-center cursor-pointer" onClick={() => setShowVideoPopup(true)}>
+                          <svg className="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          <p className="text-gray-600 text-sm">Media post</p>
+                        </div>
+                        
+                        <div>
+                          <button 
+                              onClick={() => setShowVideoPopup(true)}
+                              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded flex items-center justify-center"
+                          >
+                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              Watch Video
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="bg-gray-100 rounded-lg p-6 text-center">
+                        <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-gray-600">Video not available</p>
+                        <p className="text-gray-500 text-sm mt-1">The video for this post may have been removed or is no longer accessible.</p>
+                      </div>
+                    )}
+                </div>
+                </div>
+            </div>
+            </div>
+        </div>
+        </main>        
+        {/* Video Popup */}
+        <VideoPopup 
+          videoUrl={post?.video_url} 
+          onClose={() => setShowVideoPopup(false)} 
+        />
       </div>
     </ProtectedRoute>
   );
