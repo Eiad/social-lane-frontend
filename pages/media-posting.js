@@ -75,6 +75,7 @@ function MediaPosting() {
     const [showVideoModal, setShowVideoModal] = useState(false);
     const [accountStatus, setAccountStatus] = useState({ tiktok: {}, twitter: {} });
     const [showLoader, setShowLoader] = useState(false); // Controls visibility of the PostingLoader modal
+    const [createdPostId, setCreatedPostId] = useState(null); // New state variable to store the ID of the created post
 
     // Define fetchPostUsage with useCallback so it can be called from handlePost
     const fetchPostUsage = useCallback(async () => {
@@ -571,7 +572,43 @@ function MediaPosting() {
 
             // --- SUCCESS HANDLING --- START
             console.log(`${isScheduled ? 'Schedule' : 'Immediate post'} success response:`, responseData);
+            
+            // Detailed debug output to inspect the full response structure
+            console.log('FULL RESPONSE DATA:', JSON.stringify(responseData, null, 2));
+            
             setPostSuccess(true); // Mark overall success
+            
+            // Set the created post ID from the response - inspect all possible places it might be
+            const extractId = () => {
+                // Direct fields
+                if (responseData._id) return responseData._id;
+                if (responseData.id) return responseData.id;
+                if (responseData.postId) return responseData.postId;
+                
+                // Nested fields
+                if (responseData.data && responseData.data._id) return responseData.data._id;
+                if (responseData.data && responseData.data.id) return responseData.data.id;
+                if (responseData.data && responseData.data.postId) return responseData.data.postId;
+                
+                // Post object
+                if (responseData.post && responseData.post._id) return responseData.post._id;
+                if (responseData.post && responseData.post.id) return responseData.post.id;
+                
+                // Result object
+                if (responseData.result && responseData.result._id) return responseData.result._id;
+                if (responseData.result && responseData.result.id) return responseData.result.id;
+                
+                return null;
+            };
+            
+            const postId = extractId();
+            if (postId) {
+                console.log('Found post ID:', postId);
+                setCreatedPostId(postId);
+            } else {
+                console.warn('Could not find post ID in response:', responseData);
+            }
+            
             if (isScheduled) {
                     setScheduleSuccess(true);
                     window.showToast?.success?.(`Post scheduled successfully for ${scheduledAtLocal.toLocaleString()}`);
@@ -599,6 +636,18 @@ function MediaPosting() {
             setPostSuccess(false);
             if (isScheduled) setScheduleSuccess(false);
             window.showToast?.error?.(error.message || `Failed to ${isScheduled ? 'schedule' : 'post'} post`);
+            
+            // Try to extract post ID from error response if it exists
+            if (error.response && error.response.data) {
+                const errorData = error.response.data;
+                if (errorData._id || errorData.postId || errorData.id) {
+                    const postId = errorData._id || errorData.postId || errorData.id;
+                    console.log('Setting created post ID from error response:', postId);
+                    setCreatedPostId(postId);
+                    setPostSuccess(true); // Set success to true so the view button shows
+                }
+            }
+            
             // Update account status on error
             const errUpd = { t: {}, tw: {} };
             selectedTiktokAccounts.forEach(a => { errUpd.t[a.accountId] = { status: 'error', message: error.message || 'Fail' }; });
@@ -609,6 +658,20 @@ function MediaPosting() {
              setIsPosting(false);
              setIsScheduling(false);
              // Loader visibility is handled by PostingLoader's auto-close now
+             
+             // Debug: Log if we have a post ID
+             console.log('Post completed, createdPostId:', createdPostId);
+             
+             // If we're in success state but don't have a post ID, try to get it from the response data
+             if (postSuccess && !createdPostId) {
+                // The ID should be in the response, but as a fallback, let's check the URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                const idFromUrl = urlParams.get('id');
+                if (idFromUrl) {
+                    console.log('Found post ID from URL:', idFromUrl);
+                    setCreatedPostId(idFromUrl);
+                }
+             }
         }
     };
 
@@ -672,7 +735,7 @@ function MediaPosting() {
     }, [isPostLimitReached, postUsage, userLimits]);
 
     // --- PostingLoader Component (MODIFIED) ---
-    const PostingLoader = ({ show, isUploading, isProcessingUpload, isPosting, isScheduling, progress, scheduleSuccess, postSuccess, platformResults, onClose }) => {
+    const PostingLoader = ({ show, isUploading, isProcessingUpload, isPosting, isScheduling, progress, scheduleSuccess, postSuccess, platformResults, createdPostId, onClose }) => {
         const [vis, setVis] = useState(show);
         const [leaving, setLeaving] = useState(false);
         const [currentStage, setCurrentStage] = useState('idle'); // 'uploading', 'processing_upload', 'posting', 'scheduling', 'done_success', 'done_partial', 'done_error'
@@ -750,33 +813,34 @@ function MediaPosting() {
         let showProgressBar = false;
         let icon = <div className="relative mr-3"><div className="w-7 h-7 rounded-full border-4 border-gray-200"></div><div className="abs top-0 left-0 w-7 h-7 rounded-full border-4 border-t-blue-500 border-r-trans border-b-trans border-l-trans animate-spin"></div></div>; // Default spinner
         let canClose = !isUploading && !isProcessingUpload && !isPosting && !isScheduling;
+        let bgColor = "bg-gray-700"; // Default background color
 
         switch (currentStage) {
             case 'uploading':
-                title = "Uploading Media";
-                message = `Uploading video (${progress}%)...`;
-                showProgressBar = true;
-                icon = null; // Hide spinner when progress bar is shown
+                title = "Uploading Video";
+                message = `${Math.round(progress)}% complete`;
                 break;
             case 'processing_upload':
                 title = "Processing Upload";
-                message = "Finalizing upload, please wait...";
-                icon = <div className="relative mr-3"><div className="w-7 h-7 rounded-full border-4 border-gray-200"></div><div className="abs top-0 left-0 w-7 h-7 rounded-full border-4 border-t-blue-500 border-r-trans border-b-trans border-l-trans animate-spin"></div></div>; // Spinner
+                message = "Preparing your video...";
                 break;
             case 'posting':
-                title = "Posting Now";
-                message = "Sending post to platforms...";
+                title = "Posting Content";
+                message = "Sending to social platforms...";
                 break;
             case 'scheduling':
                 title = "Scheduling Post";
-                message = "Saving schedule details...";
+                message = "Setting up your scheduled post...";
                 break;
             case 'done_success':
-                 title = scheduleSuccess ? "Post Scheduled" : "Post Complete";
-                 message = scheduleSuccess ? "Your post is scheduled successfully." : "Posted successfully!";
-                 icon = <div className="mr-3"><svg className="h-7 w-7 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.7-9.3a1 1 0 00-1.4-1.4L9 10.6 7.7 9.3a1 1 0 00-1.4 1.4l2 2a1 1 0 001.4 0l4-4z" clipRule="evenodd" /></svg></div>;
-                 break;
+                title = "Success!";
+                message = isScheduling ? "Your post has been scheduled." : "Your post was published successfully.";
+                icon = <svg className="mr-3 h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>;
+                bgColor = "bg-green-600";
+                break;
             case 'done_partial':
+                title = "Partially Complete";
+                message = "Some platforms succeeded, others failed. Check details below.";
                  title = "Post Complete (Partial)";
                  message = "Some posts succeeded, check status below.";
                  icon = <div className="mr-3"><svg className="h-7 w-7 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg></div>;
@@ -814,6 +878,12 @@ function MediaPosting() {
                      {(currentStage === 'done_partial' || currentStage === 'done_error') && !scheduleSuccess && (
                          <Link href="#posting-status" onClick={close} className="text-xs text-blue-600 hover:underline mt-1">Scroll to detailed status</Link>
                      )}
+                     
+                     {/* View Details button for successful post with an ID */}
+                     {(currentStage === 'done_success' || currentStage === 'done_partial') && createdPostId && (
+                         <Link href={`/created-post/${createdPostId}`} className="text-xs text-blue-600 hover:underline mt-1 block">View Details</Link>
+                     )}
+                     
                       {/* Show keep tab open only during active processing */}
                      {(currentStage === 'uploading' || currentStage === 'processing_upload' || currentStage === 'posting' || currentStage === 'scheduling') && (
                         <p className="text-xs text-gray-500 mt-2 tc">Keep tab open during process.</p>
@@ -1232,15 +1302,30 @@ function MediaPosting() {
                                 {isUploading ? `Uploading (${uploadProgress}%)` : (isProcessingUpload ? 'Processing...' : (isScheduling ? 'Scheduling...' : (isPosting ? 'Posting...' : (isScheduled ? 'Schedule Post' : 'Post Now'))))}
                             </button>
                          ) : (!scheduleSuccess && (
-                            <button 
-                              className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-base" 
-                              onClick={resetForNewPost}
-                            > 
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg> 
-                              Create Another Post 
-                            </button>
+                            <div className="flex flex-col md:flex-row gap-3">
+                              <button 
+                                className="flex-1 py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-base" 
+                                onClick={resetForNewPost}
+                              > 
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg> 
+                                Create Another Post 
+                              </button>
+                              
+                              {/* Add View Post Details button next to Create Another Post */}
+                              <Link 
+                                href={createdPostId ? `/created-post/${createdPostId}` : '#'}
+                                className={`flex-1 py-2.5 px-4 rounded-lg ${createdPostId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'} text-white font-medium transition-colors duration-200 flex items-center justify-center gap-2 text-base`}
+                                onClick={e => !createdPostId && e.preventDefault()}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                View Post Details
+                              </Link>
+                            </div>
                           ))
                         }
                     </div>
@@ -1263,6 +1348,7 @@ function MediaPosting() {
                  scheduleSuccess={scheduleSuccess}
                  postSuccess={postSuccess}
                  platformResults={platformResults}
+                 createdPostId={createdPostId}
                  onClose={() => setShowLoader(false)} // Allow loader to hide itself
              />
 
@@ -1331,6 +1417,22 @@ function MediaPosting() {
                    )}
                 </button>
             </div>
+
+            {/* Success UI: View Post Details Button */}
+            {postSuccess && createdPostId && (
+                <div className="mt-4 text-center">
+                    <Link
+                        href={`/created-post/${createdPostId}`}
+                        className="inline-block py-3 px-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors duration-200 flex items-center justify-center gap-2 text-base shadow-md mx-auto"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        View Post Details
+                    </Link>
+                </div>
+            )}
         </>
     );
 }
