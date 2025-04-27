@@ -17,7 +17,6 @@ function PostDetails() {
   const { id } = router.query;
   
   const [post, setPost] = useState(null);
-  const [postSummary, setPostSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showVideoPopup, setShowVideoPopup] = useState(false);
@@ -46,12 +45,11 @@ function PostDetails() {
   };
 
   // Helper function to save cache to localStorage
-  const saveToLocalStorage = (allCache, postId, postData, summaryData) => {
+  const saveToLocalStorage = (allCache, postId, postData) => {
     try {
       // Update the specific post in the cache
       allCache.data[postId] = {
         post: postData,
-        summary: summaryData,
         timestamp: Date.now()
       };
       
@@ -64,6 +62,62 @@ function PostDetails() {
     } catch (error) {
       console.warn('Error saving to localStorage:', error);
     }
+  };
+
+  // Helper to prepare platform results from processing_results
+  const preparePlatformResults = (processingResults) => {
+    if (!processingResults) return [];
+    
+    const platformResults = [];
+    
+    // Process TikTok results
+    if (processingResults.tiktok) {
+      const tiktokResults = Array.isArray(processingResults.tiktok) 
+        ? processingResults.tiktok 
+        : [processingResults.tiktok];
+        
+      tiktokResults.forEach(result => {
+        // For TikTok, ensure we at least have a profile link if username is available
+        let postLink = result.postUrl || '';
+        if (!postLink && result.username) {
+          postLink = `https://www.tiktok.com/@${result.username}`;
+        }
+        
+        platformResults.push({
+          platformName: 'tiktok',
+          accountId: result.accountId || result.username || '',
+          accountName: result.username || '',
+          success: result.success === true,
+          postLink: postLink,
+          errorDetails: result.error || ''
+        });
+      });
+    }
+    
+    // Process Twitter results
+    if (processingResults.twitter) {
+      const twitterResults = Array.isArray(processingResults.twitter) 
+        ? processingResults.twitter 
+        : [processingResults.twitter];
+        
+      twitterResults.forEach(result => {
+        let postLink = '';
+        if (result.success && (result.tweet_id || (result.data && result.data.id))) {
+          postLink = `https://twitter.com/${result.username || 'user'}/status/${result.tweet_id || result.data?.id}`;
+        }
+        
+        platformResults.push({
+          platformName: 'twitter',
+          accountId: result.accountId || result.userId || '',
+          accountName: result.username || '',
+          success: result.success === true,
+          postLink: postLink,
+          errorDetails: result.error || ''
+        });
+      });
+    }
+    
+    return platformResults;
   };
 
   const fetchPostDetails = async (postId) => {
@@ -85,12 +139,10 @@ function PostDetails() {
           console.log("Using localStorage cached post data for:", postId);
           const cachedPost = allCache.data[postId];
           setPost(cachedPost.post);
-          setPostSummary(cachedPost.summary);
           
           // Also update the in-memory cache for faster access in the same session
           postCache[postId] = {
             post: cachedPost.post,
-            summary: cachedPost.summary,
             timestamp: cachedPost.timestamp
           };
           
@@ -109,7 +161,6 @@ function PostDetails() {
         console.log("Using memory cached post data for:", postId);
         const cachedData = postCache[postId];
         setPost(cachedData.post);
-        setPostSummary(cachedData.summary);
         setLoading(false);
         setFetchingData(false);
         return;
@@ -131,45 +182,24 @@ function PostDetails() {
       }
       
       const postData = await postResponse.json();
-      console.log("Post data received:", postData); // Log to debug status value
-      setPost(postData);
+      console.log("Post data received:", postData);
       
-      let summaryData = null;
-      
-      // Try to fetch the post summary if it exists
-      if (postData?.summaryId) {
-        try {
-          const summaryResponse = await fetch(`${API_URL}/posts/summaries/${postData.summaryId}`);
-          if (summaryResponse.ok) {
-            summaryData = await summaryResponse.json();
-            console.log("Post summary:", summaryData); // Log to debug summary data
-            setPostSummary(summaryData);
-            
-            // Update the post data with the summary status if available
-            // This ensures we show the most up-to-date status from the summary
-            if (summaryData?.status) {
-              setPost(prevPost => ({
-                ...prevPost,
-                status: summaryData.status
-              }));
-            }
-          }
-        } catch (summaryError) {
-          console.warn('Could not fetch post summary:', summaryError);
-          // This isn't a fatal error, we can still show the post without the summary
-        }
+      // Enhance post data with platformResults derived from processing_results
+      if (postData.processing_results) {
+        postData.platformResults = preparePlatformResults(postData.processing_results);
       }
       
-      // Cache the post and summary data in memory
+      setPost(postData);
+      
+      // Cache the post data in memory
       postCache[postId] = {
         post: postData,
-        summary: summaryData,
         timestamp: Date.now()
       };
       
       // Also cache in localStorage for persistence between page reloads
       const allCache = getLocalStorageCache();
-      saveToLocalStorage(allCache, postId, postData, summaryData);
+      saveToLocalStorage(allCache, postId, postData);
       
     } catch (err) {
       console.error('Error fetching post details:', err);
@@ -423,7 +453,7 @@ function PostDetails() {
                     </div>
                     <div>
                     <span className="block text-sm font-medium text-gray-500">Status</span>
-                    <StatusBadge status={postSummary?.status || post?.status} />
+                    <StatusBadge status={post?.status} />
                     </div>
                 </div>
 
@@ -510,9 +540,9 @@ function PostDetails() {
                         </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                        {/* Use data from postSummary if available, otherwise fallback to processing_results */}
-                        {postSummary?.platformResults ? (
-                            postSummary.platformResults.map((result, index) => (
+                        {/* Use platformResults from the post */}
+                        {post?.platformResults && post.platformResults.length > 0 ? (
+                            post.platformResults.map((result, index) => (
                             <tr key={`summary-${index}`} className="hover:bg-gray-50">
                                 <td className="px-4 py-3 whitespace-nowrap">
                                 <div className="flex items-center">
@@ -582,8 +612,20 @@ function PostDetails() {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                         </svg>
                                         </a>
+                                    ) : platformResult?.username ? (
+                                        <a 
+                                        href={`https://www.tiktok.com/@${platformResult.username}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="text-blue-500 hover:text-blue-700 flex items-center"
+                                        >
+                                        View Profile
+                                        <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                        </a>
                                     ) : (
-                                        <span className="text-gray-500">View on Profile</span>
+                                        <span className="text-gray-500">No link available</span>
                                     )
                                     ) : platform === 'twitter' && platformResult?.success ? (
                                     // For Twitter, construct URL from tweet_id if available
@@ -614,7 +656,7 @@ function PostDetails() {
                         )}
 
                         {/* Show message if no results are available */}
-                        {(!postSummary || !postSummary.platformResults) && 
+                        {(!post?.platformResults || post.platformResults.length === 0) && 
                         (!processingResults || Object.keys(processingResults).length === 0) && (
                             <tr>
                             <td colSpan="4" className="px-4 py-4 text-center text-gray-500">

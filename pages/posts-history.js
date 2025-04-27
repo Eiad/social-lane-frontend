@@ -6,8 +6,6 @@ import ProtectedRoute from '../src/components/ProtectedRoute';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 import { useAuth } from '../src/context/AuthContext';
 
-const API_URL = 'https://sociallane-backend.mindio.chat';
-
 function PostsHistory() {
   const router = useRouter();
   const { user } = useAuth();
@@ -18,6 +16,7 @@ function PostsHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [isFetching, setIsFetching] = useState(false); // Add missing state for fetch status tracking
   
   // Add a cache to avoid duplicate API calls
   const [postCache, setPostCache] = useState({});
@@ -28,13 +27,25 @@ function PostsHistory() {
   const [timeFilter, setTimeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [postTypeFilter, setPostTypeFilter] = useState('all');
+  const [userId, setUserId] = useState('');
+  
+  // Get API URL from environment variable or use default
+  const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sociallane-backend.mindio.chat';
 
-  // Load posts only when user changes or on initial load
   useEffect(() => {
-    if (user?.uid) {
+    // Get user ID from local storage
+    const storedUserId = localStorage?.getItem('userId');
+    if (storedUserId) {
+      setUserId(storedUserId);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Fetch posts when userId is available
+    if (userId) {
       fetchPosts();
     }
-  }, [user?.uid]);
+  }, [userId]);
   
   // Apply filters when filter states change
   useEffect(() => {
@@ -45,141 +56,99 @@ function PostsHistory() {
   }, [sortOrder, platformFilter, timeFilter, statusFilter, postTypeFilter, allPosts]);
 
   const fetchPosts = async () => {
+    if (isFetching) return;
+    
+    setIsFetching(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
-
-      if (!user?.uid) {
-        throw new Error('User not authenticated');
-      }
+      // Fetch posts (both regular and processed scheduled posts)
+      console.log('Fetching posts history...');
+      const response = await fetch(`${API_URL}/posts/regular/${userId}`);
       
-      // Try to get data from localStorage - single cache for everything
-      let cachedData = null;
-      const cacheKey = `posts-history-${user.uid}`;
-      
-      try {
-        const cachedItem = localStorage.getItem(cacheKey);
-        if (cachedItem) {
-          const parsedCache = JSON.parse(cachedItem);
-          // Check if cache is less than 1 hour old
-          if (parsedCache.timestamp && (Date.now() - parsedCache.timestamp < 60 * 60 * 1000)) {
-            cachedData = parsedCache.data;
-            console.log('Using cached posts data');
-          } else {
-            console.log('Cache expired');
-          }
-        }
-      } catch (cacheError) {
-        console.warn('Error reading from cache:', cacheError);
-      }
-      
-      // If we have valid cached data, use it
-      if (cachedData && cachedData.length > 0) {
-        setAllPosts(cachedData);
-        const filteredPosts = applyFilters(cachedData);
-        setPosts(filteredPosts);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch posts from API using the correct endpoint with userId
-      const response = await fetch(`${API_URL}/posts/summaries/user/${user.uid}`);
       if (!response.ok) {
-        throw new Error(`Failed to fetch posts: ${response.status} ${response.statusText}`);
+        throw new Error(`HTTP error fetching posts! Status: ${response.status}`);
       }
       
-      let responseData = await response.json();
-      let postsData = responseData.summaries || [];
+      const data = await response.json();
+      const fetchedPosts = data.posts || [];
+      console.log(`Fetched ${fetchedPosts.length} posts for history`);
       
-      console.log('Posts summaries received:', postsData.length);
-
-      // Use summaries directly instead of fetching individual post details
-      // This reduces API calls significantly and avoids rate limits
-      const enhancedPosts = postsData.map(summary => {
-        // Extract post type info from summary data
-        const isScheduled = 
-          summary.isScheduled === true || 
-          summary.isScheduled === "true" || 
-          Boolean(summary.scheduledDate);
+      // Process the results
+      const enhancedPosts = fetchedPosts.map(post => {
+        // If the post already has platformResults from the backend, ensure proper format
+        if (post.platformResults && post.platformResults.length > 0) {
+          // Make sure each platformResult has both platform and platformName properties
+          const updatedPlatformResults = post.platformResults.map(result => ({
+            ...result,
+            platform: result.platform || result.platformName,
+            platformName: result.platformName || result.platform
+          }));
+          
+          return {
+            ...post,
+            platformResults: updatedPlatformResults,
+            type: post.isScheduled ? 'scheduled' : 'regular'
+          };
+        }
+        
+        // Otherwise create platformResults from processing_results
+        const platformResults = [];
+        
+        // Check if processing_results exists and process them if it does
+        if (post.processing_results) {
+          Object.entries(post.processing_results).forEach(([platform, result]) => {
+            const results = Array.isArray(result) ? result : [result];
+            
+            results.forEach(platformResult => {
+              platformResults.push({
+                platformName: platform,
+                platform: platform,
+                status: platformResult?.success ? 'success' : 'failed',
+                message: platformResult?.error || 'Processed',
+                url: platformResult?.postUrl || '',
+                accountName: platformResult?.username || platformResult?.accountName || '',
+              });
+            });
+          });
+        } else if (post.platforms && Array.isArray(post.platforms)) {
+          // If no processing_results, create placeholder results from platforms
+          post.platforms.forEach(platform => {
+            platformResults.push({
+              platformName: platform,
+              platform: platform,
+              status: post.status === 'completed' ? 'success' : post.status,
+              message: post.status === 'completed' ? 'Processed' : post.status,
+              url: '',
+            });
+          });
+        }
         
         return {
-          ...summary,
-          // Ensure these fields are always available
-          isScheduled: isScheduled,
-          postId: summary.postId || summary._id,
-          _id: summary._id || summary.postId
+          ...post,
+          platformResults,
+          type: post.isScheduled ? 'scheduled' : 'regular'
         };
       });
       
-      // If we need additional post details that aren't in the summaries,
-      // fetch them in batches to avoid overwhelming the API
-      if (enhancedPosts.length > 0) {
-        try {
-          // Significantly reduce the number of posts we fetch details for to avoid rate limits
-          const postsToFetch = enhancedPosts.slice(0, 5).map(post => post.postId).filter(Boolean);
-          console.log('Fetching additional details for posts:', postsToFetch);
-          
-          if (postsToFetch.length > 0) {
-            // Use sequential fetching with delays instead of parallel to avoid rate limits
-            for (const postId of postsToFetch) {
-              try {
-                const response = await fetch(`${API_URL}/posts/${postId}`);
-                
-                if (response.status === 429) {
-                  console.warn('Rate limit reached, stopping additional requests');
-                  break;
-                }
-                
-                if (response.ok) {
-                  const postData = await response.json();
-                  
-                  const postIndex = enhancedPosts.findIndex(p => 
-                    p.postId === postData._id.toString() || p._id === postData._id.toString()
-                  );
-                  
-                  if (postIndex !== -1) {
-                    // Update post with scheduling information from the main post data
-                    enhancedPosts[postIndex] = {
-                      ...enhancedPosts[postIndex],
-                      isScheduled: postData.isScheduled === true || postData.isScheduled === "true",
-                      scheduledDate: postData.scheduledDate || enhancedPosts[postIndex].scheduledDate
-                    };
-                  }
-                }
-                
-                // Add a small delay between requests to avoid rate limits
-                await new Promise(resolve => setTimeout(resolve, 300));
-              } catch (error) {
-                console.warn(`Error fetching details for post ${postId}:`, error);
-              }
-            }
-          }
-        } catch (detailsError) {
-          console.warn('Error fetching additional post details:', detailsError);
-          // Continue with the data we have - this is not a fatal error
-        }
-      }
+      console.log(`Processed ${enhancedPosts.length} posts for display`);
       
-      // Store all unfiltered posts
+      // Apply filters to posts
+      let filteredPosts = applyFilters(enhancedPosts);
+      console.log(`After filtering: ${filteredPosts.length} posts remain`);
+      
+      // Store posts in state and cache
       setAllPosts(enhancedPosts);
-      
-      // Save enhanced posts to localStorage - all data in one cache entry
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify({
-          data: enhancedPosts,
-          timestamp: Date.now()
-        }));
-      } catch (saveCacheError) {
-        console.warn('Error saving posts to cache:', saveCacheError);
-      }
-      
-      // Apply filters
-      const filteredPosts = applyFilters(enhancedPosts);
       setPosts(filteredPosts);
-    } catch (err) {
-      console.error('Error fetching posts:', err);
-      setError(err.message || 'Failed to load posts');
+      postCache.allPosts = enhancedPosts;
+      postCache.filteredPosts = filteredPosts;
+      postCache.lastFetched = new Date().getTime();
+      
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+      setError(`Failed to load posts: ${error.message}`);
     } finally {
+      setIsFetching(false);
       setLoading(false);
     }
   };
@@ -261,9 +230,10 @@ function PostsHistory() {
     
     // Filter by status
     if (statusFilter !== 'all') {
-      filteredPosts = filteredPosts.filter(post => 
-        post.status?.toLowerCase() === statusFilter.toLowerCase()
-      );
+      filteredPosts = filteredPosts.filter(post => {
+        const postStatus = post.status?.toLowerCase() || '';
+        return postStatus === statusFilter.toLowerCase();
+      });
     }
     
     // Sort posts
@@ -363,9 +333,9 @@ function PostsHistory() {
     
     return (
       <div className="flex space-x-2">
-        {platforms.map(platform => (
-          <div key={platform} className="flex items-center">
-            <PlatformIcon platform={platform} />
+        {platforms.map((platform, index) => (
+          <div key={index} className="flex items-center">
+            <PlatformIcon platform={typeof platform === 'string' ? platform : platform.platformName || platform.platform} />
           </div>
         ))}
       </div>
@@ -381,16 +351,9 @@ function PostsHistory() {
     return (
       <div className="flex space-x-2">
         {platformResults.map((result, index) => (
-          <div key={index} className="flex items-center" title={`${result.platformName}: ${result.success ? 'Success' : 'Failed'}`}>
-            <div className={`relative ${result.success ? 'text-green-500' : 'text-red-500'}`}>
-              <PlatformIcon platform={result.platformName} />
-              {!result.success && (
-                <div className="absolute -top-1 -right-1 text-red-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              )}
+          <div key={index} className="flex items-center" title={`${result.platformName || result.platform}: ${result.status === 'success' ? 'Success' : 'Failed'}`}>
+            <div className={`relative ${result.status === 'success' ? 'text-green-500' : 'text-red-500'}`}>
+              <PlatformIcon platform={result.platformName || result.platform} />
             </div>
           </div>
         ))}
@@ -503,11 +466,9 @@ function PostsHistory() {
                 onChange={(value) => handleFilterChange('status', value)}
                 options={[
                   { value: 'all', label: 'All Status' },
-                  { value: 'success', label: 'Success' },
-                  { value: 'failed', label: 'Failed' },
-                  { value: 'pending', label: 'Pending' },
-                  { value: 'processing', label: 'Processing' },
-                  { value: 'partial', label: 'Partial' }
+                  { value: 'completed', label: 'Completed' },
+                  { value: 'partial', label: 'Partial' },
+                  { value: 'failed', label: 'Failed' }
                 ]}
               />
               
@@ -576,11 +537,13 @@ function PostsHistory() {
                       const isScheduledPost = isScheduledBool || hasScheduledDate;
                       
                       // Debug log to help identify issues
-                      console.log(`Post ${post._id || post.postId} scheduled status:`, { 
-                        isScheduled: post.isScheduled, 
-                        hasDate: !!post.scheduledDate,
-                        scheduledDate: post.scheduledDate,
-                        isScheduledPost
+                      console.log(`Post ${post._id || post.postId} data:`, { 
+                        isScheduled: post.isScheduled,
+                        status: post.status,
+                        hasPlatforms: !!post.platforms,
+                        platforms: post.platforms,
+                        hasPlatformResults: !!post.platformResults,
+                        platformResults: post.platformResults?.length
                       });
                       
                       return (
@@ -589,7 +552,7 @@ function PostsHistory() {
                             {formatDate(post.postDate || post.createdAt || post.date)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            {post.platformResults ? 
+                            {post.platformResults && post.platformResults.length > 0 ? 
                               renderPlatformResults(post.platformResults) : 
                               renderPlatformIcons(post.platforms)
                             }
