@@ -9,6 +9,8 @@ const API_URL = 'https://sociallane-backend.mindio.chat';
 
 // Create a cache outside the component to persist between renders
 const postCache = {};
+// Cache expiration time - 1 hour in milliseconds
+const CACHE_EXPIRY = 60 * 60 * 1000;
 
 function PostDetails() {
   const router = useRouter();
@@ -30,15 +32,81 @@ function PostDetails() {
     }
   }, [id]); // Remove fetchingData from dependencies to prevent re-fetching
 
+  // Helper function to get cached posts from localStorage
+  const getLocalStorageCache = () => {
+    try {
+      const cachedData = localStorage.getItem('posted-details');
+      if (cachedData) {
+        return JSON.parse(cachedData);
+      }
+    } catch (error) {
+      console.warn('Error reading from localStorage:', error);
+    }
+    return { data: {}, timestamp: Date.now() };
+  };
+
+  // Helper function to save cache to localStorage
+  const saveToLocalStorage = (allCache, postId, postData, summaryData) => {
+    try {
+      // Update the specific post in the cache
+      allCache.data[postId] = {
+        post: postData,
+        summary: summaryData,
+        timestamp: Date.now()
+      };
+      
+      // Update the main timestamp
+      allCache.timestamp = Date.now();
+      
+      // Save back to localStorage
+      localStorage.setItem('posted-details', JSON.stringify(allCache));
+      console.log("Updated post data in localStorage cache");
+    } catch (error) {
+      console.warn('Error saving to localStorage:', error);
+    }
+  };
+
   const fetchPostDetails = async (postId) => {
     try {
       setLoading(true);
       setError(null);
       setFetchingData(true);
       
-      // Check if we have this post in cache
+      // First check localStorage cache
+      try {
+        const allCache = getLocalStorageCache();
+        
+        // Check if the specific post exists in the cache and is still valid
+        if (allCache?.data && 
+            allCache.data[postId] && 
+            allCache.data[postId].timestamp && 
+            (Date.now() - allCache.data[postId].timestamp < CACHE_EXPIRY)) {
+          
+          console.log("Using localStorage cached post data for:", postId);
+          const cachedPost = allCache.data[postId];
+          setPost(cachedPost.post);
+          setPostSummary(cachedPost.summary);
+          
+          // Also update the in-memory cache for faster access in the same session
+          postCache[postId] = {
+            post: cachedPost.post,
+            summary: cachedPost.summary,
+            timestamp: cachedPost.timestamp
+          };
+          
+          setLoading(false);
+          setFetchingData(false);
+          return;
+        } else {
+          console.log("No valid cache for post:", postId);
+        }
+      } catch (cacheError) {
+        console.warn("Error reading from localStorage cache:", cacheError);
+      }
+      
+      // Check if we have this post in memory cache
       if (postCache[postId]) {
-        console.log("Using cached post data for:", postId);
+        console.log("Using memory cached post data for:", postId);
         const cachedData = postCache[postId];
         setPost(cachedData.post);
         setPostSummary(cachedData.summary);
@@ -92,12 +160,17 @@ function PostDetails() {
         }
       }
       
-      // Cache the post and summary data
+      // Cache the post and summary data in memory
       postCache[postId] = {
         post: postData,
         summary: summaryData,
         timestamp: Date.now()
       };
+      
+      // Also cache in localStorage for persistence between page reloads
+      const allCache = getLocalStorageCache();
+      saveToLocalStorage(allCache, postId, postData, summaryData);
+      
     } catch (err) {
       console.error('Error fetching post details:', err);
       setError(err?.message || 'Failed to load post details');
