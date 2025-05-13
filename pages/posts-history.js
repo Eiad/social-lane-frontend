@@ -23,6 +23,8 @@ function PostsHistory() {
   const [totalPosts, setTotalPosts] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const postsPerPage = 10;
+  const [displayedTotalPosts, setDisplayedTotalPosts] = useState(0);
+  const [backendTotalPages, setBackendTotalPages] = useState(1);
   
   // Add a cache to avoid duplicate API calls
   const [postCache, setPostCache] = useState({});
@@ -55,11 +57,37 @@ function PostsHistory() {
   
   // Apply filters when filter states change
   useEffect(() => {
-    if (allPosts.length > 0) {
-      const filteredPosts = applyFilters(allPosts);
-      setPosts(filteredPosts);
+    const isDataFilterActive =
+      platformFilter !== 'all' ||
+      timeFilter !== 'all' ||
+      statusFilter !== 'all' ||
+      postTypeFilter !== 'all';
+
+    // applyFilters is called with allPosts, which is the unfiltered data for the current page
+    const filteredOnPage = applyFilters(allPosts);
+    setPosts(filteredOnPage); // Update displayed posts
+
+    if (isDataFilterActive) {
+      // Filters are active: pagination should reflect the count of items visible from the current filtered page data
+      setTotalPages(Math.max(1, Math.ceil(filteredOnPage.length / postsPerPage)));
+      setDisplayedTotalPosts(filteredOnPage.length);
+    } else {
+      // No filters active (or cleared): revert to backend's total pagination
+      setTotalPages(backendTotalPages); // Use the stored backend total pages
+      setDisplayedTotalPosts(totalPosts); // totalPosts is the overall total from backend
     }
-  }, [sortOrder, platformFilter, timeFilter, statusFilter, postTypeFilter, allPosts]);
+  }, [
+    sortOrder,
+    platformFilter,
+    timeFilter,
+    statusFilter,
+    postTypeFilter,
+    allPosts, 
+    postsPerPage,
+    totalPosts, 
+    backendTotalPages,
+    // applyFilters // If applyFilters were unstable, add it. Assuming it's stable.
+  ]);
 
   const fetchPosts = async (page = 1) => {
     if (isFetching) return;
@@ -83,11 +111,17 @@ function PostsHistory() {
       // If pagination data is available, update total counts
       if (data.pagination) {
         setTotalPosts(data.pagination.total || 0);
-        setTotalPages(data.pagination.pages || 1);
+        const bPages = data.pagination.pages || 1;
+        setTotalPages(bPages);
+        setBackendTotalPages(bPages);
+        setDisplayedTotalPosts(data.pagination.total || 0);
       } else {
         // Fallback to calculating based on current data
-        setTotalPosts(fetchedPosts.length);
+        const numFetched = fetchedPosts.length;
+        setTotalPosts(numFetched);
         setTotalPages(1);
+        setBackendTotalPages(1);
+        setDisplayedTotalPosts(numFetched);
       }
       
       // Process the results
@@ -663,7 +697,7 @@ function PostsHistory() {
               </div>
               
               <div className="text-sm text-gray-500">
-                Showing <span className="font-medium">{posts.length}</span> of <span className="font-medium">{totalPosts}</span> posts
+                Showing <span className="font-medium">{posts.length}</span> of <span className="font-medium">{displayedTotalPosts}</span> posts
               </div>
             </div>
           </div>
