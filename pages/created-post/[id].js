@@ -523,149 +523,100 @@ function PostDetails() {
 
                 {/* Platform Results */}
                 <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                    <h4 className="text-md font-medium text-gray-900 mb-4 flex items-center">
+                    <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
                     <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2" />
                     </svg>
                     Platform Results
-                    </h4>
-                    <div className="overflow-hidden border border-gray-200 rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-200">
+                    </h2>
+                    <div className="overflow-x-auto">
+                    {post?.isScheduled && post?.status === 'pending' ? (
+                        <div className="text-center py-4 px-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <p className="text-sm text-blue-700">
+                            This post is scheduled and has not been published yet. Results will appear here once it&apos;s processed.
+                        </p>
+                        </div>
+                    ) : post?.platformResults && post.platformResults.length > 0 ? (
+                        <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-md">
                         <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Platform</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Post Link</th>
-                        </tr>
+                            <tr>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Platform
+                            </th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Account
+                            </th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Post Link
+                            </th>
+                            </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
-                        {/* Use platformResults from the post */}
-                        {post?.platformResults && post.platformResults.length > 0 ? (
-                            post.platformResults.map((result, index) => (
-                            <tr key={`summary-${index}`} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 whitespace-nowrap">
+                        <tbody className="bg-white divide-y divide-gray-200">
+                        {post.platformResults.map((platformResult, index) => (
+                            <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="px-4 py-3 whitespace-nowrap">
                                 <div className="flex items-center">
-                                    <PlatformIcon platform={result?.platformName} />
-                                    <span className="ml-2 text-gray-900 capitalize">{result?.platformName || ''}</span>
+                                <PlatformIcon platform={platformResult?.platformName} />
+                                <span className="ml-2 text-gray-900 capitalize">{platformResult?.platformName || ''}</span>
                                 </div>
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-900">
-                                {result?.accountName || result?.accountId || 'N/A'}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                <StatusBadge status={result?.success ? 'success' : 'failed'} />
-                                </td>
-                                <td className="px-4 py-3">
-                                {result?.postLink ? (
-                                    <a 
-                                    href={result?.postLink} 
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-gray-900">
+                                {platformResult?.accountName || platformResult?.accountId || 'N/A'}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                                <StatusBadge status={platformResult?.success ? 'success' : (platformResult?.errorDetails ? 'failed' : 'unknown')} />
+                            </td>
+                            <td className="px-4 py-3">
+                                {platformResult?.success && platformResult?.postLink ? (
+                                <a 
+                                    href={platformResult.postLink} 
                                     target="_blank" 
                                     rel="noopener noreferrer" 
                                     className="text-blue-500 hover:text-blue-700 flex items-center"
-                                    >
+                                >
                                     View Post
                                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                     </svg>
-                                    </a>
+                                </a>
+                                ) : platformResult?.success && platformResult.platformName === 'tiktok' && platformResult.accountName ? (
+                                  // Fallback for TikTok if postUrl is missing but username exists
+                                  <a 
+                                    href={`https://www.tiktok.com/@${platformResult.accountName}`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="text-blue-500 hover:text-blue-700 flex items-center"
+                                  >
+                                    View Profile
+                                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                  </a>
+                                ) : !platformResult?.success && platformResult?.errorDetails ? (
+                                <span className="text-red-500 text-xs" title={platformResult.errorDetails}>
+                                    Failed: {platformResult.errorDetails.substring(0,30)}{platformResult.errorDetails.length > 30 ? '...' : ''}
+                                </span>
                                 ) : (
-                                    <span className="text-gray-500">
-                                    {result?.errorDetails || 'No link available'}
-                                    </span>
+                                <span className="text-gray-500">No link available</span>
                                 )}
-                                </td>
-                            </tr>
-                            ))
-                        ) : (
-                            // Fallback to processing_results
-                            Object.entries(processingResults).map(([platform, result], index) => {
-                            // Handle different result formats
-                            const results = Array.isArray(result) ? result : [result];
-                            
-                            return results.map((platformResult, i) => (
-                                <tr key={`${platform}-${i}`} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                    <div className="flex items-center">
-                                    <PlatformIcon platform={platform} />
-                                    <span className="ml-2 text-gray-900 capitalize">{platform || ''}</span>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-gray-900">
-                                    {platformResult?.username || platformResult?.accountId || 'N/A'}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap">
-                                    <StatusBadge status={platformResult?.success ? 'success' : 'failed'} />
-                                </td>
-                                <td className="px-4 py-3">
-                                    {/* TikTok and Twitter have different result formats */}
-                                    {platform === 'tiktok' && platformResult?.success ? (
-                                    platformResult?.postUrl ? (
-                                        <a 
-                                        href={platformResult.postUrl} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer" 
-                                        className="text-blue-500 hover:text-blue-700 flex items-center"
-                                        >
-                                        View Post
-                                        <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                        </svg>
-                                        </a>
-                                    ) : platformResult?.username ? (
-                                        <a 
-                                        href={`https://www.tiktok.com/@${platformResult.username}`} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer" 
-                                        className="text-blue-500 hover:text-blue-700 flex items-center"
-                                        >
-                                        View Profile
-                                        <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                        </svg>
-                                        </a>
-                                    ) : (
-                                        <span className="text-gray-500">No link available</span>
-                                    )
-                                    ) : platform === 'twitter' && platformResult?.success ? (
-                                    // For Twitter, construct URL from tweet_id if available
-                                    platformResult?.tweet_id || (platformResult?.data?.id) ? (
-                                        <a 
-                                        href={`https://twitter.com/${platformResult?.username || 'user'}/status/${platformResult?.tweet_id || platformResult?.data?.id}`} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer" 
-                                        className="text-blue-500 hover:text-blue-700 flex items-center"
-                                        >
-                                        View Tweet
-                                        <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                        </svg>
-                                        </a>
-                                    ) : (
-                                        <span className="text-gray-500">No link available</span>
-                                    )
-                                    ) : (
-                                    <span className="text-gray-500">
-                                        {platformResult?.error || 'Failed to post'}
-                                    </span>
-                                    )}
-                                </td>
-                                </tr>
-                            ));
-                            })
-                        )}
-
-                        {/* Show message if no results are available */}
-                        {(!post?.platformResults || post.platformResults.length === 0) && 
-                        (!processingResults || Object.keys(processingResults).length === 0) && (
-                            <tr>
-                            <td colSpan="4" className="px-4 py-4 text-center text-gray-500">
-                                No platform results available
                             </td>
                             </tr>
-                        )}
+                        ))}
                         </tbody>
-                    </table>
+                        </table>
+                    ) : (
+                        <div className="text-center py-4 px-3 bg-gray-50 border border-gray-200 rounded-md">
+                          <p className="text-sm text-gray-600">
+                            {post?.status === 'completed' ? 
+                                'No platform results were found for this post.' : 
+                                'This post is currently being processed, or results are not yet available.'
+                            }
+                          </p>
+                        </div>
+                    )}
                     </div>
                 </div>
                 </div>
