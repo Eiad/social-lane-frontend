@@ -23,6 +23,7 @@ function ScheduledPosts() {
   // New state for account selection
   const [platformAccountsDetails, setPlatformAccountsDetails] = useState({}); // e.g., { twitter: [{id, name}, ...], tiktok: [...] }
   const [selectedAccounts, setSelectedAccounts] = useState([]); // e.g., [{platform, accountId, name}, ...]
+  const [accountSearchQuery, setAccountSearchQuery] = useState(''); // New state for search
 
   useEffect(() => {
     // Get user ID from local storage
@@ -490,9 +491,9 @@ function ScheduledPosts() {
           {isEditModalOpen && editingPost && (
             <div className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden flex items-center justify-center" aria-modal="true" role="dialog">
               <div className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={handleCloseEditModal}></div>
-              <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 my-8 z-10 overflow-hidden transform transition-all">
-                <div className="flex items-center justify-between px-6 pt-5 pb-2">
-                  <h2 className="text-xl font-medium text-gray-900">Edit Scheduled Post</h2>
+              <div className="relative bg-white rounded-xl shadow-xl max-w-3xl w-full mx-4 my-8 z-10 overflow-hidden transform transition-all">
+                <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-200">
+                  <h2 className="text-xl font-semibold text-gray-900">Edit Scheduled Post</h2>
                   <button 
                     className="text-gray-400 hover:text-gray-500 focus:outline-none rounded-full p-1 hover:bg-gray-100"
                     onClick={handleCloseEditModal}
@@ -504,9 +505,9 @@ function ScheduledPosts() {
                   </button>
                 </div>
                 
-                <div className="p-6 space-y-5">
+                <div className="p-6">
                   {saveError && (
-                    <div className="flex items-center gap-2 p-4 text-red-700 bg-red-50 rounded-lg">
+                    <div className="col-span-1 md:col-span-2 flex items-center gap-2 p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
                         <line x1="12" y1="8" x2="12" y2="12"></line>
@@ -516,95 +517,156 @@ function ScheduledPosts() {
                     </div>
                   )}
                   
-                  {/* New Account Selection UI - Placed at the top of form elements */}
-                  <div className="space-y-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Publish to Accounts
-                    </label>
-                    {Object.entries(platformAccountsDetails).map(([platformName, accounts]) => (
-                      (accounts && accounts.length > 0) && (
-                        <div key={platformName}>
-                          <h3 className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wider capitalize">
-                            {platformName}
-                          </h3>
-                          <div className="space-y-2">
-                            {accounts.map(account => (
-                              <label key={account.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer has-[:checked]:bg-primary/5 has-[:checked]:border-primary/30">
-                                <input
-                                  type="checkbox"
-                                  className="h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary"
-                                  checked={selectedAccounts.some(sa => sa.platform === platformName && sa.accountId === account.id)}
-                                  onChange={() => handleAccountToggle(platformName, account.id, account.name)}
-                                />
-                                <span className="text-sm text-gray-700 font-medium">{account.name}</span>
-                              </label>
-                            ))}
-                          </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Left Column */}
+                    <div className="space-y-5">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Publish to Accounts
+                        </label>
+                        {/* Search Input */}
+                        <div className="mb-3">
+                          <input 
+                            type="text"
+                            placeholder="Search accounts..."
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow duration-200 shadow-sm"
+                            value={accountSearchQuery}
+                            onChange={(e) => setAccountSearchQuery(e.target.value)}
+                          />
                         </div>
-                      )
-                    ))}
-                    {(Object.keys(platformAccountsDetails).length === 0 || !Object.values(platformAccountsDetails).some(accs => accs && accs.length > 0)) && (
-                        <p className="text-sm text-gray-500">No social media accounts connected. Please connect accounts in settings to schedule posts.</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="post-description" className="block text-sm font-medium text-gray-700 mb-1">
-                      Description
-                    </label>
-                    <textarea
-                      id="post-description"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow duration-200 resize-none"
-                      value={editDescription}
-                      onChange={(e) => setEditDescription(e.target.value)}
-                      placeholder="Enter your post description"
-                      rows={4}
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="scheduled-date" className="block text-sm font-medium text-gray-700 mb-1">
-                        Date
-                      </label>
-                      <input
-                        id="scheduled-date"
-                        type="date"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow duration-200"
-                        value={editDate}
-                        onChange={(e) => setEditDate(e.target.value)}
-                      />
+
+                        <div className="space-y-4 h-full overflow-y-auto pr-2 py-2">
+                          {Object.entries(platformAccountsDetails)
+                            .map(([platformName, accounts]) => {
+                              // Filter accounts based on search query
+                              const filteredAccounts = accounts.filter(account => 
+                                account.name?.toLowerCase().includes(accountSearchQuery.toLowerCase())
+                              );
+
+                              if (filteredAccounts.length === 0 && accountSearchQuery) {
+                                // If search active and no results for this platform, can optionally show nothing or a specific message
+                                return null; 
+                              }
+                              
+                              // If no accounts for this platform at all (even without search), it's handled later.
+
+                              return (
+                                (accounts && accounts.length > 0) && (
+                                <div key={platformName}>
+                                  <h3 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider capitalize">
+                                    {platformName} ({filteredAccounts.length})
+                                  </h3>
+                                  {filteredAccounts.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {filteredAccounts.map(account => (
+                                        <label 
+                                          key={account.id} 
+                                          className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer has-[:checked]:bg-primary/5 has-[:checked]:border-primary/30 has-[:checked]:ring-1 has-[:checked]:ring-primary/30"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            className="h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary focus:ring-offset-0 shrink-0"
+                                            checked={selectedAccounts.some(sa => sa.platform === platformName && sa.accountId === account.id)}
+                                            onChange={() => handleAccountToggle(platformName, account.id, account.name)}
+                                          />
+                                          {/* Account Avatar */}
+                                          <img 
+                                            src={account.avatarUrl || account.profileImageUrl || 'https://via.placeholder.com/40?text=N/A'} 
+                                            alt={account.name}
+                                            className="h-8 w-8 rounded-full object-cover shrink-0"
+                                          />
+                                          <span className="text-sm text-gray-700 font-medium truncate" title={account.name}>{account.name}</span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-gray-400 italic px-1">
+                                      No {platformName} accounts match your search.
+                                    </p>
+                                  )}
+                                </div>
+                                )
+                              );
+                            })}
+                          
+                          {/* Overall message if no accounts are available or match search */}
+                          {Object.values(platformAccountsDetails).every(accounts => accounts.filter(acc => acc.name?.toLowerCase().includes(accountSearchQuery.toLowerCase())).length === 0) && (
+                            <p className="text-sm text-gray-500 py-3 text-center">
+                              {accountSearchQuery ? 'No accounts match your search.' : 'No social media accounts connected. Please connect accounts in settings.'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    
-                    <div>
-                      <label htmlFor="scheduled-time" className="block text-sm font-medium text-gray-700 mb-1">
-                        Time
-                      </label>
-                      <input
-                        id="scheduled-time"
-                        type="time"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow duration-200"
-                        value={editTime}
-                        onChange={(e) => setEditTime(e.target.value)}
-                      />
+
+                    {/* Right Column */}
+                    <div className="space-y-5">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label htmlFor="scheduled-date" className="block text-sm font-medium text-gray-700 mb-1">
+                            Date
+                          </label>
+                          <input
+                            id="scheduled-date"
+                            type="date"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow duration-200 shadow-sm"
+                            value={editDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label htmlFor="scheduled-time" className="block text-sm font-medium text-gray-700 mb-1">
+                            Time
+                          </label>
+                          <input
+                            id="scheduled-time"
+                            type="time"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow duration-200 shadow-sm"
+                            value={editTime}
+                            onChange={(e) => setEditTime(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Video Preview
+                        </label>
+                        <div className="rounded-lg overflow-hidden bg-gray-100 aspect-video border border-gray-200 shadow-sm">
+                          {editingPost?.video_url ? (
+                            <video src={editingPost.video_url} controls playsInline className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-500">
+                              No video preview available.
+                            </div>
+                          )}
+                        </div>
+                        <p className="mt-2 text-xs text-gray-500">
+                          Video cannot be changed. Create a new post to use a different video.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label htmlFor="post-description" className="block text-sm font-medium text-gray-700 mb-1">
+                          Description
+                        </label>
+                        <textarea
+                          id="post-description"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow duration-200 resize-none shadow-sm"
+                          value={editDescription}
+                          onChange={(e) => setEditDescription(e.target.value)}
+                          placeholder="Enter your post description"
+                          rows={6}
+                        />
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Video Preview
-                    </label>
-                    <div className="rounded-lg overflow-hidden bg-gray-100 aspect-video">
-                      <video src={editingPost?.video_url} controls playsInline className="w-full h-full object-cover" />
-                    </div>
-                    <p className="mt-2 text-xs text-gray-500">
-                      Video cannot be changed. Create a new post to use a different video.
-                    </p>
                   </div>
                 </div>
                 
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
                   <button 
+                    type="button"
                     className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors duration-200"
                     onClick={handleCloseEditModal}
                     disabled={isSaving}
@@ -612,6 +674,7 @@ function ScheduledPosts() {
                     Cancel
                   </button>
                   <button 
+                    type="button"
                     className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow-sm transition-colors duration-200 disabled:bg-primary/70 disabled:cursor-not-allowed"
                     onClick={handleSaveChanges}
                     disabled={isSaving}
