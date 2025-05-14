@@ -20,6 +20,10 @@ function ScheduledPosts() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
+  // New state for account selection
+  const [platformAccountsDetails, setPlatformAccountsDetails] = useState({}); // e.g., { twitter: [{id, name}, ...], tiktok: [...] }
+  const [selectedAccounts, setSelectedAccounts] = useState([]); // e.g., [{platform, accountId, name}, ...]
+
   useEffect(() => {
     // Get user ID from local storage
     const storedUserId = localStorage?.getItem('userId');
@@ -34,6 +38,60 @@ function ScheduledPosts() {
       fetchScheduledPosts();
     }
   }, [userId]);
+
+  // Effect to load platform accounts from localStorage
+  useEffect(() => {
+    try {
+      const socialMediaDataStr = localStorage?.getItem('socialMediaData');
+      if (socialMediaDataStr) {
+        const socialMediaData = JSON.parse(socialMediaDataStr);
+        const accounts = {};
+        if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter)) {
+          accounts.twitter = socialMediaData.twitter.map((acc, index) => {
+            // Ensure accountId is always a string for Twitter as well.
+            let accountId = acc.userId || acc.id || acc.username;
+            if (accountId === null || accountId === undefined || typeof accountId !== 'string') {
+                accountId = `twitter-fallback-${index}`;
+            } else if (typeof accountId === 'string' && accountId.trim() === '') {
+                accountId = `twitter-fallback-${index}`;
+            }
+            const accountName = acc.name || acc.username || `Twitter Account ${index + 1}`;
+            return {
+              ...acc,
+              id: accountId, 
+              name: accountName,
+            }
+          });
+        }
+        if (socialMediaData?.tiktok && Array.isArray(socialMediaData.tiktok)) {
+          console.log('Raw TikTok accounts from localStorage for modal:', JSON.stringify(socialMediaData.tiktok));
+          accounts.tiktok = socialMediaData.tiktok.map((acc, index) => {
+            // Ensure accountId is always a string and not null/undefined.
+            // Prioritize acc.openId (from providerData), then acc.accountId (often used in frontend localStorage), then acc.id as a generic fallback.
+            let accountId = acc.openId || acc.open_id || acc.accountId || acc.id;
+            if (accountId === null || accountId === undefined || typeof accountId !== 'string') {
+                accountId = `tiktok-fallback-${index}`;
+            } else if (typeof accountId === 'string' && accountId.trim() === '') {
+                // Handle empty string IDs as well with a fallback
+                accountId = `tiktok-fallback-${index}`;
+            }
+
+            const accountName = acc.username || acc.display_name || acc.name || `TikTok User ${index + 1}`;
+            console.log(`Mapping TikTok account for modal: raw=${JSON.stringify(acc)}, derivedId=${accountId}, derivedName=${accountName}`);
+            return {
+              ...acc, 
+              id: accountId, 
+              name: accountName,
+            };
+          });
+        }
+        console.log("Processed platform accounts for modal logic:", accounts);
+        setPlatformAccountsDetails(accounts);
+      }
+    } catch (error) {
+      console.error('Error loading social media accounts for modal:', error);
+    }
+  }, []);
 
   const fetchScheduledPosts = async () => {
     try {
@@ -120,7 +178,40 @@ function ScheduledPosts() {
     setEditDescription(post.post_description || '');
     setEditDate(formattedDate);
     setEditTime(formattedTime);
-    setEditPlatforms(post.platforms || []);
+
+    // Initialize selectedAccounts based on the accounts actually stored in the post object
+    const initialSelected = [];
+    if (post) {
+      // TikTok accounts from the post
+      if (post.tiktok_accounts && Array.isArray(post.tiktok_accounts)) {
+        post.tiktok_accounts.forEach(savedAcc => {
+          if (savedAcc && (savedAcc.openId || savedAcc.id)) { // Ensure the saved account has an ID
+            initialSelected.push({
+              platform: 'tiktok',
+              // Use the ID from the saved post account; ensure it's a string
+              accountId: String(savedAcc.openId || savedAcc.id), 
+              name: savedAcc.username || savedAcc.displayName || 'TikTok Account'
+            });
+          }
+        });
+      }
+
+      // Twitter accounts from the post
+      if (post.twitter_accounts && Array.isArray(post.twitter_accounts)) {
+        post.twitter_accounts.forEach(savedAcc => {
+          if (savedAcc && (savedAcc.userId || savedAcc.id)) { // Ensure the saved account has an ID
+            initialSelected.push({
+              platform: 'twitter',
+              accountId: String(savedAcc.userId || savedAcc.id),
+              name: savedAcc.name || savedAcc.username || 'Twitter Account'
+            });
+          }
+        });
+      }
+    }
+    
+    console.log('Initializing modal with selected accounts based on post data:', initialSelected);
+    setSelectedAccounts(initialSelected);
     setIsEditModalOpen(true);
     setSaveError(null);
   };
@@ -128,15 +219,18 @@ function ScheduledPosts() {
   const handleCloseEditModal = () => {
     setIsEditModalOpen(false);
     setEditingPost(null);
+    setSelectedAccounts([]); // Clear selected accounts on close
     setSaveError(null);
   };
 
-  const handlePlatformToggle = (platform) => {
-    setEditPlatforms(prev => {
-      if (prev.includes(platform)) {
-        return prev.filter(p => p !== platform);
+  const handleAccountToggle = (platform, accountId, accountName) => {
+    setSelectedAccounts(prevSelected => {
+      const isSelected = prevSelected.some(acc => acc.platform === platform && acc.accountId === accountId);
+      if (isSelected) {
+        return prevSelected.filter(acc => !(acc.platform === platform && acc.accountId === accountId));
+      } else {
+        return [...prevSelected, { platform, accountId, name: accountName }];
       }
-      return [...prev, platform];
     });
   };
 
@@ -154,8 +248,8 @@ function ScheduledPosts() {
       return;
     }
     
-    if (editPlatforms.length === 0) {
-      setSaveError('At least one platform must be selected');
+    if (selectedAccounts.length === 0) {
+      setSaveError('At least one social media account must be selected');
       return;
     }
     
@@ -172,50 +266,21 @@ function ScheduledPosts() {
         return;
       }
       
+      const finalSelectedPlatformNames = [...new Set(selectedAccounts.map(sa => sa.platform))];
+      const targetAccountsPayload = {};
+      finalSelectedPlatformNames.forEach(platformName => {
+        targetAccountsPayload[platformName] = selectedAccounts
+          .filter(sa => sa.platform === platformName)
+          .map(sa => sa.accountId);
+      });
+      
       // Get tokens from localStorage for the selected platforms
       const updateData = {
         post_description: editDescription,
-        platforms: editPlatforms,
+        platforms: finalSelectedPlatformNames, // Send array of platform names
         scheduledDate: scheduledDateTime.toISOString(),
+        target_accounts: targetAccountsPayload, // Send specific account IDs
       };
-      
-      // Add tokens for each selected platform
-      if (editPlatforms.includes('tiktok')) {
-        const tiktokAccessToken = localStorage?.getItem('tiktokAccessToken');
-        const tiktokRefreshToken = localStorage?.getItem('tiktokRefreshToken');
-        
-        if (tiktokAccessToken) {
-          updateData.tiktok_access_token = tiktokAccessToken;
-        }
-        
-        if (tiktokRefreshToken) {
-          updateData.tiktok_refresh_token = tiktokRefreshToken;
-        }
-      }
-      
-      if (editPlatforms.includes('twitter')) {
-        try {
-          // Get Twitter credentials from socialMediaData instead of direct localStorage
-          const socialMediaDataStr = localStorage?.getItem('socialMediaData');
-          if (socialMediaDataStr) {
-            const socialMediaData = JSON.parse(socialMediaDataStr);
-            if (socialMediaData?.twitter && Array.isArray(socialMediaData.twitter) && socialMediaData.twitter.length > 0) {
-              // Get the first Twitter account (could be enhanced to select a specific one)
-              const twitterAccount = socialMediaData.twitter[0];
-              
-              if (twitterAccount?.accessToken) {
-                updateData.twitter_access_token = twitterAccount.accessToken;
-              }
-              
-              if (twitterAccount?.accessTokenSecret) {
-                updateData.twitter_access_token_secret = twitterAccount.accessTokenSecret;
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error getting Twitter credentials from socialMediaData:', error);
-        }
-      }
       
       // Send update request
       const response = await fetch(`${API_BASE_URL}/posts/${editingPost._id}`, {
@@ -451,31 +516,36 @@ function ScheduledPosts() {
                     </div>
                   )}
                   
-                  <div>
-                    <div className="grid grid-cols-2 gap-3 mb-5">
-                      <button
-                        type="button"
-                        className={`flex items-center justify-center gap-2 px-4 py-2 rounded-full border ${editPlatforms.includes('twitter') 
-                          ? 'bg-primary/10 text-primary border-primary/20' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                        } transition-colors duration-200`}
-                        onClick={() => handlePlatformToggle('twitter')}
-                      >
-                        <TwitterIcon width="16" height="16" />
-                        <span className="font-medium">Twitter</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`flex items-center justify-center gap-2 px-4 py-2 rounded-full border ${editPlatforms.includes('tiktok') 
-                          ? 'bg-primary/10 text-primary border-primary/20' 
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                        } transition-colors duration-200`}
-                        onClick={() => handlePlatformToggle('tiktok')}
-                      >
-                        <TikTokSimpleIcon width="16" height="16" />
-                        <span className="font-medium">TikTok</span>
-                      </button>
-                    </div>
+                  {/* New Account Selection UI - Placed at the top of form elements */}
+                  <div className="space-y-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Publish to Accounts
+                    </label>
+                    {Object.entries(platformAccountsDetails).map(([platformName, accounts]) => (
+                      (accounts && accounts.length > 0) && (
+                        <div key={platformName}>
+                          <h3 className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wider capitalize">
+                            {platformName}
+                          </h3>
+                          <div className="space-y-2">
+                            {accounts.map(account => (
+                              <label key={account.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer has-[:checked]:bg-primary/5 has-[:checked]:border-primary/30">
+                                <input
+                                  type="checkbox"
+                                  className="h-5 w-5 text-primary rounded border-gray-300 focus:ring-primary"
+                                  checked={selectedAccounts.some(sa => sa.platform === platformName && sa.accountId === account.id)}
+                                  onChange={() => handleAccountToggle(platformName, account.id, account.name)}
+                                />
+                                <span className="text-sm text-gray-700 font-medium">{account.name}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    ))}
+                    {(Object.keys(platformAccountsDetails).length === 0 || !Object.values(platformAccountsDetails).some(accs => accs && accs.length > 0)) && (
+                        <p className="text-sm text-gray-500">No social media accounts connected. Please connect accounts in settings to schedule posts.</p>
+                    )}
                   </div>
                   
                   <div>
@@ -525,7 +595,7 @@ function ScheduledPosts() {
                       Video Preview
                     </label>
                     <div className="rounded-lg overflow-hidden bg-gray-100 aspect-video">
-                      <video src={editingPost.video_url} controls playsInline className="w-full h-full object-cover" />
+                      <video src={editingPost?.video_url} controls playsInline className="w-full h-full object-cover" />
                     </div>
                     <p className="mt-2 text-xs text-gray-500">
                       Video cannot be changed. Create a new post to use a different video.
