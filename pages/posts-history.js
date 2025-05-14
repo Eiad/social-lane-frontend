@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -55,6 +55,81 @@ function PostsHistory() {
     }
   }, [userId, currentPage]);
   
+  const applyFilters = useCallback((postsData) => {
+    let filteredPosts = [...postsData];
+    
+    // Filter by platform
+    if (platformFilter !== 'all') {
+      filteredPosts = filteredPosts.filter(post => 
+        post.platforms?.includes(platformFilter)
+      );
+    }
+    
+    // Filter by post type (normal vs scheduled)
+    if (postTypeFilter !== 'all') {
+      filteredPosts = filteredPosts.filter(post => {
+        // Convert values to boolean to handle string "true"/"false" 
+        const isScheduledBool = post.isScheduled === true || post.isScheduled === "true";
+        const hasScheduledDate = Boolean(post.scheduledDate);
+        const isScheduledPost = isScheduledBool || hasScheduledDate;
+        
+        if (postTypeFilter === 'scheduled') {
+          return isScheduledPost; 
+        } else if (postTypeFilter === 'normal') {
+          return !isScheduledPost;
+        }
+        return true;
+      });
+    }
+    
+    // Filter by time
+    if (timeFilter !== 'all') {
+      const now = new Date();
+      const filterDate = new Date();
+      
+      switch(timeFilter) {
+        case 'today':
+          filterDate.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          filterDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          filterDate.setMonth(now.getMonth() - 1);
+          break;
+        default:
+          break;
+      }
+      
+      filteredPosts = filteredPosts.filter(post => {
+        const postDate = new Date(post.postDate || post.createdAt || post.date);
+        return postDate >= filterDate;
+      });
+    }
+    
+    // Filter by status
+    if (statusFilter !== 'all') {
+      const lowerStatusFilter = statusFilter.toLowerCase();
+      filteredPosts = filteredPosts.filter(post => {
+        const postStatus = post.status?.toLowerCase() || '';
+        if (lowerStatusFilter === 'failed') {
+          return postStatus === 'failed' || postStatus === 'failure';
+        }
+        return postStatus === lowerStatusFilter;
+      });
+    }
+    
+    // Sort posts
+    filteredPosts.sort((a, b) => {
+      const dateA = new Date(a.postDate || a.createdAt || a.date);
+      const dateB = new Date(b.postDate || b.createdAt || b.date);
+      
+      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    });
+    
+    return filteredPosts;
+  }, [platformFilter, postTypeFilter, timeFilter, statusFilter, sortOrder]);
+
   // Apply filters when filter states change
   useEffect(() => {
     const isDataFilterActive =
@@ -86,7 +161,7 @@ function PostsHistory() {
     postsPerPage,
     totalPosts, 
     backendTotalPages,
-    // applyFilters // If applyFilters were unstable, add it. Assuming it's stable.
+    applyFilters
   ]);
 
   const fetchPosts = async (page = 1) => {
@@ -227,77 +302,6 @@ function PostsHistory() {
       default:
         break;
     }
-  };
-
-  const applyFilters = (postsData) => {
-    let filteredPosts = [...postsData];
-    
-    // Filter by platform
-    if (platformFilter !== 'all') {
-      filteredPosts = filteredPosts.filter(post => 
-        post.platforms?.includes(platformFilter)
-      );
-    }
-    
-    // Filter by post type (normal vs scheduled)
-    if (postTypeFilter !== 'all') {
-      filteredPosts = filteredPosts.filter(post => {
-        // Convert values to boolean to handle string "true"/"false" 
-        const isScheduledBool = post.isScheduled === true || post.isScheduled === "true";
-        const hasScheduledDate = Boolean(post.scheduledDate);
-        const isScheduledPost = isScheduledBool || hasScheduledDate;
-        
-        if (postTypeFilter === 'scheduled') {
-          return isScheduledPost; 
-        } else if (postTypeFilter === 'normal') {
-          return !isScheduledPost;
-        }
-        return true;
-      });
-    }
-    
-    // Filter by time
-    if (timeFilter !== 'all') {
-      const now = new Date();
-      const filterDate = new Date();
-      
-      switch(timeFilter) {
-        case 'today':
-          filterDate.setHours(0, 0, 0, 0);
-          break;
-        case 'week':
-          filterDate.setDate(now.getDate() - 7);
-          break;
-        case 'month':
-          filterDate.setMonth(now.getMonth() - 1);
-          break;
-        default:
-          break;
-      }
-      
-      filteredPosts = filteredPosts.filter(post => {
-        const postDate = new Date(post.postDate || post.createdAt || post.date);
-        return postDate >= filterDate;
-      });
-    }
-    
-    // Filter by status
-    if (statusFilter !== 'all') {
-      filteredPosts = filteredPosts.filter(post => {
-        const postStatus = post.status?.toLowerCase() || '';
-        return postStatus === statusFilter.toLowerCase();
-      });
-    }
-    
-    // Sort posts
-    filteredPosts.sort((a, b) => {
-      const dateA = new Date(a.postDate || a.createdAt || a.date);
-      const dateB = new Date(b.postDate || b.createdAt || b.date);
-      
-      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
-    });
-    
-    return filteredPosts;
   };
 
   // Format date to readable string
