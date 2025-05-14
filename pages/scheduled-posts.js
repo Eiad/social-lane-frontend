@@ -79,10 +79,15 @@ function ScheduledPosts() {
 
             const accountName = acc.username || acc.display_name || acc.name || `TikTok User ${index + 1}`;
             console.log(`Mapping TikTok account for modal: raw=${JSON.stringify(acc)}, derivedId=${accountId}, derivedName=${accountName}`);
+            
+            // Determine the best avatar URL, prioritizing avatarUrl100
+            const displayAvatarUrl = acc.avatarUrl100 || acc.avatarUrl || acc.profileImageUrl;
+
             return {
               ...acc, 
               id: accountId, 
               name: accountName,
+              displayAvatarUrl: displayAvatarUrl, // Add this for consistent avatar handling
             };
           });
         }
@@ -571,7 +576,7 @@ function ScheduledPosts() {
                                           />
                                           {/* Account Avatar */}
                                           <img 
-                                            src={account.avatarUrl || account.profileImageUrl || 'https://via.placeholder.com/40?text=N/A'} 
+                                            src={account.displayAvatarUrl || account.avatarUrl || account.profileImageUrl || 'https://via.placeholder.com/40?text=N/A'} 
                                             alt={account.name}
                                             className="h-8 w-8 rounded-full object-cover shrink-0"
                                           />
