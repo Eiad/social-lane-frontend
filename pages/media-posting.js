@@ -879,11 +879,32 @@ function MediaPosting() {
                          <Link href="#posting-status" onClick={close} className="text-xs text-blue-600 hover:underline mt-1">Scroll to detailed status</Link>
                      )}
                      
-                     {/* View Details button for successful post with an ID */}
-                     {(currentStage === 'done_success' || currentStage === 'done_partial') && createdPostId && (
-                         <Link href={`/created-post/${createdPostId}`} className="text-xs text-blue-600 hover:underline mt-1 block">View Details</Link>
+                     {/* View Details button for successful IMMEDIATE post with an ID */}
+                     {(currentStage === 'done_success' || currentStage === 'done_partial') && createdPostId && !scheduleSuccess && (
+                         <Link href={`/created-post/${createdPostId}`} onClick={close} className="text-xs text-blue-600 hover:underline mt-1 block">View Details</Link>
                      )}
                      
+                    {/* Links for successfully SCHEDULED post */}
+                    {currentStage === 'done_success' && scheduleSuccess && createdPostId && (
+                        <div className="mt-2 pt-2 border-t border-gray-200 text-center">
+                            <Link 
+                                href={`/created-post/${createdPostId}`}
+                                onClick={close} // Close toast on click
+                                className="text-xs text-blue-600 hover:underline font-medium"
+                            >
+                                Post progress
+                            </Link>
+                            <span className="text-gray-400 text-xs mx-1">|</span>
+                            <Link 
+                                href="/scheduled-posts" 
+                                onClick={close} // Close toast on click
+                                className="text-xs text-blue-600 hover:underline font-medium"
+                            >
+                                View All Scheduled Posts
+                            </Link> 
+                        </div>
+                    )}
+
                       {/* Show keep tab open only during active processing */}
                      {(currentStage === 'uploading' || currentStage === 'processing_upload' || currentStage === 'posting' || currentStage === 'scheduling') && (
                         <p className="text-xs text-gray-500 mt-2 tc">Keep tab open during process.</p>

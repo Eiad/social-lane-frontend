@@ -136,21 +136,27 @@ function PostDetails() {
             allCache.data[postId].timestamp && 
             (Date.now() - allCache.data[postId].timestamp < CACHE_EXPIRY)) {
           
-          console.log("Using localStorage cached post data for:", postId);
-          const cachedPost = allCache.data[postId];
-          setPost(cachedPost.post);
-          
-          // Also update the in-memory cache for faster access in the same session
-          postCache[postId] = {
-            post: cachedPost.post,
-            timestamp: cachedPost.timestamp
-          };
-          
-          setLoading(false);
-          setFetchingData(false);
-          return;
+          const cachedEntry = allCache.data[postId];
+          // If the cached post is NOT in a transient state (pending/processing), use it.
+          if (cachedEntry.post && cachedEntry.post.status !== 'pending' && cachedEntry.post.status !== 'processing') {
+            console.log("Using valid (non-transient) localStorage cached post data for:", postId);
+            setPost(cachedEntry.post);
+            
+            // Also update the in-memory cache for faster access in the same session
+            postCache[postId] = {
+              post: cachedEntry.post,
+              timestamp: cachedEntry.timestamp // Use original timestamp from localStorage
+            };
+            
+            setLoading(false);
+            setFetchingData(false);
+            return; // Important: return here
+          } else {
+            console.log("localStorage cache for post", postId, "is transient (pending/processing) or invalid, will fetch from API.");
+            // Do not return, proceed to fetch from API
+          }
         } else {
-          console.log("No valid cache for post:", postId);
+          console.log("No valid cache for post in localStorage, or cache expired:", postId);
         }
       } catch (cacheError) {
         console.warn("Error reading from localStorage cache:", cacheError);
@@ -158,12 +164,22 @@ function PostDetails() {
       
       // Check if we have this post in memory cache
       if (postCache[postId]) {
-        console.log("Using memory cached post data for:", postId);
-        const cachedData = postCache[postId];
-        setPost(cachedData.post);
-        setLoading(false);
-        setFetchingData(false);
-        return;
+        const cachedEntry = postCache[postId];
+        // If the cached post is NOT in a transient state and cache entry is valid, use it.
+        // Check timestamp for in-memory cache as well to align with CACHE_EXPIRY logic
+        if (cachedEntry.post && 
+            cachedEntry.post.status !== 'pending' && 
+            cachedEntry.post.status !== 'processing' &&
+            (Date.now() - cachedEntry.timestamp < CACHE_EXPIRY)) {
+          console.log("Using valid (non-transient) memory cached post data for:", postId);
+          setPost(cachedEntry.post);
+          setLoading(false);
+          setFetchingData(false);
+          return; // Important: return here
+        } else {
+            console.log("In-memory cache for post", postId, "is transient, expired or invalid, will fetch from API.");
+            // Do not return, proceed to fetch from API
+        }
       }
 
       // Fetch post details
