@@ -1180,7 +1180,23 @@ function MediaPosting() {
                                     Create Another Post 
                                   </button>
                                 </div>
-                                <Link href="/scheduled-posts" className="mt-3 inline-block text-sm text-blue-600 hover:underline">View All Scheduled Posts</Link> 
+                                <div className="mt-3 flex flex-wrap justify-center items-center gap-x-4 gap-y-2">
+                                    {createdPostId && (
+                                        <Link
+                                            href={`/created-post/${createdPostId}`}
+                                            className="text-sm text-blue-600 hover:underline font-medium"
+                                        >
+                                            Post progress
+                                        </Link>
+                                    )}
+                                    <span className="text-gray-400 text-xs">|</span>
+                                    <Link 
+                                        href="/scheduled-posts" 
+                                        className="text-sm text-blue-600 hover:underline font-medium"
+                                    >
+                                        View All Scheduled Posts
+                                    </Link> 
+                                </div>
                               </div>
                             ) : isScheduled ? (
                               <div className="flex flex-col sm:flex-row gap-3 relative">
