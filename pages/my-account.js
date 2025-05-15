@@ -4,6 +4,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useAuth } from '../src/context/AuthContext';
 import { createSubscription } from '../src/services/subscriptionService';
+import { getUserLimits } from '../src/services/userService';
 import SubscriptionStatus from '../src/components/SubscriptionStatus';
 
 const MyAccount = () => {
@@ -15,6 +16,7 @@ const MyAccount = () => {
   const [subscriptionError, setSubscriptionError] = useState('');
   const [subscriptionSuccess, setSubscriptionSuccess] = useState(false);
   const [currentSubscriptionStatus, setCurrentSubscriptionStatus] = useState(null);
+  const [userPlanUsage, setUserPlanUsage] = useState(null);
 
   // Redirect to dashboard if user is already logged in
   useEffect(() => {
@@ -44,6 +46,27 @@ const MyAccount = () => {
       setSubscriptionError(message || 'An error occurred with your subscription');
     }
   }, [subscription, message]);
+
+  // Fetch user plan usage
+  useEffect(() => {
+    if (user?.uid) {
+      const fetchUserLimits = async () => {
+        try {
+          const limitsData = await getUserLimits(user.uid);
+          if (limitsData?.success) {
+            setUserPlanUsage(limitsData.data);
+          } else {
+            console.error("Failed to fetch user limits:", limitsData?.error);
+            // Optionally set an error state here to display to the user
+          }
+        } catch (error) {
+          console.error("Error fetching user limits:", error);
+          // Optionally set an error state here
+        }
+      };
+      fetchUserLimits();
+    }
+  }, [user]);
 
   const handleGoogleSignIn = async () => {
     setIsProcessing(true);
@@ -251,12 +274,37 @@ const MyAccount = () => {
                   )}
                   
                   <div className="flex-1 text-center sm:text-left">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-1 animate-slide-up" style={{animationDelay: '100ms'}}>
-                      {user?.displayName || 'User'}
+                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 transition-all duration-300">
+                      {user?.displayName || 'Welcome!'}
                     </h2>
-                    <p className="text-gray-700 mb-2 animate-slide-up" style={{animationDelay: '200ms'}}>
-                      {user?.email || 'No email provided'}
-                    </p>
+                    <p className="text-gray-600 mb-4 transition-all duration-300">{user?.email}</p>
+                    
+                    {/* User Plan Usage Section */}
+                    {userPlanUsage && (
+                      <div className="mb-6 p-4 bg-gray-100 rounded-lg shadow-inner animate-fade-in">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-3">Your Plan Usage</h3>
+                        <div className="space-y-2 text-sm text-gray-700">
+                          <div className="flex justify-between">
+                            <span>Monthly Posts:</span>
+                            <span className="font-medium">
+                              {userPlanUsage.currentPostsCount ?? 0} / {userPlanUsage.numberOfPosts === -1 ? 'Unlimited' : userPlanUsage.numberOfPosts ?? 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Connected Accounts:</span>
+                            <span className="font-medium">
+                              {userPlanUsage.currentSocialAccounts ?? 0} / {userPlanUsage.socialAccounts === -1 ? 'Unlimited' : userPlanUsage.socialAccounts ?? 'N/A'}
+                            </span>
+                          </div>
+                          {userPlanUsage.role === 'Starter' && userPlanUsage.cycleEndDate && (
+                            <p className="text-xs text-gray-500 mt-2">
+                              Your post count resets on {formatDate(userPlanUsage.cycleEndDate)}.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <span 
                       className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium transition-all duration-300 animate-slide-up ${
                         ['Launch', 'Rise', 'Scale'].includes(user?.role)
