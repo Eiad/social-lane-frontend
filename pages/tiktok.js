@@ -379,39 +379,69 @@ export default function TikTok() {
       
       const data = await response?.json();
       console.log('Successfully saved TikTok account to database:', data);
-      
-      // Add a delay before fetching accounts to give the backend time to fully process
-      console.log('Waiting 2 seconds before fetching updated accounts...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Save account info to localStorage first before fetching from backend
-      // This ensures we at least have the basic account data in case the fetch fails
-      try {
-        const localAccounts = getTikTokAccounts() || [];
-        const newAccount = {
-          accountId: accountData.openId,
-          username: accountData.username || 'TikTok User',
-          displayName: accountData.displayName || '',
-          avatarUrl: accountData.avatarUrl || '',
-          // Use the avatarUrl100 from the account data (already uploaded to R2 by backend)
-          avatarUrl100: accountData.avatarUrl100 || ''
-        };
+
+      // Update local state and localStorage with the confirmed new account
+      if (data?.success && data?.accounts?.length > 0) {
+        // Assuming one account is saved at a time in this particular flow.
+        // The 'accountData' parameter of saveAccountToBackend holds the full details sent.
+        // The 'data.accounts[0]' from the response has the backend-confirmed basic info.
+        const newSavedAccountInfo = data.accounts[0]; 
         
-        // Add new account if not exists
-        if (!localAccounts.some(acc => acc.accountId === newAccount.accountId)) {
-          localAccounts.push(newAccount);
-          saveTikTokAccounts(localAccounts);
-          console.log('Added new TikTok account to localStorage as a fallback');
+        try {
+          let localAccounts = getTikTokAccounts() || [];
+          const accountToUpdateOrAdd = {
+            accountId: newSavedAccountInfo.accountId, // This is the openId
+            username: newSavedAccountInfo.username || accountData.username || 'TikTok User',
+            displayName: newSavedAccountInfo.displayName || accountData.displayName || '',
+            avatarUrl: accountData.avatarUrl || '', // Use original from input data
+            avatarUrl100: accountData.avatarUrl100 || '' // Use R2 URL from input data
+          };
+
+          const existingAccountIndex = localAccounts.findIndex(acc => acc.accountId === accountToUpdateOrAdd.accountId);
+          if (existingAccountIndex > -1) {
+            // Update existing account if it somehow already exists (e.g., due to rapid operations)
+            localAccounts[existingAccountIndex] = { ...localAccounts[existingAccountIndex], ...accountToUpdateOrAdd };
+          } else {
+            localAccounts.push(accountToUpdateOrAdd);
+          }
+          
+          saveTikTokAccounts(localAccounts); // This updates localStorage
+          setConnectedAccounts([...localAccounts]); // Update React state
+          setIsAuthenticated(localAccounts.length > 0);
+          console.log('Optimistically updated localStorage and state with new TikTok account:', accountToUpdateOrAdd);
+
+        } catch (localStorageError) {
+          console.error('Error updating localStorage/state after successful save:', localStorageError);
         }
-        
-        // Update UI state with latest data
-        setConnectedAccounts(localAccounts);
-        setIsAuthenticated(true);
-      } catch (localStorageError) {
-        console.error('Error saving to localStorage:', localStorageError);
+      } else {
+        // Fallback or if response structure is not as expected, try previous optimistic update from input data
+        console.warn('[TIKTOK SAVE] API response did not contain expected account data, attempting fallback optimistic update.');
+        try {
+            let localAccounts = getTikTokAccounts() || [];
+            const newAccount = {
+              accountId: accountData.openId,
+              username: accountData.username || 'TikTok User',
+              displayName: accountData.displayName || '',
+              avatarUrl: accountData.avatarUrl || '',
+              avatarUrl100: accountData.avatarUrl100 || ''
+            };
+            if (!localAccounts.some(acc => acc.accountId === newAccount.accountId)) {
+              localAccounts.push(newAccount);
+              saveTikTokAccounts(localAccounts);
+              setConnectedAccounts([...localAccounts]);
+              setIsAuthenticated(localAccounts.length > 0);
+              console.log('Fallback: Added new TikTok account to localStorage optimistically.');
+            }
+        } catch (e) {
+            console.error("Fallback optimistic update failed", e)
+        }
       }
       
-      // Now try to fetch full accounts from backend
+      // Add a delay before fetching all accounts to give the backend time to fully process the user object update
+      console.log('Waiting a bit (e.g. 2.5s) before fetching updated full user data...');
+      await new Promise(resolve => setTimeout(resolve, 2500)); 
+      
+      // Now try to fetch full accounts from backend to ensure consistency
       await fetchUserAccounts();
     } catch (error) {
       console.error('Error saving TikTok account to database:', error);
