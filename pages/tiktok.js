@@ -161,26 +161,32 @@ export default function TikTok() {
   // Helper function to fetch user accounts from the database
   const fetchUserAccounts = async () => {
     let fetchedSuccessfully = false; // Flag to track success
+    // Get current accounts from localStorage FIRST, before any fetch.
+    // These might include optimistically added accounts.
+    const accountsCurrentlyInStorage = getTikTokAccounts() || [];
+    
     try {
       showLoader('Loading your TikTok accounts...');
       
-      // Get current user ID from localStorage
       const uid = localStorage?.getItem('firebaseUid') || localStorage?.getItem('userId');
-      
       if (!uid) {
         console.error('No user ID found, cannot fetch TikTok accounts');
+        // If no UID, but we have storage accounts, display them.
+        if (accountsCurrentlyInStorage.length > 0) {
+            setConnectedAccounts([...accountsCurrentlyInStorage]);
+            setIsAuthenticated(true);
+            console.log('[FETCH_USER_ACCOUNTS] No UID, using accounts from storage.');
+        } else {
+            setConnectedAccounts([]);
+            setIsAuthenticated(false);
+        }
         hideLoader();
-        return fetchedSuccessfully;
+        return false; // Cannot fetch successfully without UID
       }
       
       console.log(`Fetching TikTok accounts for user ${uid} from database`);
       
-      // First check if we have cached accounts in localStorage
-      const cachedAccounts = getTikTokAccounts();
       let hasFetchError = false;
-      
-      // Call the backend API to get user data including social media accounts
-      // Add retry logic with exponential backoff
       let response;
       let lastError;
       const MAX_RETRIES = 3;
@@ -188,128 +194,126 @@ export default function TikTok() {
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
           console.log(`Attempt ${attempt}/${MAX_RETRIES} to fetch user data`);
-          
-          // Increase timeout with each retry
-          const fetchTimeout = 30000 * attempt; // 30s, 60s, 90s
+          const fetchTimeout = 30000 * attempt;
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), fetchTimeout);
-          
-          // Add a cache-busting timestamp parameter
           const cacheBuster = `no-cache=${Date.now()}`;
           
           response = await fetch(`/api/users/${uid}?${cacheBuster}`, {
             signal: controller.signal,
-            // Add cache-busting headers to ensure fresh results
             headers: {
               'Cache-Control': 'no-cache, no-store',
               'Pragma': 'no-cache',
               'Expires': '0'
             }
           });
-          
           clearTimeout(timeoutId);
-          
           if (!response.ok) {
             throw new Error(`Error fetching user data: ${response.status}`);
           }
-          
-          // If successful, break out of retry loop
           break;
         } catch (error) {
           lastError = error;
           console.error(`Attempt ${attempt} failed:`, error?.message || error);
-          
-          // If we've exhausted all retries, set error flag but continue using cached data
           if (attempt === MAX_RETRIES) {
             hasFetchError = true;
-            // Don't throw - we'll handle this gracefully by using cached data
           } else {
-            // Otherwise, wait with exponential backoff before retrying
-            const delay = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s, etc.
+            const delay = 2000 * Math.pow(2, attempt - 1);
             console.log(`Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
           }
         }
       }
       
-      // If we have response data from backend, use it
       let userData = null;
-      if (response) {
+      if (response && !hasFetchError) { // Ensure response exists and no prior error flag from retries
         try {
           userData = await response.json();
           console.log('User data fetched:', userData);
         } catch (parseError) {
           console.error('Error parsing user data JSON:', parseError);
-          hasFetchError = true;
+          hasFetchError = true; // Mark as fetch error if parsing fails
         }
       }
-      
-      // If we successfully fetched data from backend, update localStorage and UI
+
+      // Start of new merge logic section
+      let finalAccountsToShow = [];
+
       if (userData?.success && userData?.data?.providerData?.tiktok) {
-        // Found TikTok accounts in the user data
-        const tiktokAccounts = userData.data.providerData.tiktok;
-        
-        console.log(`Found ${Array.isArray(tiktokAccounts) ? tiktokAccounts.length : 'unknown'} TikTok accounts in user data:`, tiktokAccounts);
-        
-        // Format and store the accounts in localStorage
-        const formattedAccounts = Array.isArray(tiktokAccounts) ? tiktokAccounts.map(account => {
-          // Log the account data for debugging
-          console.log('Account from backend:', {
-            hasAvatarUrl: !!account.avatarUrl,
-            hasAvatarUrl100: !!account.avatarUrl100
-          });
-          
-          // During login, we should prioritize using the R2 URL that's already in the database (avatarUrl100)
-          // rather than triggering a new R2 upload
-          return {
-            accountId: account.openId || account.accountId, // Use openId as accountId if needed
-            username: account.username || account.userInfo?.username || '',
-            displayName: account.displayName || account.userInfo?.display_name || '',
-            // Use original TikTok avatarUrl
-            avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
-            // Use R2 URL from DB - don't try to create a new one on login
-            avatarUrl100: account.avatarUrl100 || ''
-          };
-        }) : [];
-        
-        // Clear existing accounts from localStorage before saving fresh ones
-        localStorage.removeItem('socialMediaData');
-        
-        // Save the fresh accounts
-        saveTikTokAccounts(formattedAccounts);
-        
-        // Force UI update immediately - don't use setTimeout
-        setConnectedAccounts(formattedAccounts);
-        setIsAuthenticated(formattedAccounts.length > 0);
-        console.log('TikTok accounts loaded from database and saved to localStorage');
-        
-        // Dispatch a storage event to notify other components
-        window.dispatchEvent(new Event('storage'));
-        fetchedSuccessfully = true; // Mark as successful
-      } else if (hasFetchError && cachedAccounts && cachedAccounts.length > 0) {
-        // If there was an error fetching from backend but we have cached data, use it
-        console.log('Using cached TikTok accounts from localStorage due to backend fetch error');
-        setConnectedAccounts([...cachedAccounts]);
-        setIsAuthenticated(true);
-        
-        // Show a warning toast to the user
-        window.showToast?.warning?.('Using cached TikTok account data. Some information may be outdated.');
+        const tiktokAccountsFromServerRaw = userData.data.providerData.tiktok;
+        const formattedFromServer = Array.isArray(tiktokAccountsFromServerRaw) 
+            ? tiktokAccountsFromServerRaw.map(account => ({
+                accountId: account.openId || account.accountId,
+                username: account.username || account.userInfo?.username || '',
+                displayName: account.displayName || account.userInfo?.display_name || '',
+                avatarUrl: account.avatarUrl || account.userInfo?.avatar_url || '',
+                avatarUrl100: account.avatarUrl100 || ''
+              })) 
+            : [];
+
+        // Merge server data with current accounts from storage.
+        // Server data is the base. Add any accounts from storage not present in server data.
+        const serverAccountMap = new Map(formattedFromServer.map(acc => [acc.accountId, acc]));
+        finalAccountsToShow = [...formattedFromServer]; // Start with server accounts
+
+        accountsCurrentlyInStorage.forEach(storageAcc => {
+            if (storageAcc.accountId && !serverAccountMap.has(storageAcc.accountId)) {
+                finalAccountsToShow.push(storageAcc); // Add optimistic/storage-only account
+                console.log(`[FETCH_USER_ACCOUNTS] Merging account from storage (not on server yet): ${storageAcc.accountId}`);
+            }
+        });
+        fetchedSuccessfully = true;
+        console.log('[FETCH_USER_ACCOUNTS] Merged server data with storage accounts.');
       } else if (hasFetchError) {
-        // If there was an error and no cached data
-        console.log('No TikTok accounts found in user data or localStorage');
-        setConnectedAccounts([]);
-        setIsAuthenticated(false);
-        
-        throw new Error('Failed to load TikTok accounts from server and no cached data available');
-      } else {
-        // No error but no accounts found
-        console.log('No TikTok accounts found in user data');
-        setConnectedAccounts([]);
-        setIsAuthenticated(false);
+        // Fetch error occurred. Rely entirely on what's in storage.
+        console.log('[FETCH_USER_ACCOUNTS] Fetch error. Using accounts from storage.');
+        finalAccountsToShow = [...accountsCurrentlyInStorage];
+        if (accountsCurrentlyInStorage.length > 0) {
+             window.showToast?.warning?.('Could not update account list from server. Displaying locally saved accounts.');
+        } else {
+            window.showToast?.error?.('Failed to load TikTok accounts from server and no local data available.');
+        }
+        // fetchedSuccessfully remains false or based on whether accountsCurrentlyInStorage has items
+      } else { 
+        // No user data for TikTok from server (userData is null, or no success, or no tiktok field) AND no fetch error.
+        // This means server authoritatively says no accounts.
+        // However, if we have accounts in storage (e.g. just added optimistically), we keep them for now.
+        // The merge logic: if formattedFromServer is empty, finalAccountsToShow will be accountsCurrentlyInStorage.
+        if (accountsCurrentlyInStorage.length > 0) {
+            console.log('[FETCH_USER_ACCOUNTS] Server reports no TikTok accounts, but using accounts from storage.');
+            finalAccountsToShow = [...accountsCurrentlyInStorage];
+        } else {
+            console.log('[FETCH_USER_ACCOUNTS] No TikTok accounts from server and none in storage.');
+            finalAccountsToShow = [];
+        }
+        // If userData.success was true but providerData.tiktok was empty, it's still a success.
+        if (userData?.success) fetchedSuccessfully = true; 
       }
+
+      // Update localStorage and React state with the final list
+      saveTikTokAccounts(finalAccountsToShow);
+      setConnectedAccounts([...finalAccountsToShow]);
+      setIsAuthenticated(finalAccountsToShow.length > 0);
+      
+      if (fetchedSuccessfully) {
+        console.log('TikTok accounts state updated. Total accounts shown:', finalAccountsToShow.length);
+        // Removed: window.dispatchEvent(new Event('storage')); 
+        // saveTikTokAccounts already sets 'socialMediaDataUpdated' which should be used by listeners
+      }
+      // End of new merge logic section
+
     } catch (error) {
-      console.error('Error fetching user TikTok accounts:', error);
-      window.showToast?.error?.('Failed to load your TikTok accounts. Please refresh and try again.');
+      console.error('Error fetching user TikTok accounts (outer catch):', error);
+      // Fallback to whatever is in storage in case of any unexpected error
+      if (accountsCurrentlyInStorage.length > 0) {
+        setConnectedAccounts([...accountsCurrentlyInStorage]);
+        setIsAuthenticated(true);
+        window.showToast?.error?.('An unexpected error occurred. Displaying locally saved accounts.');
+      } else {
+        setConnectedAccounts([]);
+        setIsAuthenticated(false);
+        window.showToast?.error?.('Failed to load your TikTok accounts. Please refresh and try again.');
+      }
     } finally {
       hideLoader();
     }
