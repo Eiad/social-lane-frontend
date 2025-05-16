@@ -333,12 +333,14 @@ const MyAccount = () => {
 
                   {/* RIGHT COLUMN: Plan Usage Summary */}
                   {userPlanUsage && (
-                    <div className="w-full sm:w-auto mt-6 sm:mt-0 text-sm animate-fade-in">
+                    <div className="w-full sm:w-auto min-w-[150px] mt-6 sm:mt-0 text-sm animate-fade-in">
                       <div className="bg-white/60 backdrop-blur-sm p-4 rounded-lg shadow-md space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="text-gray-600">Posts:</span>
                           <span className="font-semibold text-gray-800 text-base">
-                            {userPlanUsage.currentPostsCount ?? 0} / {userPlanUsage.numberOfPosts === -1 ? 'Unlimited' : userPlanUsage.numberOfPosts ?? 'N/A'}
+                            {userPlanUsage.numberOfPosts === -1 
+                              ? '∞' 
+                              : `${userPlanUsage.currentPostsCount ?? 0} / ${userPlanUsage.numberOfPosts ?? 'N/A'}`}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
