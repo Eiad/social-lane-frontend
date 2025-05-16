@@ -41,14 +41,14 @@ const ConfirmationModal = ({
         <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-4 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-xl">
           <button
             type="button"
-            className={`w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 text-base font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200 dark:focus:ring-offset-slate-800 ${confirmButtonClassName}`}
+            className={`w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 text-base font-medium focus:outline-none  sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200 dark:focus:ring-offset-slate-800 ${confirmButtonClassName}`}
             onClick={onConfirm}
           >
             {confirmButtonText}
           </button>
           <button
             type="button"
-            className="mt-3 w-full inline-flex justify-center rounded-lg border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-700 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-primary-light sm:mt-0 sm:w-auto sm:text-sm transition-colors duration-200 dark:focus:ring-offset-slate-800"
+            className="mt-3 w-full inline-flex justify-center rounded-lg border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-700 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 focus:outline-none  focus:ring-primary dark:focus:ring-primary-light sm:mt-0 sm:w-auto sm:text-sm transition-colors duration-200 dark:focus:ring-offset-slate-800"
             onClick={onClose}
           >
             {cancelButtonText}

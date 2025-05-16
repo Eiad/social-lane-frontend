@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
@@ -150,6 +150,46 @@ function ScheduledPosts() {
       }
     };
   }, [isEditModalOpen, editingPost?.video_url]);
+
+  const allVisibleAccounts = useMemo(() => {
+    if (!platformAccountsDetails) return [];
+    let accounts = [];
+    Object.entries(platformAccountsDetails).forEach(([platformName, accs]) => {
+      if (Array.isArray(accs)) {
+        accs.forEach(acc => {
+          // Ensure acc.name exists and is a string before calling toLowerCase
+          if (typeof acc.name === 'string' && acc.name.toLowerCase().includes(accountSearchQuery.toLowerCase())) {
+            accounts.push({ ...acc, platform: platformName }); // Ensure platform is part of the object for consistency
+          }
+        });
+      }
+    });
+    return accounts;
+  }, [platformAccountsDetails, accountSearchQuery]);
+
+  const areAllVisibleSelected = useMemo(() => {
+    if (!allVisibleAccounts.length) return false;
+    return allVisibleAccounts.every(acc =>
+      selectedAccounts.some(sa => sa.platform === acc.platform && sa.accountId === acc.id)
+    );
+  }, [allVisibleAccounts, selectedAccounts]);
+
+  const handleToggleSelectAllVisible = () => {
+    if (areAllVisibleSelected) {
+      // Unselect all visible
+      setSelectedAccounts(prevSelected =>
+        prevSelected.filter(sa =>
+          !allVisibleAccounts.some(va => va.platform === sa.platform && va.id === sa.accountId)
+        )
+      );
+    } else {
+      // Select all visible that are not already selected
+      const newSelections = allVisibleAccounts
+        .filter(va => !selectedAccounts.some(sa => sa.platform === va.platform && sa.accountId === va.id))
+        .map(acc => ({ platform: acc.platform, accountId: acc.id, name: acc.name }));
+      setSelectedAccounts(prevSelected => [...prevSelected, ...newSelections]);
+    }
+  };
 
   const fetchScheduledPosts = async () => {
     try {
@@ -652,7 +692,7 @@ function ScheduledPosts() {
           {isEditModalOpen && editingPost && (
             <div className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden flex items-center justify-center" aria-modal="true" role="dialog">
               <div className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={handleCloseEditModal}></div>
-              <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-3xl w-full mx-4 my-8 z-10 overflow-hidden transform transition-all">
+              <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-6xl w-full mx-4 my-8 z-10 overflow-hidden transform transition-all">
                 <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-200 dark:border-slate-700">
                   <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Edit Scheduled Post</h2>
                   <button 
@@ -696,7 +736,33 @@ function ScheduledPosts() {
                           />
                         </div>
 
-                        <div className="space-y-4 h-full overflow-y-auto pr-2 py-2">
+                        {/* Select/Unselect All Toggle */}
+                        {Object.keys(platformAccountsDetails)?.length > 0 && (
+                          <div className="flex items-center justify-start mb-3 mt-1">
+                            <label htmlFor="select-all-toggle" className="flex items-center cursor-pointer group">
+                              <div className="relative">
+                                <input
+                                  type="checkbox"
+                                  id="select-all-toggle"
+                                  className="sr-only peer" // Hide default checkbox, add peer for styling
+                                  checked={areAllVisibleSelected}
+                                  onChange={handleToggleSelectAllVisible}
+                                  disabled={allVisibleAccounts.length === 0}
+                                />
+                                {/* Switch track */}
+                                <div className="w-10 h-6 bg-slate-300 dark:bg-slate-600 rounded-full peer-checked:bg-primary dark:peer-checked:bg-primary-light transition-colors duration-200"></div>
+                                {/* Switch thumb */}
+                                <div className="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 peer-checked:translate-x-4"></div>
+                              </div>
+                              <span className="ml-3 text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-primary dark:group-hover:text-primary-light transition-colors">
+                                {areAllVisibleSelected ? 'Unselect All Shown' : 'Select All Shown'}
+                                {allVisibleAccounts.length > 0 || accountSearchQuery ? ` (${allVisibleAccounts.length})` : ''}
+                              </span>
+                            </label>
+                          </div>
+                        )}
+
+                        <div className="space-y-4 max-h-[420px] overflow-y-auto p-3 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-600">
                           {Object.entries(platformAccountsDetails)
                             .map(([platformName, accounts]) => {
                               // Filter accounts based on search query
@@ -751,7 +817,9 @@ function ScheduledPosts() {
                             })}
                           
                           {/* Overall message if no accounts are available or match search */}
-                          {Object.values(platformAccountsDetails).every(accounts => accounts.filter(acc => acc.name?.toLowerCase().includes(accountSearchQuery.toLowerCase())).length === 0) && (
+                          {Object.values(platformAccountsDetails).every(accounts => accounts.filter(acc => 
+                            typeof acc.name === 'string' && acc.name.toLowerCase().includes(accountSearchQuery.toLowerCase())
+                          ).length === 0) && (
                             <p className="text-sm text-slate-500 dark:text-slate-400 py-3 text-center">
                               {accountSearchQuery ? 'No accounts match your search.' : 'No social media accounts connected. Please connect accounts in settings.'}
                             </p>
@@ -806,7 +874,7 @@ function ScheduledPosts() {
                             <video
                               src={editModalBlobUrl}
                               controls
-                              className="w-full rounded shadow-md max-h-[200px]"
+                              className="w-full rounded shadow-md max-h-[300px]"
                               onError={() => setEditModalVideoError(true)} // Simple error handling for the video element itself
                             ></video>
                           ) : (
