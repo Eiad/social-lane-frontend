@@ -20,10 +20,22 @@ function ScheduledPosts() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
+  // New state for video blob URL in edit modal
+  const [editModalBlobUrl, setEditModalBlobUrl] = useState(null);
+  const [editModalVideoLoading, setEditModalVideoLoading] = useState(true);
+  const [editModalVideoError, setEditModalVideoError] = useState(false);
+
   // New state for account selection
   const [platformAccountsDetails, setPlatformAccountsDetails] = useState({}); // e.g., { twitter: [{id, name}, ...], tiktok: [...] }
   const [selectedAccounts, setSelectedAccounts] = useState([]); // e.g., [{platform, accountId, name}, ...]
   const [accountSearchQuery, setAccountSearchQuery] = useState(''); // New state for search
+
+  // State for video player modal
+  const [showVideoPlayerModal, setShowVideoPlayerModal] = useState(false);
+  const [videoModalUrl, setVideoModalUrl] = useState('');
+  const [playerModalBlobUrl, setPlayerModalBlobUrl] = useState(null);
+  const [playerModalVideoLoading, setPlayerModalVideoLoading] = useState(true);
+  const [playerModalVideoError, setPlayerModalVideoError] = useState(false);
 
   useEffect(() => {
     // Get user ID from local storage
@@ -98,6 +110,41 @@ function ScheduledPosts() {
       console.error('Error loading social media accounts for modal:', error);
     }
   }, []);
+
+  // Effect to handle blob URL creation/revocation for the edit modal video
+  useEffect(() => {
+    let objectUrl;
+    if (isEditModalOpen && editingPost?.video_url) {
+      setEditModalVideoLoading(true);
+      setEditModalVideoError(false);
+      setEditModalBlobUrl(null); // Reset
+
+      fetch(editingPost.video_url)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch video for edit modal: ${response.status} ${response.statusText}`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          objectUrl = URL.createObjectURL(blob);
+          setEditModalBlobUrl(objectUrl);
+          setEditModalVideoLoading(false);
+        })
+        .catch(err => {
+          console.error('Error fetching video for edit modal blob URL:', err);
+          setEditModalVideoError(true);
+          setEditModalVideoLoading(false);
+        });
+    }
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        setEditModalBlobUrl(null);
+      }
+    };
+  }, [isEditModalOpen, editingPost?.video_url]);
 
   const fetchScheduledPosts = async () => {
     try {
@@ -227,6 +274,10 @@ function ScheduledPosts() {
     setEditingPost(null);
     setSelectedAccounts([]); // Clear selected accounts on close
     setSaveError(null);
+    // Also clear video states for the modal
+    setEditModalBlobUrl(null);
+    setEditModalVideoLoading(true);
+    setEditModalVideoError(false);
   };
 
   const handleAccountToggle = (platform, accountId, accountName) => {
@@ -358,6 +409,63 @@ function ScheduledPosts() {
     }
   };
 
+  // Handlers for video player modal
+  const handleOpenVideoModal = (url) => {
+    setVideoModalUrl(url);
+    setShowVideoPlayerModal(true);
+    // Reset states for the player modal when opening
+    setPlayerModalBlobUrl(null);
+    setPlayerModalVideoLoading(true);
+    setPlayerModalVideoError(false);
+  };
+
+  const handleCloseVideoModal = () => {
+    setShowVideoPlayerModal(false);
+    setVideoModalUrl('');
+    if (playerModalBlobUrl) {
+      URL.revokeObjectURL(playerModalBlobUrl);
+    }
+    setPlayerModalBlobUrl(null);
+    setPlayerModalVideoLoading(true); // Reset for next open
+    setPlayerModalVideoError(false); // Reset for next open
+  };
+
+  // Effect to handle blob URL creation/revocation for the VIDEO PLAYER modal
+  useEffect(() => {
+    let objectUrl;
+    if (showVideoPlayerModal && videoModalUrl) {
+      setPlayerModalVideoLoading(true);
+      setPlayerModalVideoError(false);
+      setPlayerModalBlobUrl(null); // Reset
+
+      fetch(videoModalUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch video for player modal: ${response.status} ${response.statusText}`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          objectUrl = URL.createObjectURL(blob);
+          setPlayerModalBlobUrl(objectUrl);
+          setPlayerModalVideoLoading(false);
+        })
+        .catch(err => {
+          console.error('Error fetching video for player modal blob URL:', err);
+          setPlayerModalVideoError(true);
+          setPlayerModalVideoLoading(false);
+        });
+    }
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        // Ensure playerModalBlobUrl is also cleared if the component unmounts while modal is open
+        // However, handleCloseVideoModal should primarily handle this for explicit closes.
+      }
+    };
+  }, [showVideoPlayerModal, videoModalUrl]);
+
   return (
     <>
       <Head>
@@ -440,11 +548,23 @@ function ScheduledPosts() {
                       </div>
                       
                       <div className="p-5">
-                        <div className="rounded-lg overflow-hidden bg-gray-100 mb-4 aspect-video">
-                          <video src={post.video_url} controls playsInline className="w-full h-full object-cover" />
+                        <div className="rounded-lg overflow-hidden bg-gray-100 mb-4 aspect-video relative group cursor-pointer" onClick={() => post?.video_url && handleOpenVideoModal(post.video_url)}>
+                          <video src={post?.video_url} playsInline className="w-full h-full object-cover pointer-events-none" />
+                          {post?.video_url && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 group-hover:bg-opacity-40 transition-opacity duration-200">
+                              <svg className="w-12 h-12 md:w-16 md:h-16 text-white opacity-80 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-200" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </div>
+                          )}
+                          {!post?.video_url && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
+                              <p className="text-gray-500 text-sm">No video</p>
+                            </div>
+                          )}
                         </div>
                         <p className="text-gray-700 text-sm mb-4 line-clamp-3">
-                          {post.post_description}
+                          {post?.post_description}
                         </p>
                       </div>
                       
@@ -634,22 +754,35 @@ function ScheduledPosts() {
                         </div>
                       </div>
                       
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Video Preview
-                        </label>
-                        <div className="rounded-lg overflow-hidden bg-gray-100 aspect-video border border-gray-200 shadow-sm">
-                          {editingPost?.video_url ? (
-                            <video src={editingPost.video_url} controls playsInline className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-500">
-                              No video preview available.
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Media Preview</label>
+                        {editingPost?.video_url ? (
+                          editModalVideoLoading ? (
+                            <div className="aspect-w-16 aspect-h-9 bg-gray-200 flex items-center justify-center rounded">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-700"></div>
                             </div>
-                          )}
-                        </div>
-                        <p className="mt-2 text-xs text-gray-500">
-                          Video cannot be changed. Create a new post to use a different video.
-                        </p>
+                          ) : editModalVideoError ? (
+                            <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex flex-col items-center justify-center p-3 rounded border border-red-300">
+                              <svg className="w-10 h-10 text-red-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                              <p className="text-red-700 text-sm font-medium">Error loading video</p>
+                            </div>
+                          ) : editModalBlobUrl ? (
+                            <video
+                              src={editModalBlobUrl}
+                              controls
+                              className="w-full rounded"
+                              onError={() => setEditModalVideoError(true)} // Simple error handling for the video element itself
+                            ></video>
+                          ) : (
+                             <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex flex-col items-center justify-center p-3 rounded border border-gray-300">
+                              <svg className="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                              <p className="text-gray-600 text-sm">Media preview unavailable</p>
+                            </div>
+                          )
+                        ) : (
+                          <p className="text-sm text-gray-500">No video associated with this post.</p>
+                        )}
+                         <p className="text-xs text-gray-500 mt-1">Video cannot be changed. Create a new post to use a different video.</p>
                       </div>
 
                       <div>
@@ -691,6 +824,59 @@ function ScheduledPosts() {
                       </div>
                     ) : "Save Changes"}
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Video Player Modal */}
+          {showVideoPlayerModal && videoModalUrl && (
+            <div className="fixed inset-0 z-[60] overflow-y-auto overflow-x-hidden flex items-center justify-center" aria-modal="true" role="dialog">
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-md transition-opacity" onClick={handleCloseVideoModal}></div>
+              <div className="relative bg-white rounded-xl shadow-xl w-full max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-4 my-8 z-10 transform transition-all">
+                <div className="flex items-center justify-between px-4 py-3 md:px-6 md:pt-4 md:pb-3 border-b border-gray-200">
+                  <h2 className="text-lg md:text-xl font-semibold text-gray-800">Media Preview</h2>
+                  <button 
+                    className="text-gray-400 hover:text-gray-600 focus:outline-none rounded-full p-1.5 hover:bg-gray-100 transition-colors"
+                    onClick={handleCloseVideoModal}
+                    aria-label="Close video player"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-2 md:p-1 bg-black rounded-b-xl">
+                  {playerModalVideoLoading ? (
+                    <div className="aspect-video flex items-center justify-center bg-gray-800 rounded-b-lg min-h-[200px]">
+                      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-gray-300"></div>
+                    </div>
+                  ) : playerModalVideoError ? (
+                    <div className="aspect-video flex flex-col items-center justify-center bg-gray-800 rounded-b-lg text-white p-4 min-h-[200px]">
+                      <svg className="w-12 h-12 text-red-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                      <p className="text-sm font-medium">Error loading video</p>
+                      <p className="text-xs text-gray-400 mt-1">Please try again later.</p>
+                    </div>
+                  ) : playerModalBlobUrl ? (
+                    <video 
+                      src={playerModalBlobUrl} 
+                      controls 
+                      autoPlay 
+                      playsInline 
+                      className="w-full h-auto max-h-[80vh] rounded-b-lg"
+                      onError={(e) => {
+                        console.error("Error playing video in modal:", e);
+                        setPlayerModalVideoError(true); // Set error if video element itself fails
+                      }}
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  ) : (
+                    <div className="aspect-video flex items-center justify-center bg-gray-800 rounded-b-lg min-h-[200px]">
+                      <p className="text-gray-400">Video could not be loaded.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

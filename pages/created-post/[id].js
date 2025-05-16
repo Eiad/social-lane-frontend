@@ -300,14 +300,41 @@ function PostDetails() {
   const VideoPopup = ({ videoUrl, onClose }) => {
     const [videoError, setVideoError] = useState(false);
     const [videoLoading, setVideoLoading] = useState(true);
+    const [blobUrl, setBlobUrl] = useState(null);
 
-    // Reset error state when popup is opened with a new video
     useEffect(() => {
-      if (showVideoPopup) {
+      let objectUrl;
+      if (showVideoPopup && videoUrl) {
         setVideoError(false);
         setVideoLoading(true);
+        setBlobUrl(null); // Reset blob Url
+
+        fetch(videoUrl)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
+            }
+            return response.blob();
+          })
+          .then(blob => {
+            objectUrl = URL.createObjectURL(blob);
+            setBlobUrl(objectUrl);
+            setVideoLoading(false);
+          })
+          .catch(err => {
+            console.error('Error fetching video for blob URL:', err);
+            setVideoError(true);
+            setVideoLoading(false);
+          });
       }
-    }, [showVideoPopup]);
+
+      return () => {
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+          setBlobUrl(null);
+        }
+      };
+    }, [showVideoPopup, videoUrl]);
 
     const handleVideoError = () => {
       setVideoError(true);
@@ -324,7 +351,7 @@ function PostDetails() {
       <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
         <div className="relative bg-white rounded-lg max-w-4xl w-full max-h-[90vh] flex flex-col">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h3 className="font-medium text-lg">Video Preview</h3>
+            <h3 className="font-medium text-lg">Media Preview</h3>
             <button 
               onClick={onClose} 
               className="text-gray-500 hover:text-gray-700"
@@ -359,7 +386,7 @@ function PostDetails() {
                   </div>
                 )}
                 <video 
-                  src={videoUrl} 
+                  src={blobUrl || videoUrl}
                   controls 
                   autoPlay
                   onError={handleVideoError}
