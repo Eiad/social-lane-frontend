@@ -806,7 +806,7 @@ function ScheduledPosts() {
                             <video
                               src={editModalBlobUrl}
                               controls
-                              className="w-full rounded shadow-md"
+                              className="w-full rounded shadow-md max-h-[200px]"
                               onError={() => setEditModalVideoError(true)} // Simple error handling for the video element itself
                             ></video>
                           ) : (
