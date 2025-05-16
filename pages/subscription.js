@@ -191,17 +191,30 @@ const Subscription = () => {
 
   // Check if a plan is the current plan
   const isCurrentPlan = (tier) => {
-    // If subscription is cancelled and the end date has passed, user should be on Starter plan
-    if (subscriptionDetails?.status === 'CANCELLED' && subscriptionDetails?.subscriptionEndDate) {
-      const endDate = new Date(subscriptionDetails.subscriptionEndDate);
-      const now = new Date();
-      if (endDate <= now) {
-        return tier === 'Starter'; // User should be on Starter plan
+    // Handle CANCELLED state explicitly
+    if (subscriptionDetails?.status === 'CANCELLED') {
+      if (subscriptionDetails?.subscriptionEndDate) {
+        const endDate = new Date(subscriptionDetails.subscriptionEndDate);
+        const now = new Date();
+        if (endDate <= now) { // Cancelled and past end date
+          // User should be on Starter. So, this tier is "current" ONLY if it IS Starter.
+          // This assumes 'Starter' could be a tier passed in, though typically it's handled by user.role.
+          // For the purpose of plan cards, a paid tier won't be "current" if expired.
+          return tier === 'Starter' && subscriptionDetails?.role === 'Starter';
+        } else { // Cancelled but not yet past end date (still effectively active for its features)
+          // It's current if this tier matches the planTier of the cancelled subscription.
+          return subscriptionDetails?.planTier === tier;
+        }
+      } else {
+        // Cancelled but no end date? This is unusual.
+        // Treat as not current for any paid tier. 'Starter' would be by role.
+        return tier === 'Starter' && subscriptionDetails?.role === 'Starter';
       }
     }
     
-    return subscriptionDetails?.planTier === tier || 
-          (subscriptionDetails?.role === tier && subscriptionDetails?.status === 'ACTIVE');
+    // For any other status (e.g., ACTIVE, PENDING, SUSPENDED, etc.),
+    // it's the current plan if the tier matches AND the status is strictly 'ACTIVE'.
+    return subscriptionDetails?.planTier === tier && subscriptionDetails?.status === 'ACTIVE';
   };
 
   const renderPlanTabs = () => (

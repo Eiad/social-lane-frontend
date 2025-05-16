@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 import { getSubscription, cancelSubscription, checkExpiredSubscriptions } from '../services/subscriptionService';
 import { ConfirmCancelSubscriptionModal, SubscriptionCancelledModal } from './modals';
+import { InformationCircleIcon, ExclamationTriangleIcon, CogIcon, CreditCardIcon, CalendarDaysIcon, PlayIcon, StopIcon, ArrowPathIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 
 const SubscriptionStatus = ({ onStatusChange }) => {
   const { user } = useAuth();
@@ -238,89 +239,116 @@ const SubscriptionStatus = ({ onStatusChange }) => {
     return null; // Don't show anything if no subscription
   }
 
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'text-green-600 bg-green-50';
+      case 'CANCELLED':
+        return isCancelledButActive ? 'text-yellow-600 bg-yellow-50' : 'text-red-600 bg-red-50';
+      case 'SUSPENDED':
+        return 'text-red-600 bg-red-50';
+      case 'APPROVAL_PENDING':
+      case 'PENDING':
+        return 'text-orange-600 bg-orange-50';
+      default:
+        return 'text-gray-600 bg-gray-50';
+    }
+  };
+
+  const DetailRow = ({ icon: IconComponent, label, value, valueClassName = 'text-gray-800 font-medium', show = true }) => {
+    if (!show) return null;
+    return (
+      <div className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+        <div className="flex items-center text-sm text-gray-600">
+          <IconComponent className="h-5 w-5 mr-3 text-gray-400" />
+          <span>{label}</span>
+        </div>
+        <span className={`text-sm ${valueClassName}`}>{value}</span>
+      </div>
+    );
+  };
+
   return (
     <>
-      <div className="bg-white rounded-lg shadow-sm p-6 hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-        <h3 className="text-xl font-semibold text-gray-800 pb-3 mb-4 border-b border-gray-200">
-          Subscription Details
-        </h3>
+      <div className="space-y-1">
+        <DetailRow 
+          icon={subscription?.status === 'ACTIVE' ? CheckCircleIcon : 
+                subscription?.status === 'CANCELLED' && isCancelledButActive ? ExclamationTriangleIcon :
+                subscription?.status === 'CANCELLED' ? XCircleIcon :
+                InformationCircleIcon}
+          label="Status:"
+          value={subscription?.status ? subscription.status.replace('_', ' ') : 'N/A'}
+          valueClassName={`px-2.5 py-0.5 rounded-full font-semibold text-xs uppercase tracking-wider ${getStatusColor(subscription?.status)}`}
+        />
+        <DetailRow
+          icon={PlayIcon}
+          label="Plan:"
+          value={subscription?.planTier || user?.role || 'N/A'}
+          valueClassName="text-gray-800 font-semibold"
+        />
+        <DetailRow
+          icon={CreditCardIcon}
+          label="Subscription ID:"
+          value={subscription?.subscriptionId || 'N/A'}
+          valueClassName="text-gray-700 font-mono text-xs"
+          show={subscription?.status === 'ACTIVE' || isCancelledButActive}
+        />
         
-        <div className="space-y-3">
-          {/* Only show subscription details if we have a subscription */}
-          {subscription?.hasSubscription ? (
-            <>
-              <div className="flex justify-between items-center pb-2 border-b border-dashed border-gray-200 hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200">
-                <span className="text-gray-600 font-medium">Status:</span>
-                <span className={`font-medium ${
-                  subscription?.status === 'ACTIVE' 
-                    ? 'text-green-600' 
-                    : isCancelledButActive 
-                      ? 'text-orange-600'
-                      : 'text-yellow-600'
-                }`}>
-                  {isCancelledButActive ? 'Active (Cancelled)' : subscription?.status}
-                </span>
-              </div>
-              
-              {/* Show subscription ID */}
-              <div className="flex justify-between items-center pb-2 border-b border-dashed border-gray-200 hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200">
-                <span className="text-gray-600 font-medium">Subscription ID:</span>
-                <span className="text-gray-800 font-mono text-sm break-all">{subscription?.subscriptionId}</span>
-              </div>
-              
-              {/* Show plan tier/role based on user context */}
-              <div className="flex justify-between items-center pb-2 border-b border-dashed border-gray-200 hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200">
-                <span className="text-gray-600 font-medium">Plan:</span>
-                <span className="text-gray-800">{user?.role || 'Starter'}</span>
-              </div>
-              
-              {/* Only show cancellation info if the subscription is cancelled but still active */}
-              {isCancelledButActive && (
-                <div className="flex justify-between items-center pb-2 border-b border-dashed border-gray-200 hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200 bg-yellow-50">
-                  <span className="text-orange-600 font-medium">Access until:</span>
-                  <span className="text-orange-600 font-medium">{formatDate(subscription?.subscriptionEndDate)}</span>
-                </div>
-              )}
-              
-              {/* Show next billing info if active and not cancelled */}
-              {!isCancelledButActive && subscription?.status === 'ACTIVE' && subscription?.nextBillingTime && (
-                <div className="flex justify-between items-center pb-2 border-b border-dashed border-gray-200 hover:bg-gray-50 px-2 py-1 rounded transition-colors duration-200">
-                  <span className="text-gray-600 font-medium">Next billing:</span>
-                  <span className="text-gray-800">{formatDate(subscription?.nextBillingTime)}</span>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-gray-500 italic">You are currently on the Starter plan with basic features.</p>
-          )}
-          
-          {/* Refresh button for debugging */}
-          <div className="mt-3 flex justify-end">
-            <button
-              onClick={() => setRefreshKey(prev => prev + 1)}
-              className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded-md hover:bg-gray-100 transition-colors"
-            >
-              Refresh Status
-            </button>
-          </div>
-        </div>
+        {isCancelledButActive ? (
+          <DetailRow
+            icon={StopIcon}
+            label="Access Ends:"
+            value={formatDate(subscription?.subscriptionEndDate)}
+            valueClassName="text-yellow-700 font-semibold"
+          />
+        ) : subscription?.status === 'ACTIVE' && subscription?.nextBillingTime ? (
+          <DetailRow
+            icon={CalendarDaysIcon}
+            label="Renews on:"
+            value={formatDate(subscription?.nextBillingTime)}
+            valueClassName="text-gray-800 font-semibold"
+          />
+        ) : null}
+
       </div>
       
-      {/* Confirm Cancel Modal */}
+      <div className="mt-6 flex justify-end">
+        <button
+          onClick={() => setRefreshKey(prev => prev + 1)}
+          className="text-xs text-primary hover:text-primary-dark font-medium flex items-center"
+          title="Refresh subscription status"
+        >
+          <ArrowPathIcon className="h-4 w-4 mr-1" />
+          Refresh Status
+        </button>
+      </div>
+
+      {isExpiredButActive && (
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+          <p className="font-medium">Your subscription period has ended.</p>
+          <p>Please update your subscription or your account may be downgraded.</p>
+          <button 
+            onClick={handleCheckExpiredSubscriptions} 
+            className="mt-2 text-red-600 underline hover:text-red-800 font-semibold">
+            Check My Account Status
+          </button>
+        </div>
+      )}
+
       {showConfirmModal && (
         <ConfirmCancelSubscriptionModal
-          onCancel={closeCancelModal}
+          isOpen={showConfirmModal}
+          onClose={closeCancelModal}
           onConfirm={handleCancelSubscription}
-          endDate={subscription?.subscriptionEndDate}
-          isProcessing={isCancelling}
+          isCancelling={isCancelling}
+          subscriptionEndDate={subscription?.subscriptionEndDate ? formatDate(subscription.subscriptionEndDate) : null}
         />
       )}
-      
-      {/* Success Modal */}
       {showSuccessModal && (
         <SubscriptionCancelledModal
+          isOpen={showSuccessModal}
           onClose={closeSuccessModal}
-          endDate={subscription?.subscriptionEndDate}
+          subscriptionEndDate={subscription?.subscriptionEndDate ? formatDate(subscription.subscriptionEndDate) : null}
         />
       )}
     </>

@@ -6,6 +6,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { createSubscription } from '../src/services/subscriptionService';
 import { getUserLimits } from '../src/services/userService';
 import SubscriptionStatus from '../src/components/SubscriptionStatus';
+import { CogIcon, XCircleIcon } from '@heroicons/react/24/outline';
 
 const MyAccount = () => {
   const { user, loading, redirectAfterLogin, setRedirectAfterLogin, signInWithGoogle } = useAuth();
@@ -17,6 +18,21 @@ const MyAccount = () => {
   const [subscriptionSuccess, setSubscriptionSuccess] = useState(false);
   const [currentSubscriptionStatus, setCurrentSubscriptionStatus] = useState(null);
   const [userPlanUsage, setUserPlanUsage] = useState(null);
+
+  // Helper function to get plan badge styles
+  const getPlanBadgeStyles = (role) => {
+    switch (role) {
+      case 'Launch':
+        return 'bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 text-white shadow-lg shadow-pink-500/50';
+      case 'Rise':
+        return 'bg-gradient-to-r from-purple-500 via-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-500/50';
+      case 'Scale':
+        return 'bg-gradient-to-r from-sky-500 via-cyan-500 to-teal-500 text-white shadow-lg shadow-cyan-500/50';
+      case 'Starter':
+      default:
+        return 'bg-slate-200 text-slate-800 shadow-sm';
+    }
+  };
 
   // Redirect to dashboard if user is already logged in
   useEffect(() => {
@@ -170,8 +186,28 @@ const MyAccount = () => {
 
   // Add a function to render the upgrade box for Starter plan users
   const renderUpgradeBox = () => {
-    // Find the recommended plan (usually Rise with highlight=true)
-    const recommendedPlan = subscriptionPlans.find(plan => plan.highlight) || subscriptionPlans[1];
+    let recommendedPlan;
+
+    if (user?.role === 'Starter') {
+      // For Starter users, explicitly recommend the Launch plan
+      recommendedPlan = subscriptionPlans.find(plan => plan.name === 'Launch');
+      // Fallback to the first plan in the array if Launch isn't found by name (shouldn't happen)
+      if (!recommendedPlan) {
+        recommendedPlan = subscriptionPlans[0]; 
+      }
+    } else {
+      // For users on other plans, or if role is undefined, use existing logic:
+      // Find the plan with highlight=true, or default to the Rise plan (index 1)
+      recommendedPlan = subscriptionPlans.find(plan => plan.highlight) || subscriptionPlans[1];
+    }
+
+    // Final fallback if no plan is determined (e.g., empty subscriptionPlans array)
+    if (!recommendedPlan && subscriptionPlans.length > 0) {
+      recommendedPlan = subscriptionPlans[0];
+    } else if (!recommendedPlan) {
+      // If subscriptionPlans is empty or no plan could be determined, don't render the box.
+      return null; 
+    }
     
     return (
       <div className="mt-8 bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 shadow-md animate-scale-in">
@@ -261,115 +297,108 @@ const MyAccount = () => {
               </div>
             ) : user ? (
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 sm:p-8 shadow-lg transition-all duration-500 animate-fade-in">
-                <div className="flex flex-col sm:flex-row items-center sm:items-start">
-                  {user?.photoURL && (
-                    <div className="relative group">
-                      <img 
-                        src={user?.photoURL} 
-                        alt={user?.displayName || 'Profile'} 
-                        className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-primary ring-4 ring-primary/20 mb-6 sm:mb-0 sm:mr-8 transition-all duration-500 group-hover:scale-105 shadow-md"
-                      />
-                      <div className="absolute inset-0 rounded-full bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    </div>
-                  )}
+                {/* FLEX ROW FOR AVATAR/INFO (LEFT) AND PLAN USAGE (RIGHT) */}
+                <div className="flex flex-col sm:flex-row items-start justify-between w-full">
                   
-                  <div className="flex-1 text-center sm:text-left">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 transition-all duration-300">
-                      {user?.displayName || 'Welcome!'}
-                    </h2>
-                    <p className="text-gray-600 mb-4 transition-all duration-300">{user?.email}</p>
-                    
-                    {/* User Plan Usage Section */}
-                    {userPlanUsage && (
-                      <div className="mb-6 p-4 bg-gray-100 rounded-lg shadow-inner animate-fade-in">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-3">Your Plan Usage</h3>
-                        <div className="space-y-2 text-sm text-gray-700">
-                          <div className="flex justify-between">
-                            <span>Monthly Posts:</span>
-                            <span className="font-medium">
-                              {userPlanUsage.currentPostsCount ?? 0} / {userPlanUsage.numberOfPosts === -1 ? 'Unlimited' : userPlanUsage.numberOfPosts ?? 'N/A'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Connected Accounts:</span>
-                            <span className="font-medium">
-                              {userPlanUsage.currentSocialAccounts ?? 0} / {userPlanUsage.socialAccounts === -1 ? 'Unlimited' : userPlanUsage.socialAccounts ?? 'N/A'}
-                            </span>
-                          </div>
-                          {userPlanUsage.role === 'Starter' && userPlanUsage.cycleEndDate && (
-                            <p className="text-xs text-gray-500 mt-2">
-                              Your post count resets on {formatDate(userPlanUsage.cycleEndDate)}.
-                            </p>
-                          )}
-                        </div>
+                  {/* LEFT COLUMN: Avatar + Text Info */}
+                  <div className="flex flex-col items-center text-center sm:flex-row sm:items-start sm:text-left">
+                    {user?.photoURL && (
+                      <div className="relative group mb-4 sm:mb-0 sm:mr-6 flex-shrink-0">
+                        <img 
+                          src={user?.photoURL} 
+                          alt={user?.displayName || 'Profile'} 
+                          className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-primary ring-4 ring-primary/20 transition-all duration-500 group-hover:scale-105 shadow-md"
+                        />
+                        <div className="absolute inset-0 rounded-full bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                       </div>
                     )}
-
-                    <span 
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium transition-all duration-300 animate-slide-up ${
-                        ['Launch', 'Rise', 'Scale'].includes(user?.role)
-                          ? 'bg-primary text-white shadow-sm shadow-primary/30' 
-                          : 'bg-gray-200 text-gray-700'
-                      }`}
-                      style={{animationDelay: '300ms'}}
-                    >
-                      {user?.role || 'Starter'} Plan
-                    </span>
-                    {redirectAfterLogin && (
-                      <p className="mt-3 text-green-600 font-medium animate-pulse">
-                        You are logged in! Redirecting to Social Posting...
-                      </p>
-                    )}
+                    <div className="flex-grow">
+                      <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 transition-all duration-300">
+                        {user?.displayName || 'Welcome!'}
+                      </h2>
+                      <p className="text-gray-600 mb-2 transition-all duration-300">{user?.email}</p>
+                      <span 
+                        className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-300 animate-slide-up ${getPlanBadgeStyles(user?.role || 'Starter')}`}
+                        style={{animationDelay: '300ms'}}
+                      >
+                        {user?.role || 'Starter'} Plan
+                      </span>
+                      {redirectAfterLogin && (
+                        <p className="mt-3 text-green-600 font-medium animate-pulse">
+                          You are logged in! Redirecting to Social Posting...
+                        </p>
+                      )}
+                    </div>
                   </div>
+
+                  {/* RIGHT COLUMN: Plan Usage Summary */}
+                  {userPlanUsage && (
+                    <div className="w-full sm:w-auto mt-6 sm:mt-0 text-sm animate-fade-in">
+                      <div className="bg-white/60 backdrop-blur-sm p-4 rounded-lg shadow-md space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Posts:</span>
+                          <span className="font-semibold text-gray-800 text-base">
+                            {userPlanUsage.currentPostsCount ?? 0} / {userPlanUsage.numberOfPosts === -1 ? 'Unlimited' : userPlanUsage.numberOfPosts ?? 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Accounts:</span>
+                          <span className="font-semibold text-gray-800 text-base">
+                            {userPlanUsage.currentSocialAccounts ?? 0} / {userPlanUsage.socialAccounts === -1 ? 'Unlimited' : userPlanUsage.socialAccounts ?? 'N/A'}
+                          </span>
+                        </div>
+                        {userPlanUsage.role === 'Starter' && userPlanUsage.cycleEndDate && (
+                          <p className="text-xs text-gray-500 mt-2 text-right">
+                            Resets: {formatDate(userPlanUsage.cycleEndDate)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-6 mt-8">
-                  <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg shadow-md p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 animate-scale-in" style={{animationDelay: '200ms'}}>
-                    <h3 className="text-2xl font-semibold text-gray-800 pb-3 mb-4 border-b border-gray-200 flex items-center">
-                      Subscription Details
-                      <span className={`ml-auto text-sm font-medium py-1 px-3 rounded-full ${
-                        user?.role === 'Starter' 
-                          ? 'bg-gray-200 text-gray-700' 
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {user?.role || 'Starter'} Plan
-                      </span>
-                    </h3>
-                    
-                    <p className="text-gray-600 text-sm mb-4">Manage your subscription details and billing information.</p>
-                    
-                    {/* Pass callback to SubscriptionStatus */}
-                    <SubscriptionStatus onStatusChange={setCurrentSubscriptionStatus} />
-                    
-                    {/* Button Actions */}
-                    {user?.role !== 'Starter' && (
-                      <div className="mt-6 flex flex-col sm:flex-row gap-4">
-                        <Link href="/subscription" className="flex-1">
-                          <button className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
-                            </svg>
-                            Upgrade Plan
-                          </button>
-                        </Link>
-                        
-                        {/* Only show Cancel Plan if user is not on Starter plan AND subscription is not already cancelled */}
-                        {user?.role !== 'Starter' && currentSubscriptionStatus?.status !== 'CANCELLED' && (
-                          <button 
-                            onClick={handleCancelSubscription}
-                            className="w-full border border-red-500 text-red-500 hover:bg-red-50 font-bold py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                            Cancel Plan
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  {/* Conditionally render Subscription Management card */}
+                  {user && ( // Ensure user object exists
+                    (user.role !== 'Starter') || // Always show for non-Starter (paid) users
+                    (user.role === 'Starter' && currentSubscriptionStatus?.hasSubscription) // OR for Starter users if they have subscription history
+                  ) ? (
+                    <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 hover:shadow-2xl transition-shadow duration-300 animate-scale-in" style={{animationDelay: '200ms'}}>
+                      <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+                        <CogIcon className="h-7 w-7 mr-3 text-primary" />
+                        Subscription Management
+                      </h3>
+                      
+                      {/* SubscriptionStatus component will fetch and display details, or nothing if no active sub */}
+                      <SubscriptionStatus onStatusChange={setCurrentSubscriptionStatus} />
+                      
+                      {/* Button Actions - Rendered if not Starter AND there is a subscription object with details */}
+                      {user.role !== 'Starter' && currentSubscriptionStatus?.hasSubscription && (
+                        <div className="mt-8 pt-6 border-t border-gray-200 flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                          <Link href="/subscription" className="w-full sm:w-auto flex-grow sm:flex-grow-0">
+                            <button className="w-full sm:w-auto bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center text-sm">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L9 5.414V17a1 1 0 102 0V5.414l4.293 4.293a1 1 0 001.414-1.414l-7-7z" />
+                              </svg>
+                              Change Plan
+                            </button>
+                          </Link>
+                          
+                          {currentSubscriptionStatus?.status !== 'CANCELLED' && (
+                            <button 
+                              onClick={() => router.push('/subscription?action=cancel')} 
+                              className="w-full sm:w-auto border border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 hover:text-red-700 font-medium py-3 px-6 rounded-lg transition-all duration-300 flex items-center justify-center text-sm shadow-sm hover:shadow-md"
+                            >
+                              <XCircleIcon className="h-5 w-5 mr-2" />
+                              Cancel Subscription
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                   
-                  {/* Upgrade Box (only for Starter plan users) */}
+                  {/* Upgrade Box (conditionally rendered for Starter plan users) */}
                   {user?.role === 'Starter' && renderUpgradeBox()}
                 </div>
               </div>
