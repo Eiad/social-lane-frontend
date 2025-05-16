@@ -92,6 +92,21 @@ export default async function handler(req, res) {
           lastError = error;
           console.error(`[USER TIKTOK] Backend request attempt ${attempt} failed:`, error?.message || error);
           
+          // Check if this is a duplicate key error (account already associated with another user)
+          if (error?.response?.data?.error) {
+            const errorMsg = error.response.data.error;
+            if (errorMsg.includes('duplicate key error') || 
+                errorMsg.includes('already connected to another user') || 
+                errorMsg.includes('providerData.tiktok.openId')) {
+              console.log('[USER TIKTOK] Detected duplicate key error - TikTok account already in use');
+              return res.status(409).json({
+                success: false,
+                error: 'This TikTok account is already connected to another user. Please use a different account.',
+                duplicateKeyError: true
+              });
+            }
+          }
+          
           // If we've exhausted all retries, rethrow the error
           if (attempt === MAX_RETRIES) {
             throw error;
@@ -129,6 +144,25 @@ export default async function handler(req, res) {
       if (error.response) {
         errorDetails.status = error.response.status;
         errorDetails.data = error.response.data;
+        
+        // Check if this is a duplicate key error in the error response
+        let errorMsg = '';
+        if (error.response.data?.error) {
+          errorMsg = error.response.data.error;
+        } else if (typeof error.response.data === 'string') {
+          errorMsg = error.response.data;
+        }
+        
+        if (errorMsg.includes('duplicate key error') || 
+            errorMsg.includes('already connected to another user') || 
+            errorMsg.includes('providerData.tiktok.openId')) {
+          console.log('[USER TIKTOK] Detected duplicate key error from error response - TikTok account already in use');
+          return res.status(409).json({
+            success: false,
+            error: 'This TikTok account is already connected to another user. Please use a different account.',
+            duplicateKeyError: true
+          });
+        }
       } else if (error.request) {
         errorDetails.request = {
           method: error.request.method,

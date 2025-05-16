@@ -360,6 +360,27 @@ export default function TikTok() {
           if (!response?.ok) {
             const errorText = await response.text();
             console.error('Server error saving TikTok account:', response.status, errorText);
+            
+            // Check for duplicate key error
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch (e) {
+              // If not valid JSON, just use the text
+              errorData = { error: errorText };
+            }
+            
+            // Handle duplicate account error specifically
+            if ((response.status === 409 && errorData?.duplicateKeyError) || 
+                (errorData?.error && (
+                  errorData.error.includes('already connected to another user') || 
+                  errorData.error.includes('duplicate key'))
+                )) {
+              const errorMessage = errorData.error || 'This TikTok account is already connected to another user. Please use a different account.';
+              window.showToast?.error?.(errorMessage);
+              throw new Error('DUPLICATE_ACCOUNT');
+            }
+            
             throw new Error(`Failed to save TikTok account: ${response?.status}`);
           }
           
@@ -368,6 +389,11 @@ export default function TikTok() {
         } catch (error) {
           lastError = error;
           console.error(`Attempt ${attempt} failed:`, error?.message || error);
+          
+          // Special handling for duplicate account error
+          if (error.message === 'DUPLICATE_ACCOUNT') {
+            throw error; // Break out of retry loop for this specific error
+          }
           
           // If we've exhausted all retries, throw the error to be caught by the outer catch
           if (attempt === MAX_RETRIES) {
@@ -449,6 +475,15 @@ export default function TikTok() {
       await fetchUserAccounts();
     } catch (error) {
       console.error('Error saving TikTok account to database:', error);
+      
+      // Special handling for duplicate account error
+      if (error.message === 'DUPLICATE_ACCOUNT') {
+        // Already showed the toast via the retry loop, just return
+        return;
+      }
+      
+      // Generic error message for other errors
+      window.showToast?.error?.('Failed to connect TikTok account. Please try again later.');
       
       // Even if the save fails, try to use any local data we might have
       const localAccounts = getTikTokAccounts();
@@ -619,8 +654,14 @@ export default function TikTok() {
             hideLoader();
           })
           .catch(error => {
-            window.showToast?.error?.('Failed to save TikTok account: ' + (error?.message || 'Unknown error'));
-            hideLoader();
+            // Special handling for duplicate account error
+            if (error?.message === 'DUPLICATE_ACCOUNT') {
+              // Toast already shown in saveAccountToBackend
+              hideLoader();
+            } else {
+              window.showToast?.error?.('Failed to save TikTok account: ' + (error?.message || 'Unknown error'));
+              hideLoader();
+            }
           });
         
         // Remove the token from URL for security
