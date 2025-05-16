@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 import ProtectedRoute from '../src/components/ProtectedRoute';
+import ConfirmationModal from '../src/components/modals/ConfirmationModal';
 
 const API_BASE_URL = 'https://sociallane-backend.mindio.chat';
 
@@ -917,49 +918,23 @@ function ScheduledPosts() {
             </div>
           )}
 
-          {/* Delete Confirmation Modal */}
-          {isDeleteConfirmModalOpen && (
-            <div className="fixed inset-0 z-[70] overflow-y-auto overflow-x-hidden flex items-center justify-center" aria-modal="true" role="dialog">
-              <div className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={closeDeleteConfirmModal}></div>
-              <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md mx-4 my-8 z-10 transform transition-all">
-                <div className="px-6 pt-6 pb-4">
-                  <div className="flex items-start">
-                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-800/30 sm:mx-0 sm:h-10 sm:w-10">
-                      <svg className="h-6 w-6 text-red-600 dark:text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                    </div>
-                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                      <h3 className="text-lg leading-6 font-semibold text-slate-900 dark:text-slate-100" id="modal-title">
-                        Delete Scheduled Post
-                      </h3>
-                      <div className="mt-2">
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          Are you sure you want to delete this scheduled post? This action cannot be undone.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-4 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-xl">
-                  <button
-                    type="button"
-                    className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-200 dark:focus:ring-offset-slate-800"
-                    onClick={confirmDeletePost}
-                  >
-                    Confirm Delete
-                  </button>
-                  <button
-                    type="button"
-                    className="mt-3 w-full inline-flex justify-center rounded-lg border border-slate-300 dark:border-slate-600 shadow-sm px-4 py-2 bg-white dark:bg-slate-700 text-base font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-primary-light sm:mt-0 sm:w-auto sm:text-sm transition-colors duration-200 dark:focus:ring-offset-slate-800"
-                    onClick={closeDeleteConfirmModal}
-                  >
-                    Cancel
-                  </button>
-                </div>
+          {/* Delete Confirmation Modal - Now using the global component */}
+          <ConfirmationModal
+            isOpen={isDeleteConfirmModalOpen}
+            onClose={closeDeleteConfirmModal}
+            onConfirm={confirmDeletePost}
+            title="Delete Scheduled Post"
+            message="Are you sure you want to delete this scheduled post? This action cannot be undone."
+            confirmButtonText="Confirm Delete"
+            confirmButtonClassName="bg-red-600 hover:bg-red-700 text-white focus:ring-red-500"
+            icon={(
+              <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-800/30 sm:mx-0 sm:h-10 sm:w-10">
+                <svg className="h-6 w-6 text-red-600 dark:text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
               </div>
-            </div>
-          )}
+            )}
+          />
         </div>
       </div>
     </>
