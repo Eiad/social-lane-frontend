@@ -30,6 +30,7 @@ function ScheduledPosts() {
   const [platformAccountsDetails, setPlatformAccountsDetails] = useState({}); // e.g., { twitter: [{id, name}, ...], tiktok: [...] }
   const [selectedAccounts, setSelectedAccounts] = useState([]); // e.g., [{platform, accountId, name}, ...]
   const [accountSearchQuery, setAccountSearchQuery] = useState(''); // New state for search
+  const [collapsedPlatforms, setCollapsedPlatforms] = useState({}); // State for collapsed platform sections
 
   // State for video player modal
   const [showVideoPlayerModal, setShowVideoPlayerModal] = useState(false);
@@ -155,11 +156,11 @@ function ScheduledPosts() {
     if (!platformAccountsDetails) return [];
     let accounts = [];
     Object.entries(platformAccountsDetails).forEach(([platformName, accs]) => {
+      // Include all accounts matching search, regardless of platform collapse state
       if (Array.isArray(accs)) {
         accs.forEach(acc => {
-          // Ensure acc.name exists and is a string before calling toLowerCase
           if (typeof acc.name === 'string' && acc.name.toLowerCase().includes(accountSearchQuery.toLowerCase())) {
-            accounts.push({ ...acc, platform: platformName }); // Ensure platform is part of the object for consistency
+            accounts.push({ ...acc, platform: platformName });
           }
         });
       }
@@ -176,19 +177,26 @@ function ScheduledPosts() {
 
   const handleToggleSelectAllVisible = () => {
     if (areAllVisibleSelected) {
-      // Unselect all visible
+      // Unselect all accounts matching the search query
       setSelectedAccounts(prevSelected =>
         prevSelected.filter(sa =>
           !allVisibleAccounts.some(va => va.platform === sa.platform && va.id === sa.accountId)
         )
       );
     } else {
-      // Select all visible that are not already selected
+      // Select all accounts matching the search query that are not already selected
       const newSelections = allVisibleAccounts
         .filter(va => !selectedAccounts.some(sa => sa.platform === va.platform && sa.accountId === va.id))
         .map(acc => ({ platform: acc.platform, accountId: acc.id, name: acc.name }));
       setSelectedAccounts(prevSelected => [...prevSelected, ...newSelections]);
     }
+  };
+
+  const togglePlatformCollapse = (platformName) => {
+    setCollapsedPlatforms(prev => ({
+      ...prev,
+      [platformName]: !prev[platformName]
+    }));
   };
 
   const fetchScheduledPosts = async () => {
@@ -780,36 +788,61 @@ function ScheduledPosts() {
                               return (
                                 (accounts && accounts.length > 0) && (
                                 <div key={platformName}>
-                                  <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wider capitalize">
-                                    {platformName} ({filteredAccounts.length})
-                                  </h3>
-                                  {filteredAccounts.length > 0 ? (
-                                    <div className="space-y-2">
-                                      {filteredAccounts.map(account => (
-                                        <label 
-                                          key={account.id} 
-                                          className="flex items-center space-x-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer has-[:checked]:bg-primary/5 has-[:checked]:border-primary/30 has-[:checked]:ring-1 has-[:checked]:ring-primary/30 dark:has-[:checked]:bg-primary/10 dark:has-[:checked]:border-primary-light/30 dark:has-[:checked]:ring-primary-light/30"
-                                        >
-                                          <input
-                                            type="checkbox"
-                                            className="h-5 w-5 text-primary rounded border-slate-300 dark:border-slate-600 focus:ring-primary dark:focus:ring-primary-light focus:ring-offset-0 shrink-0 bg-white dark:bg-slate-700 checked:bg-primary dark:checked:bg-primary-light"
-                                            checked={selectedAccounts.some(sa => sa.platform === platformName && sa.accountId === account.id)}
-                                            onChange={() => handleAccountToggle(platformName, account.id, account.name)}
-                                          />
-                                          {/* Account Avatar */}
-                                          <img 
-                                            src={account.displayAvatarUrl || account.avatarUrl || account.profileImageUrl || 'https://via.placeholder.com/40?text=N/A'} 
-                                            alt={account.name}
-                                            className="h-8 w-8 rounded-full object-cover shrink-0"
-                                          />
-                                          <span className="text-sm text-slate-700 dark:text-slate-300 font-medium truncate" title={account.name}>{account.name}</span>
-                                        </label>
-                                      ))}
+                                  <button
+                                    type="button"
+                                    className="flex items-center justify-between w-full text-left mb-2 group"
+                                    onClick={() => togglePlatformCollapse(platformName)}
+                                    aria-expanded={!collapsedPlatforms[platformName]}
+                                    aria-controls={`platform-accounts-${platformName}`}
+                                  >
+                                    <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider capitalize group-hover:text-primary dark:group-hover:text-primary-light transition-colors">
+                                      {platformName} ({filteredAccounts.length})
+                                    </h3>
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      className={`h-4 w-4 text-slate-400 dark:text-slate-500 group-hover:text-primary dark:group-hover:text-primary-light transition-transform duration-200 ${
+                                        collapsedPlatforms[platformName] ? '-rotate-90' : 'rotate-0'
+                                      }`}
+                                      viewBox="0 0 20 20"
+                                      fill="currentColor"
+                                    >
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
+                                  </button>
+                                  {/* Conditionally render accounts based on collapsed state */}
+                                  {!collapsedPlatforms[platformName] && (
+                                    <div className="space-y-2" id={`platform-accounts-${platformName}`}>
+                                      {filteredAccounts.length > 0 ? (
+                                        filteredAccounts.map(account => (
+                                          <label 
+                                            key={account.id} 
+                                            className="flex items-center space-x-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer has-[:checked]:bg-primary/5 has-[:checked]:border-primary/30 has-[:checked]:ring-1 has-[:checked]:ring-primary/30 dark:has-[:checked]:bg-primary/10 dark:has-[:checked]:border-primary-light/30 dark:has-[:checked]:ring-primary-light/30"
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              className="h-5 w-5 text-primary rounded border-slate-300 dark:border-slate-600 focus:ring-primary dark:focus:ring-primary-light focus:ring-offset-0 shrink-0 bg-white dark:bg-slate-700 checked:bg-primary dark:checked:bg-primary-light"
+                                              checked={selectedAccounts.some(sa => sa.platform === platformName && sa.accountId === account.id)}
+                                              onChange={() => handleAccountToggle(platformName, account.id, account.name)}
+                                            />
+                                            {/* Account Avatar */}
+                                            <img 
+                                              src={account.displayAvatarUrl || account.avatarUrl || account.profileImageUrl || 'https://via.placeholder.com/40?text=N/A'} 
+                                              alt={account.name}
+                                              className="h-8 w-8 rounded-full object-cover shrink-0"
+                                            />
+                                            <span className="text-sm text-slate-700 dark:text-slate-300 font-medium truncate" title={account.name}>{account.name}</span>
+                                          </label>
+                                        ))
+                                      ) : (
+                                        <p className="text-sm text-slate-400 dark:text-slate-500 italic px-1">
+                                          No {platformName} accounts match your search.
+                                        </p>
+                                      )}
                                     </div>
-                                  ) : (
-                                    <p className="text-sm text-slate-400 dark:text-slate-500 italic px-1">
-                                      No {platformName} accounts match your search.
-                                    </p>
                                   )}
                                 </div>
                                 )
