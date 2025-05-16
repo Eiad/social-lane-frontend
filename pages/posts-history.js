@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import ProtectedRoute from '../src/components/ProtectedRoute';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 import { useAuth } from '../src/context/AuthContext';
+import { HomeIcon } from '@heroicons/react/24/solid';
 
 function PostsHistory() {
   const router = useRouter();
@@ -461,28 +462,28 @@ function PostsHistory() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
-        <Head>
-          <title>Posts History - Social Lane</title>
-          <meta name="description" content="View your post history" />
-        </Head>
-
-        <main className="container mx-auto px-4 py-8">
-          <div className="mb-6 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Posts History</h1>
-              <p className="text-gray-600">View and filter all your previous posts</p>
+      <Head>
+        <title>Posts History - Social Lane</title>
+      </Head>
+      <div className="min-h-screen bg-gray-100 dark:bg-slate-900 text-gray-900 dark:text-white">
+        <header className="bg-white dark:bg-slate-800 shadow-md sticky top-0 z-50">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16 pt-5">
+              <div className="flex items-center">
+                <h1 className="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">
+                  Posts History
+                </h1>
+              </div>
             </div>
-            <Link href="/dashboard" className="bg-white hover:bg-gray-50 text-gray-700 px-4 py-2 rounded border border-gray-300 flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              Dashboard
-            </Link>
+            <p className="text-sm text-gray-500 dark:text-gray-400 pb-4">
+              View and filter all your previous posts.
+            </p>
           </div>
+        </header>
 
-          {/* Filters */}
-          <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+        <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+          {/* Filter and Sort Controls */}
+          <div className="mb-6 p-4 bg-white dark:bg-slate-800 rounded-lg shadow">
             <div className="flex flex-wrap gap-4">
               <FilterDropdown 
                 label="Sort" 
