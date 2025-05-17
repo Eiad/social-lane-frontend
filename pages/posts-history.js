@@ -227,10 +227,16 @@ function PostsHistory() {
             const results = Array.isArray(result) ? result : [result];
             
             results.forEach(platformResult => {
+              // Determine success based on platformResult.success or overall post status if completed
+              const isSuccess = 
+                platformResult?.success === true || 
+                (post.status === 'completed');
+              
               platformResults.push({
                 platformName: platform,
                 platform: platform,
-                status: platformResult?.success ? 'success' : 'failed',
+                status: isSuccess ? 'success' : 'failed',
+                success: isSuccess, // Add explicit success flag
                 message: platformResult?.error || 'Processed',
                 url: platformResult?.postUrl || '',
                 accountName: platformResult?.username || platformResult?.accountName || '',
@@ -240,11 +246,15 @@ function PostsHistory() {
         } else if (post.platforms && Array.isArray(post.platforms)) {
           // If no processing_results, create placeholder results from platforms
           post.platforms.forEach(platform => {
+            // If post status is completed, consider all platforms successful
+            const isSuccess = post.status === 'completed' || post.status === 'success';
+            
             platformResults.push({
               platformName: platform,
               platform: platform,
-              status: post.status === 'completed' ? 'success' : post.status,
-              message: post.status === 'completed' ? 'Processed' : post.status,
+              status: isSuccess ? 'success' : post.status,
+              success: isSuccess, // Add explicit success flag
+              message: isSuccess ? 'Processed' : post.status,
               url: '',
             });
           });
@@ -389,11 +399,22 @@ function PostsHistory() {
   const renderPlatformIcons = (platforms) => {
     if (!platforms || platforms.length === 0) return <span className="text-gray-400">-</span>;
     
+    // Create a unique set of platforms
+    const uniquePlatforms = new Set();
+    platforms.forEach(platform => {
+      const platformName = typeof platform === 'string' ? platform : platform.platformName || platform.platform;
+      if (platformName) {
+        uniquePlatforms.add(platformName);
+      }
+    });
+    
     return (
       <div className="flex space-x-2">
-        {platforms.map((platform, index) => (
+        {Array.from(uniquePlatforms).map((platform, index) => (
           <div key={index} className="flex items-center">
-            <PlatformIcon platform={typeof platform === 'string' ? platform : platform.platformName || platform.platform} />
+            <div className="relative text-gray-800">
+              <PlatformIcon platform={platform} />
+            </div>
           </div>
         ))}
       </div>
@@ -401,17 +422,40 @@ function PostsHistory() {
   };
 
   // Render platform results with success/failure indicator
-  const renderPlatformResults = (platformResults) => {
+  const renderPlatformResults = (platformResults, postStatus) => {
     if (!platformResults || platformResults.length === 0) {
       return <span className="text-gray-400">-</span>;
     }
     
+    // Group results by platform and determine success status for each platform
+    const platformStatusMap = {};
+    
+    platformResults.forEach(result => {
+      const platform = result.platformName || result.platform;
+      if (!platform) return;
+      
+      const currentSuccess = 
+        result.status === 'success' || 
+        result.success === true || 
+        (result.status === undefined && result.success) ||
+        (platform && postStatus === 'completed');
+      
+      // If this is the first occurrence of the platform, set its status
+      if (!platformStatusMap[platform]) {
+        platformStatusMap[platform] = { success: currentSuccess };
+      } else if (!currentSuccess) {
+        // If any account for this platform failed, mark the platform as failed
+        platformStatusMap[platform].success = false;
+      }
+    });
+    
+    // Render a single icon per platform
     return (
       <div className="flex space-x-2">
-        {platformResults.map((result, index) => (
-          <div key={index} className="flex items-center" title={`${result.platformName || result.platform}: ${result.status === 'success' ? 'Success' : 'Failed'}`}>
-            <div className={`relative ${result.status === 'success' ? 'text-green-500' : 'text-red-500'}`}>
-              <PlatformIcon platform={result.platformName || result.platform} />
+        {Object.entries(platformStatusMap).map(([platform, { success }], index) => (
+          <div key={index} className="flex items-center" title={`${platform}: ${success ? 'Success' : 'Failed'}`}>
+            <div className={`relative ${success ? 'text-blue-600' : 'text-blue-200'}`}>
+              <PlatformIcon platform={platform} />
             </div>
           </div>
         ))}
@@ -536,7 +580,7 @@ function PostsHistory() {
                 onChange={(value) => handleFilterChange('postType', value)}
                 options={[
                   { value: 'all', label: 'All Posts' },
-                  { value: 'normal', label: 'Normal Posts' },
+                  { value: 'normal', label: 'Instant Posts' },
                   { value: 'scheduled', label: 'Scheduled Posts' }
                 ]}
               />
@@ -611,7 +655,7 @@ function PostsHistory() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {post.platformResults && post.platformResults.length > 0 ? 
-                              renderPlatformResults(post.platformResults) : 
+                              renderPlatformResults(post.platformResults, post.status) : 
                               renderPlatformIcons(post.platforms)
                             }
                           </td>
@@ -627,7 +671,7 @@ function PostsHistory() {
                                 {formatDateShort(post.scheduledDate)}
                               </div>
                             ) : (
-                              <span className="text-gray-500">Not Scheduled</span>
+                              <span className="text-gray-500">Instant post</span>
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
