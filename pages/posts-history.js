@@ -632,7 +632,7 @@ function PostsHistory() {
                       </td>
                     </tr>
                   ) : (
-                    posts.map((post) => {
+                    posts.map((post, index) => {
                       // Handle different data formats for isScheduled field
                       const isScheduledBool = post.isScheduled === true || post.isScheduled === "true";
                       const hasScheduledDate = Boolean(post.scheduledDate);
@@ -649,7 +649,7 @@ function PostsHistory() {
                       });
                       
                       return (
-                        <tr key={post._id} className={`hover:bg-gray-50 ${isScheduledPost ? 'bg-indigo-50/20' : ''}`}>
+                        <tr key={post._id} className={`hover:bg-yellow-50 ${index % 2 === 1 ? 'bg-indigo-50/20' : ''}`}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {formatDate(post.postDate || post.createdAt || post.date)}
                           </td>

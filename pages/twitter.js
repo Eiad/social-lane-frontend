@@ -1098,8 +1098,7 @@ function Twitter() {
               ) : (
                 <>
                   {/* Connected accounts header with disconnect all button */}
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-medium text-gray-700">Connected Accounts</h3>
+                  <div className="flex justify-end items-center mb-4">        
                     {getTwitterAccounts().length > 1 && (
                       <button 
                         className="text-sm text-red-600 hover:text-red-800 flex items-center"
