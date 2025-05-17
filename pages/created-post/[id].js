@@ -391,7 +391,7 @@ function PostDetails() {
                   autoPlay
                   onError={handleVideoError}
                   onLoadedData={handleVideoLoad}
-                  className="rounded object-contain w-full h-full"
+                  className="rounded object-contain w-full max-h-[80vh]"
                 ></video>
               </div>
             )}
@@ -508,7 +508,7 @@ function PostDetails() {
                     </div>
                     <div>
                     <span className="block text-sm font-medium text-gray-500">Created</span>
-                    <span className="text-gray-900">{formatDate(post?.createdAt || post?.date)}</span>
+                    <span className="text-gray-900 text-[14px]">{formatDate(post?.createdAt || post?.date)}</span>
                     </div>
                 </div>
 
@@ -552,7 +552,7 @@ function PostDetails() {
                 {/* Caption Section */}
                 {post?.post_description && (
                     <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 shadow-sm">
-                    <h4 className="font-medium text-gray-700 mb-2 flex items-center">
+                    <h4 className=" text-[15px] text-gray-700 mb-2 flex items-center">
                         <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                         </svg>
@@ -566,7 +566,7 @@ function PostDetails() {
 
                 {/* Platform Results */}
                 <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                    <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                    <h2 className="text-lg  text-[15px] text-gray-900 mb-4 flex items-center">
                     <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2" />
                     </svg>
@@ -599,7 +599,7 @@ function PostDetails() {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                         {post.platformResults.map((platformResult, index) => (
-                            <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <tr key={index} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} text-[12px]`}>
                             <td className="px-4 py-3 whitespace-nowrap">
                                 <div className="flex items-center">
                                 <PlatformIcon platform={platformResult?.platformName} />
@@ -620,7 +620,7 @@ function PostDetails() {
                                     rel="noopener noreferrer" 
                                     className="text-blue-500 hover:text-blue-700 flex items-center"
                                 >
-                                    View Post
+                                    <span>View Post</span>
                                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                     </svg>
@@ -667,11 +667,11 @@ function PostDetails() {
                 {/* Right Column - 30% - Video Thumbnail */}
                 <div className="md:w-4/12">
                 <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                    <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                    <h2 className="text-[15px] text-gray-900 mb-4 flex items-center">
                     <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
-                    Video Content
+                    Published media Content
                     </h2>
                     
                     {post?.video_url ? (
