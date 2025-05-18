@@ -121,6 +121,12 @@ export default function Navigation() {
       current: isActive('/media-posting')
     },
     {
+      name: 'Image Posting',
+      href: '/image-posting',
+      icon: <HomeIcon />,
+      current: isActive('/image-posting')
+    },
+    {
       name: 'Schedule Posts',
       href: '/scheduled-posts',
       icon: <CalendarIcon />,
