@@ -683,9 +683,24 @@ function ImagePosting() {
             setPostError('Please select at least one account to post to');
             return;
         }
+
+        // Validate scheduled date/time if scheduling is enabled
+        if (isScheduled) {
+            try {
+                const scheduledAtLocal = getScheduledDateTime();
+                if (!scheduledAtLocal) {
+                    setPostError('Please enter a valid date and time for scheduling');
+                    return;
+                }
+            } catch (error) {
+                setPostError(error.message || 'Invalid scheduling date/time');
+                return;
+            }
+        }
         
         // Validation passed, start posting process
         setIsPosting(true);
+        setIsScheduling(isScheduled); // Set scheduling flag if applicable
         setShowLoader(true);
         setPlatformResults([]);
         setPostError('');
@@ -709,7 +724,97 @@ function ImagePosting() {
             }
             
             console.log('Using image URLs for posting:', imageUrls);
+
+            // Check if this is a scheduled post
+            if (isScheduled) {
+                // Get the scheduled date/time
+                const scheduledAtLocal = getScheduledDateTime();
+                if (!scheduledAtLocal) {
+                    throw new Error('Invalid scheduling date/time');
+                }
+
+                // Prepare platforms array
+                const platforms = [];
+                if (hasSelectedTiktok) platforms.push('tiktok');
+                if (hasSelectedTwitter) platforms.push('twitter');
+
+                // Create payload for backend scheduling
+                const payload = {
+                    userId,
+                    isScheduled: true,
+                    scheduledDate: scheduledAtLocal.toISOString(),
+                    platforms,
+                    post_description: caption,
+                    // For backward compatibility with backend, use video_url for the first image
+                    // and include all images in the imageUrls array
+                    video_url: imageUrls[0],
+                    imageUrls: imageUrls,
+                    tiktok_accounts: selectedTiktokAccounts.map(acc => ({ 
+                        accountId: acc.accountId, 
+                        username: acc.username, 
+                        displayName: acc.displayName 
+                    })),
+                    twitter_accounts: selectedTwitterAccounts.map(acc => ({ 
+                        userId: acc.userId, 
+                        username: acc.username 
+                    }))
+                };
+
+                console.log('Scheduling post with payload:', payload);
+
+                // Send to backend posts API
+                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sociallane-backend.mindio.chat';
+                const fullApiUrl = `${backendUrl}/posts`;
+                
+                const response = await fetchWithTimeoutAndRetry(fullApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error || result.message || 'Failed to schedule post');
+                }
+
+                // Set success state for scheduled post
+                setScheduleSuccess(true);
+                setPostSuccess(true);
+                setPlatformResults({
+                    tiktok: hasSelectedTiktok ? { 
+                        success: true, 
+                        results: selectedTiktokAccounts.map(acc => ({
+                            displayName: acc.displayName || acc.username,
+                            success: true,
+                            message: 'Scheduled for posting'
+                        }))
+                    } : undefined,
+                    twitter: hasSelectedTwitter ? { 
+                        success: true, 
+                        results: selectedTwitterAccounts.map(acc => ({
+                            username: acc.username,
+                            success: true,
+                            message: 'Scheduled for posting'
+                        }))
+                    } : undefined
+                });
+
+                // Set created post ID if available in the response
+                if (result.post?._id) {
+                    setCreatedPostId(result.post._id);
+                }
+
+                setIsPosting(false);
+                setIsScheduling(false);
+                
+                // Update post usage counts
+                fetchPostUsage();
+                
+                return;
+            }
             
+            // Continue with immediate posting if not scheduled
             let hasErrors = false;
             let errorMessage = '';
             let needsReconnect = false;
