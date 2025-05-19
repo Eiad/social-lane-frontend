@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -19,9 +19,24 @@ function PostDetails() {
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showVideoPopup, setShowVideoPopup] = useState(false);
+  const [showMediaPopup, setShowMediaPopup] = useState(false);
   const [fetchingData, setFetchingData] = useState(false);
   const fetchedRef = useRef(false);
+
+  // Helper to determine if this is an image post
+  const isImagePost = useMemo(() => {
+    if (!post) return false;
+    return Array.isArray(post.imageUrls) && post.imageUrls.length > 0;
+  }, [post]);
+
+  // Function to get thumbnail image for display
+  const getThumbnailImage = useMemo(() => {
+    if (!post) return null;
+    if (isImagePost && post.imageUrls.length > 0) {
+      return post.imageUrls[0];
+    }
+    return post.video_url;
+  }, [post, isImagePost]);
 
   useEffect(() => {
     // Only fetch when ID is available, not currently fetching, and hasn't been fetched before
@@ -200,22 +215,44 @@ function PostDetails() {
       const postData = await postResponse.json();
       console.log("Post data received:", postData);
       
-      // Enhance post data with platformResults derived from processing_results
-      if (postData.processing_results) {
-        postData.platformResults = preparePlatformResults(postData.processing_results);
+      // Process and normalize post data
+      const processedPost = {
+        ...postData
+      };
+
+      // Handle image URLs - check different properties where they might be stored
+      if (Array.isArray(postData.imageUrls) && postData.imageUrls.length > 0) {
+        processedPost.imageUrls = postData.imageUrls;
+      } else if (Array.isArray(postData.image_urls) && postData.image_urls.length > 0) {
+        processedPost.imageUrls = postData.image_urls;
+      } else if (postData.video_url && (
+        postData.video_url.endsWith('.jpg') || 
+        postData.video_url.endsWith('.jpeg') || 
+        postData.video_url.endsWith('.png') || 
+        postData.video_url.endsWith('.gif')
+      )) {
+        // Handle case where image was mistakenly stored in video_url
+        processedPost.imageUrls = [postData.video_url];
+      } else {
+        processedPost.imageUrls = [];
       }
       
-      setPost(postData);
+      // Enhance post data with platformResults derived from processing_results
+      if (postData.processing_results) {
+        processedPost.platformResults = preparePlatformResults(postData.processing_results);
+      }
+      
+      setPost(processedPost);
       
       // Cache the post data in memory
       postCache[postId] = {
-        post: postData,
+        post: processedPost,
         timestamp: Date.now()
       };
       
       // Also cache in localStorage for persistence between page reloads
       const allCache = getLocalStorageCache();
-      saveToLocalStorage(allCache, postId, postData);
+      saveToLocalStorage(allCache, postId, processedPost);
       
     } catch (err) {
       console.error('Error fetching post details:', err);
@@ -296,20 +333,22 @@ function PostDetails() {
     }
   };
 
-  // Video Popup Component
-  const VideoPopup = ({ videoUrl, onClose }) => {
+  // Media Popup Component
+  const MediaPopup = ({ mediaUrl, imageUrls, onClose, isOpen }) => {
     const [videoError, setVideoError] = useState(false);
     const [videoLoading, setVideoLoading] = useState(true);
     const [blobUrl, setBlobUrl] = useState(null);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const isImagePost = Array.isArray(imageUrls) && imageUrls.length > 0;
 
     useEffect(() => {
       let objectUrl;
-      if (showVideoPopup && videoUrl) {
+      if (isOpen && mediaUrl && !isImagePost) {
         setVideoError(false);
         setVideoLoading(true);
         setBlobUrl(null); // Reset blob Url
 
-        fetch(videoUrl)
+        fetch(mediaUrl)
           .then(response => {
             if (!response.ok) {
               throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
@@ -334,7 +373,7 @@ function PostDetails() {
           setBlobUrl(null);
         }
       };
-    }, [showVideoPopup, videoUrl]);
+    }, [isOpen, mediaUrl, isImagePost]);
 
     const handleVideoError = () => {
       setVideoError(true);
@@ -345,7 +384,23 @@ function PostDetails() {
       setVideoLoading(false);
     };
     
-    if (!showVideoPopup) return null;
+    const nextImage = () => {
+      if (isImagePost && imageUrls.length > 1) {
+        setCurrentImageIndex((prevIndex) => 
+          prevIndex === imageUrls.length - 1 ? 0 : prevIndex + 1
+        );
+      }
+    };
+    
+    const prevImage = () => {
+      if (isImagePost && imageUrls.length > 1) {
+        setCurrentImageIndex((prevIndex) => 
+          prevIndex === 0 ? imageUrls.length - 1 : prevIndex - 1
+        );
+      }
+    };
+    
+    if (!isOpen) return null;
     
     return (
       <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
@@ -362,13 +417,46 @@ function PostDetails() {
             </button>
           </div>
           <div className="p-4 flex-1 overflow-auto">
-            {!videoUrl ? (
+            {isImagePost ? (
+              <div className="relative aspect-w-16 aspect-h-9 flex items-center justify-center">
+                <img 
+                  src={imageUrls[currentImageIndex]} 
+                  alt={`Image ${currentImageIndex + 1}`}
+                  className="max-w-full max-h-[70vh] object-contain rounded"
+                />
+                {imageUrls.length > 1 && (
+                  <>
+                    <button 
+                      onClick={prevImage}
+                      className="absolute left-0 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 p-2 rounded-r-md text-white hover:bg-opacity-70"
+                      aria-label="Previous image"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <button 
+                      onClick={nextImage}
+                      className="absolute right-0 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 p-2 rounded-l-md text-white hover:bg-opacity-70"
+                      aria-label="Next image"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-70 text-white px-4 py-2 rounded-full text-sm">
+                      {currentImageIndex + 1} / {imageUrls.length}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : !mediaUrl ? (
               <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex flex-col items-center justify-center p-4 rounded">
                 <svg className="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-gray-700 font-medium mb-1">No video available</p>
-                <p className="text-gray-500 text-sm text-center">The video URL is missing or invalid.</p>
+                <p className="text-gray-700 font-medium mb-1">No media available</p>
+                <p className="text-gray-500 text-sm text-center">The media URL is missing or invalid.</p>
               </div>
             ) : videoError ? (
               <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex flex-col items-center justify-center p-4 rounded">
@@ -386,7 +474,7 @@ function PostDetails() {
                   </div>
                 )}
                 <video 
-                  src={blobUrl || videoUrl}
+                  src={blobUrl || mediaUrl}
                   controls 
                   autoPlay
                   onError={handleVideoError}
@@ -664,7 +752,7 @@ function PostDetails() {
                 </div>
                 </div>
 
-                {/* Right Column - 30% - Video Thumbnail */}
+                {/* Right Column - 30% - Media Thumbnail */}
                 <div className="md:w-4/12">
                 <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                     <h2 className="text-[15px] text-gray-900 mb-4 flex items-center">
@@ -674,18 +762,49 @@ function PostDetails() {
                     Published media Content
                     </h2>
                     
-                    {post?.video_url ? (
+                    {isImagePost ? (
                       <>
-                        <div className="bg-gray-100 rounded-lg p-4 mb-3 text-center cursor-pointer" onClick={() => setShowVideoPopup(true)}>
-                          <svg className="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          <p className="text-gray-600 text-sm">Media post</p>
+                        <div className="bg-gray-100 rounded-lg p-4 mb-3 text-center cursor-pointer" onClick={() => setShowMediaPopup(true)}>
+                          {post.imageUrls[0] ? (
+                            <div className="w-full h-36 overflow-hidden rounded-md mb-2">
+                              <img 
+                                src={post.imageUrls[0]} 
+                                alt="Post image" 
+                                className="w-full h-full object-contain" 
+                              />
+                            </div>
+                          ) : (
+                            <svg className="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          )}
+                          <p className="text-gray-600 text-sm">{post.imageUrls.length > 1 ? `${post.imageUrls.length} images` : 'Image post'}</p>
                         </div>
                         
                         <div>
                           <button 
-                              onClick={() => setShowVideoPopup(true)}
+                            onClick={() => setShowMediaPopup(true)}
+                            className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded flex items-center justify-center"
+                          >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            View {post.imageUrls.length > 1 ? 'Images' : 'Image'}
+                          </button>
+                        </div>
+                      </>
+                    ) : post?.video_url ? (
+                      <>
+                        <div className="bg-gray-100 rounded-lg p-4 mb-3 text-center cursor-pointer" onClick={() => setShowMediaPopup(true)}>
+                          <svg className="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          <p className="text-gray-600 text-sm">Video post</p>
+                        </div>
+                        
+                        <div>
+                          <button 
+                              onClick={() => setShowMediaPopup(true)}
                               className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded flex items-center justify-center"
                           >
                               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -700,8 +819,8 @@ function PostDetails() {
                         <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <p className="text-gray-600">Video not available</p>
-                        <p className="text-gray-500 text-sm mt-1">The video for this post may have been removed or is no longer accessible.</p>
+                        <p className="text-gray-600">Media not available</p>
+                        <p className="text-gray-500 text-sm mt-1">The media for this post may have been removed or is no longer accessible.</p>
                       </div>
                     )}
                 </div>
@@ -710,10 +829,12 @@ function PostDetails() {
             </div>
         </div>
         </main>        
-        {/* Video Popup */}
-        <VideoPopup 
-          videoUrl={post?.video_url} 
-          onClose={() => setShowVideoPopup(false)} 
+        {/* Media Popup */}
+        <MediaPopup 
+          mediaUrl={post?.video_url} 
+          imageUrls={post?.imageUrls || post?.image_urls || []} 
+          onClose={() => setShowMediaPopup(false)} 
+          isOpen={showMediaPopup} 
         />
       </div>
     </ProtectedRoute>

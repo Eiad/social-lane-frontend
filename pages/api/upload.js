@@ -102,7 +102,7 @@ export default async function handler(req, res) {
           const timestamp = Date.now();
           const originalFilename = file?.originalFilename || file?.originalName || 'video.mp4';
           const fileExtension = path.extname(originalFilename);
-          const newFilename = `video-${timestamp}${fileExtension}`;
+          const newFilename = `media-${timestamp}${fileExtension}`;
           const tempFilePath = file?.filepath || file?.path;
           
           console.log('[UPLOAD API] Processing file', { 

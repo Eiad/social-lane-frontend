@@ -66,9 +66,18 @@ function PostsHistory() {
       );
     }
     
-    // Filter by post type (normal vs scheduled)
+    // Filter by post type (normal vs scheduled vs image vs video)
     if (postTypeFilter !== 'all') {
       filteredPosts = filteredPosts.filter(post => {
+        // Handle image/video types
+        if (postTypeFilter === 'image') {
+          return post.isImagePost === true;
+        } else if (postTypeFilter === 'video') {
+          // Video posts have a video_url but are not image posts
+          return post.video_url && !post.isImagePost;
+        }
+        
+        // For scheduled/normal posts (as before)
         // Convert values to boolean to handle string "true"/"false" 
         const isScheduledBool = post.isScheduled === true || post.isScheduled === "true";
         const hasScheduledDate = Boolean(post.scheduledDate);
@@ -202,6 +211,18 @@ function PostsHistory() {
       
       // Process the results
       const enhancedPosts = fetchedPosts.map(post => {
+        // Determine if this is an image post
+        const isImagePost = Array.isArray(post.imageUrls) && post.imageUrls.length > 0 || 
+                            Array.isArray(post.image_urls) && post.image_urls.length > 0;
+        
+        // Normalize image URLs field
+        let normalizedImageUrls = [];
+        if (Array.isArray(post.imageUrls) && post.imageUrls.length > 0) {
+          normalizedImageUrls = post.imageUrls;
+        } else if (Array.isArray(post.image_urls) && post.image_urls.length > 0) {
+          normalizedImageUrls = post.image_urls;
+        }
+
         // If the post already has platformResults from the backend, ensure proper format
         if (post.platformResults && post.platformResults.length > 0) {
           // Make sure each platformResult has both platform and platformName properties
@@ -214,7 +235,9 @@ function PostsHistory() {
           return {
             ...post,
             platformResults: updatedPlatformResults,
-            type: post.isScheduled ? 'scheduled' : 'regular'
+            type: post.isScheduled ? 'scheduled' : 'regular',
+            isImagePost: isImagePost,
+            imageUrls: normalizedImageUrls
           };
         }
         
@@ -263,7 +286,9 @@ function PostsHistory() {
         return {
           ...post,
           platformResults,
-          type: post.isScheduled ? 'scheduled' : 'regular'
+          type: post.isScheduled ? 'scheduled' : 'regular',
+          isImagePost: isImagePost,
+          imageUrls: normalizedImageUrls
         };
       });
       
@@ -581,7 +606,9 @@ function PostsHistory() {
                 options={[
                   { value: 'all', label: 'All Posts' },
                   { value: 'normal', label: 'Instant Posts' },
-                  { value: 'scheduled', label: 'Scheduled Posts' }
+                  { value: 'scheduled', label: 'Scheduled Posts' },
+                  { value: 'image', label: 'Image Posts' },
+                  { value: 'video', label: 'Video Posts' }
                 ]}
               />
             </div>
@@ -671,7 +698,23 @@ function PostsHistory() {
                                 {formatDateShort(post.scheduledDate)}
                               </div>
                             ) : (
-                              <span className="text-gray-500">⚡️ Instant post</span>
+                              <div className="text-gray-500 flex items-center">
+                                <span className="mr-2">⚡️</span>
+                                <span className="flex items-center mr-2">
+                                  {post.isImagePost ? (
+                                    <svg className="w-4 h-4 text-blue-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-4 h-4 text-blue-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  )}
+                                  {post.isImagePost ? 
+                                    (post.imageUrls && post.imageUrls.length > 1 ? `${post.imageUrls.length} images` : 'Image') : 
+                                    'Video'}
+                                </span>
+                              </div>
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

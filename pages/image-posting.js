@@ -1161,6 +1161,66 @@ function ImagePosting() {
 
             setPlatformResults(finalPlatformResults);
 
+            // NEW CODE: Save immediate post data to the database for history
+            try {
+                // Prepare platforms array
+                const platforms = [];
+                if (hasSelectedTiktok) platforms.push('tiktok');
+                if (hasSelectedTwitter) platforms.push('twitter');
+
+                // Create processing_results object from the results
+                const processing_results = {
+                    tiktok: hasSelectedTiktok ? results.filter(r => r.platform === 'tiktok') : [],
+                    twitter: hasSelectedTwitter ? results.filter(r => r.platform === 'twitter') : []
+                };
+
+                // Create payload for backend database storage - similar to scheduled posts but with isScheduled: false
+                const payload = {
+                    userId,
+                    isScheduled: false,
+                    platforms,
+                    post_description: caption,
+                    video_url: imageUrls[0], // First image as video_url for backward compatibility
+                    imageUrls: imageUrls,
+                    tiktok_accounts: selectedTiktokAccounts.map(acc => ({ 
+                        accountId: acc.accountId, 
+                        username: acc.username, 
+                        displayName: acc.displayName 
+                    })),
+                    twitter_accounts: selectedTwitterAccounts.map(acc => ({ 
+                        userId: acc.userId, 
+                        username: acc.username 
+                    })),
+                    status: hasErrors ? 'partial' : 'completed',
+                    processing_results: processing_results
+                };
+
+                console.log('Saving immediate post data to database:', payload);
+
+                // Send to backend posts API
+                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sociallane-backend.mindio.chat';
+                const fullApiUrl = `${backendUrl}/posts`;
+                
+                const dbResponse = await fetchWithTimeoutAndRetry(fullApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const dbResult = await dbResponse.json();
+                
+                if (dbResult.success && dbResult.post?._id) {
+                    console.log('Immediate post saved to database with ID:', dbResult.post._id);
+                    setCreatedPostId(dbResult.post._id);
+                } else {
+                    console.error('Warning: Failed to save immediate post to database:', dbResult.error || dbResult.message);
+                    // Don't throw error here as the post to social media was successful
+                }
+            } catch (dbError) {
+                console.error('Error saving immediate post to database:', dbError);
+                // Don't throw error here as the post to social media was successful
+            }
+
             // Handle overall status
             if (hasErrors || !overallSuccess) {
                 // Display appropriate error message based on error type
@@ -2121,24 +2181,26 @@ function ImagePosting() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* New Left column (formerly Right): Account selection and post button */}
                     <div className="space-y-6">
-                        {/* Unified Account Selection */}
+                        {/* Unified Account Selection - Redesigned for compact layout */}
                         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
-                            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+                            <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex justify-between items-center">
                                 <div className="flex items-center">
-                                    <svg className="h-6 w-6 mr-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg className="h-5 w-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                     </svg>
-                                    <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Select Accounts</h2>
+                                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Select Accounts</h2>
                                 </div>
-                                <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">
-                                    {selectedTiktokAccounts?.length + selectedTwitterAccounts?.length} selected
+                                <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full flex items-center">
+                                    <span>{selectedTiktokAccounts?.length + selectedTwitterAccounts?.length}</span>
+                                    <span className="ml-1">selected</span>
                                 </span>
                             </div>
                             
-                            <div className="p-6">
-                                <div className="relative mb-4">
+                            {/* Search field now inside a more compact header */}
+                            <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                                <div className="relative">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <svg className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                                         </svg>
                                     </div>
@@ -2147,32 +2209,35 @@ function ImagePosting() {
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         placeholder="Search accounts..."
-                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                        className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                                     />
                                 </div>
+                            </div>
 
+                            {/* Account grid with reduced padding and smaller icons */}
+                            <div className="max-h-60 overflow-y-auto p-3">
                                 {allAccounts?.length === 0 ? (
-                                    <div className="p-6 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-center">
-                                        <div className="mx-auto h-12 w-12 text-gray-400 mb-4">
+                                    <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-center">
+                                        <div className="mx-auto h-10 w-10 text-gray-400 mb-3">
                                             <svg className="h-full w-full" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M12 12a4 4 0 110-8 4 4 0 010 8z" /></svg>
                                         </div>
-                                        <p className="text-gray-600 dark:text-gray-400 mb-3">No social accounts connected</p>
-                                        <Link href="/connect" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <p className="text-gray-600 dark:text-gray-400 mb-3 text-sm">No social accounts connected</p>
+                                        <Link href="/connect" className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
+                                            <svg className="w-3.5 h-3.5 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                             </svg>
                                             Connect Accounts
                                         </Link>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-4 gap-3 justify-center max-h-96 overflow-y-auto p-1">
+                                    <div className="grid grid-cols-5 gap-2 justify-center p-1">
                                         {filteredAccounts?.map(account => {
                                             const isSelected = account.platform === 'tiktok'
                                                 ? selectedTiktokAccounts?.some(sa => sa?.accountId === account?.accountId)
                                                 : selectedTwitterAccounts?.some(sa => sa?.userId === account?.userId);
                                             
                                             const profileImageUrl = account.platform === 'tiktok' 
-                                                ? account?.avatarUrl100 || account?.avatarUrl // Prioritize avatarUrl100 for TikTok
+                                                ? account?.avatarUrl100 || account?.avatarUrl
                                                 : account?.profileImageUrl;
                                             
                                             const displayName = account.platform === 'tiktok'
@@ -2186,13 +2251,13 @@ function ImagePosting() {
                                             return (
                                                 <div
                                                     key={`${account.platform}-${account.accountId || account.userId}`}
-                                                    className={`flex flex-col items-center p-2 rounded-lg cursor-pointer transition-all duration-150 w-20 
+                                                    className={`flex flex-col items-center p-1.5 rounded-lg cursor-pointer transition-all duration-150 w-16 
                                                         ${isPostLimitReached ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}
                                                     `}
                                                     onClick={() => handleAccountToggle(account)}
                                                 >
-                                                    <div className={`relative w-16 h-16 rounded-full flex items-center justify-center mb-2 
-                                                        ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : 'ring-1 ring-gray-300 dark:ring-gray-600'}
+                                                    <div className={`relative w-12 h-12 rounded-full flex items-center justify-center mb-1 
+                                                        ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : 'ring-1 ring-gray-300 dark:ring-gray-600'}
                                                         transition-all duration-150`}
                                                     >
                                                         {profileImageUrl ? (
@@ -2203,22 +2268,22 @@ function ImagePosting() {
                                                             />
                                                         ) : (
                                                             <div className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                                                                {account.platform === 'tiktok' ? <TikTokSimpleIcon className="w-8 h-8 text-gray-500 dark:text-gray-400" /> : <TwitterIcon className="w-8 h-8 text-gray-500 dark:text-gray-400" />}
+                                                                {account.platform === 'tiktok' ? <TikTokSimpleIcon className="w-6 h-6 text-gray-500 dark:text-gray-400" /> : <TwitterIcon className="w-6 h-6 text-gray-500 dark:text-gray-400" />}
                                                             </div>
                                                         )}
-                                                        <div className={`absolute -bottom-1 -right-1 bg-white dark:bg-gray-800 p-0.5 rounded-full shadow`}>
-                                                            {account.platform === 'tiktok' ? <TikTokSimpleIcon className="w-4 h-4 text-black dark:text-white" /> : <TwitterIcon className={`w-4 h-4 ${isSelected ? 'text-blue-500' : 'text-[#1DA1F2]'}`} />}
+                                                        <div className={`absolute -bottom-0.5 -right-0.5 bg-white dark:bg-gray-800 p-0.5 rounded-full shadow-sm`}>
+                                                            {account.platform === 'tiktok' ? <TikTokSimpleIcon className="w-3 h-3 text-black dark:text-white" /> : <TwitterIcon className={`w-3 h-3 ${isSelected ? 'text-blue-500' : 'text-[#1DA1F2]'}`} />}
                                                         </div>
                                                     </div>
-                                                    <p className="font-medium text-sm text-center text-gray-700 dark:text-gray-300 truncate w-full m-0 px-1" title={displayName}>{displayName}</p>
-                                                    <p className="text-xs text-center text-gray-500 dark:text-gray-400 truncate w-full m-0 px-1" title={username}>{username}</p>
+                                                    <p className="font-medium text-xs text-center text-gray-700 dark:text-gray-300 truncate w-full m-0" title={displayName}>{displayName}</p>
+                                                    <p className="text-[10px] text-center text-gray-500 dark:text-gray-400 truncate w-full m-0" title={username}>{username}</p>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 )}
                                 {filteredAccounts?.length === 0 && searchTerm && allAccounts?.length > 0 && (
-                                     <p className="text-center text-gray-500 dark:text-gray-400 mt-4">No accounts found matching &quot;{searchTerm}&quot;.</p>
+                                     <p className="text-center text-gray-500 dark:text-gray-400 mt-3 text-sm">No accounts found matching &quot;{searchTerm}&quot;.</p>
                                 )}
                             </div>
                         </div>
@@ -2235,9 +2300,9 @@ function ImagePosting() {
                                         className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
                                         disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
                                     />
-                                    <label htmlFor="schedule-checkbox" className="ml-3 text-xl font-semibold text-gray-800 dark:text-gray-200 flex items-center">
+                                    <label htmlFor="schedule-checkbox" className="ml-3 text-md font-semibold text-gray-800 dark:text-gray-200 flex items-center">
                                         <svg className="w-5 h-5 mr-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
                                         Schedule for later
                                     </label>
@@ -2460,6 +2525,26 @@ function ImagePosting() {
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                                                         </svg>
                                                     </button>
+                                                    
+                                                    {/* Drag indicator */}
+                                                    <div 
+                                                        className={`absolute bottom-0 left-0 right-0 bg-blue-500 bg-opacity-75 py-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 ${(isUploading || isProcessingUpload || isPosting || isScheduling) ? 'hidden' : ''}`}
+                                                        title="Drag to reorder"
+                                                    >
+                                                        <style jsx>{`
+                                                            @keyframes moveLeftRight {
+                                                                0%, 100% { transform: translateX(0); }
+                                                                25% { transform: translateX(-3px); }
+                                                                75% { transform: translateX(3px); }
+                                                            }
+                                                            .drag-icon {
+                                                                animation: moveLeftRight 1.5s ease-in-out infinite;
+                                                            }
+                                                        `}</style>
+                                                        <svg className="w-5 h-5 text-white drag-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18M17 8l4 4m0 0l-4 4m4-4H3" />
+                                                        </svg>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
