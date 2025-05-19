@@ -416,11 +416,6 @@ function ImagePosting() {
     const handleDragOver = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages) ) { // Check if adding more is even possible
-            e.dataTransfer.dropEffect = 'none'; // Indicate that drop is not allowed
-        } else {
-            e.dataTransfer.dropEffect = 'copy'; // Indicate that drop is allowed (copy operation)
-        }
         if (!isDraggingOver) setIsDraggingOver(true);
     };
 
@@ -441,13 +436,6 @@ function ImagePosting() {
         setIsDraggingOver(false);
 
         if (isPostLimitReached || isUploading || isProcessingUpload || isPosting || isScheduling) return;
-
-        // If at max images and not in a mode that would clear them (like a replace via button click before this drop)
-        // This check might be redundant if handleDragOver sets dropEffect to 'none', but good for safety.
-        if (files.length >= MAX_IMAGES && !isAddingImages) { // Assuming a drop when at max capacity implies adding
-            setUploadError(`Cannot add more than ${MAX_IMAGES} images. Please replace existing ones if needed.`);
-            return;
-        }
 
         const droppedFiles = Array.from(e.dataTransfer.files);
         if (droppedFiles.length === 0) return;
@@ -2407,11 +2395,7 @@ function ImagePosting() {
                             
                             {/* Card content - This div becomes the main drop zone */}
                             <div 
-                                className={`p-6 transition-all duration-200 
-                                    ${(isDraggingOver && !(isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages))) ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500 ring-offset-2' : ''}
-                                    ${(isDraggingOver && (isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages))) ? 'bg-red-50 dark:bg-red-900/20 ring-2 ring-red-500' : ''}
-                                    ${isDraggingOver ? (isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages) ? 'cursor-no-drop' : 'cursor-copy') : ''}
-                                `}
+                                className={`p-6 transition-colors duration-200 ${(isDraggingOver && !(isPostLimitReached || files.length >= MAX_IMAGES)) ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500 ring-offset-2' : ''}`}
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
@@ -2419,16 +2403,10 @@ function ImagePosting() {
                                 {/* File selection area with improved styling */}
                                 {(!files || files?.length === 0) ? (
                                     <div 
-                                        className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-200 
-                                            ${(isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages)) && !isDraggingOver ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} 
-                                            ${isDraggingOver 
-                                                ? ((isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages)) ? 'border-red-400 dark:border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/10') 
-                                                : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                            }
-                                        `}
-                                        onClick={!isPostLimitReached && !(files.length >= MAX_IMAGES && !isAddingImages) ? handleUploadClick : () => {}}
+                                        className={`border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 rounded-xl p-10 text-center cursor-pointer transition-all duration-200 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 ${(isPostLimitReached || files.length >= MAX_IMAGES) ? 'opacity-50 cursor-not-allowed' : ''} ${(isDraggingOver && !(isPostLimitReached || files.length >= MAX_IMAGES)) ? 'border-blue-500' : ''}`}
+                                        onClick={handleUploadClick} // Still allow click to upload
                                     >
-                                        <svg className={`mx-auto h-16 w-16 ${isDraggingOver && !(isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages)) ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
                                         
@@ -2458,20 +2436,28 @@ function ImagePosting() {
                                         >
                                             {localPreviewUrls?.map((url, index) => (
                                                 <div 
-                                                    key={url} // Use URL as key if unique, or manage stable IDs if files can be identical
+                                                    key={url} 
                                                     draggable={!(isUploading || isProcessingUpload || isPosting || isScheduling)}
                                                     onDragStart={(e) => handleThumbnailDragStart(e, index)}
                                                     onDragEnter={(e) => handleThumbnailDragEnter(e, index)}
                                                     onDragOver={(e) => handleThumbnailDragOver(e, index)}
-                                                    // onDragLeave={(e) => handleThumbnailDragLeave(e)} // Individual item leave might be too noisy
                                                     onDrop={(e) => handleThumbnailDrop(e, index)}
                                                     onDragEnd={handleThumbnailDragEnd}
-                                                    className={`relative group rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 aspect-square transition-all duration-150 
-                                                        ${draggedItemIndex === index ? 'opacity-40 scale-95 cursor-grabbing' : 'opacity-100'}
-                                                        ${dragOverItemIndex === index && draggedItemIndex !== null && draggedItemIndex !== index ? 'ring-2 ring-blue-500 ring-offset-1 scale-105' : ''}
-                                                        ${(isUploading || isProcessingUpload || isPosting || isScheduling) ? 'cursor-not-allowed' : (draggedItemIndex === null ? 'cursor-grab' : 'cursor-grabbing')}
+                                                    className={`relative group rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 aspect-square transition-all duration-300 ease-in-out 
+                                                        ${ (isUploading || isProcessingUpload || isPosting || isScheduling) ? 'cursor-not-allowed' : 'cursor-grab' }
+                                                        ${ draggedItemIndex === index 
+                                                            ? 'opacity-60 scale-110 shadow-2xl z-50 ring-2 ring-blue-600' 
+                                                            : 'hover:shadow-md'
+                                                        }
+                                                        ${ dragOverItemIndex === index && draggedItemIndex !== null && draggedItemIndex !== index 
+                                                            ? 'ring-2 ring-blue-500 ring-offset-2 scale-105 z-10' 
+                                                            : ''
+                                                        }
+                                                        ${ draggedItemIndex !== null && draggedItemIndex !== index && dragOverItemIndex !== index 
+                                                            ? 'opacity-70 scale-95' 
+                                                            : '' // Default state for non-active items during drag
+                                                        }
                                                     `}
-                                                    style={{ transform: draggedItemIndex === index ? 'translateY(-2px)' : 'none' }} // Example subtle lift
                                                 >
                                                     <img 
                                                         src={url} 
