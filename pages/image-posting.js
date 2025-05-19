@@ -88,6 +88,22 @@ function ImagePosting() {
     const [draggedItemIndex, setDraggedItemIndex] = useState(null); // For reordering thumbnails
     const [dragOverItemIndex, setDragOverItemIndex] = useState(null); // For reordering thumbnails visual cue
 
+    // Combined accounts for unified selection
+    const allAccounts = useMemo(() => {
+        const tiktokWithPlatform = tiktokAccounts?.map(acc => ({ ...acc, platform: 'tiktok' })) || [];
+        const twitterWithPlatform = twitterAccounts?.map(acc => ({ ...acc, platform: 'twitter' })) || [];
+        return [...tiktokWithPlatform, ...twitterWithPlatform];
+    }, [tiktokAccounts, twitterAccounts]);
+
+    const filteredAccounts = useMemo(() => {
+        if (!searchTerm) return allAccounts;
+        return allAccounts.filter(acc =>
+            acc?.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            acc?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            acc?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [allAccounts, searchTerm]);
+
     // --- Format Date Function ---
     const formatDate = (dateString, timeString) => {
         if (!dateString || !timeString) return 'Invalid Date/Time';
@@ -322,6 +338,16 @@ function ImagePosting() {
             
             return [...prev, account];
         });
+    };
+
+    const handleAccountToggle = (account) => {
+        if (!account || isPostLimitReached) return;
+
+        if (account.platform === 'tiktok') {
+            handleTikTokAccountToggle(account);
+        } else if (account.platform === 'twitter') {
+            handleTwitterAccountToggle(account);
+        }
     };
 
     // --- Centralized File Processing Logic ---
@@ -2072,12 +2098,11 @@ function ImagePosting() {
             {/* Main container with improved spacing */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Header with gradient background */}
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg mb-8 p-6">
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
-                        <TikTokSimpleIcon className="w-8 h-8 mr-3" />
+                <div className="mb-2 text-center">
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">                        
                         <span>Image Posting</span>
                     </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-2">Share your images on TikTok and Twitter</p>
+                    <p className="text-gray-500 dark:text-gray-400">Share your images on TikTok and Twitter</p>
                 </div>
                 
                 {/* Hidden file input that's always available */}
@@ -2096,20 +2121,21 @@ function ImagePosting() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* New Left column (formerly Right): Account selection and post button */}
                     <div className="space-y-6">
-                        {/* TikTok accounts - Improved UI */}
+                        {/* Unified Account Selection */}
                         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
                             <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
                                 <div className="flex items-center">
-                                    <TikTokSimpleIcon className="h-5 w-5 mr-2 text-black dark:text-white" />
-                                    <h2 className="text-xl font-semibold">TikTok Accounts</h2>
+                                    <svg className="h-6 w-6 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    <h2 className="text-xl font-semibold">Select Accounts</h2>
                                 </div>
                                 <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">
-                                    {selectedTiktokAccounts?.length} selected
+                                    {selectedTiktokAccounts?.length + selectedTwitterAccounts?.length} selected
                                 </span>
                             </div>
                             
                             <div className="p-6">
-                                {/* Search bar with icon */}
                                 <div className="relative mb-4">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
@@ -2120,206 +2146,143 @@ function ImagePosting() {
                                         type="text"
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        placeholder="Search TikTok accounts..."
+                                        placeholder="Search accounts..."
                                         className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                                     />
                                 </div>
-                                
-                                {tiktokAccounts?.length === 0 ? (
+
+                                {allAccounts?.length === 0 ? (
                                     <div className="p-6 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-center">
                                         <div className="mx-auto h-12 w-12 text-gray-400 mb-4">
-                                            <TikTokSimpleIcon className="h-full w-full" />
+                                            <svg className="h-full w-full" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M12 12a4 4 0 110-8 4 4 0 010 8z" /></svg>
                                         </div>
-                                        <p className="text-gray-600 dark:text-gray-400 mb-3">No TikTok accounts connected</p>
+                                        <p className="text-gray-600 dark:text-gray-400 mb-3">No social accounts connected</p>
                                         <Link href="/connect" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                                             <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                             </svg>
-                                            Connect Account
+                                            Connect Accounts
                                         </Link>
                                     </div>
                                 ) : (
-                                    <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
-                                        {tiktokAccounts
-                                            ?.filter(acc => 
-                                                !searchTerm || 
-                                                acc?.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                                acc?.username?.toLowerCase().includes(searchTerm.toLowerCase())
-                                            )
-                                            ?.map(account => (
+                                    <div className="flex flex-wrap gap-4 justify-center sm:justify-start max-h-96 overflow-y-auto">
+                                        {filteredAccounts?.map(account => {
+                                            const isSelected = account.platform === 'tiktok'
+                                                ? selectedTiktokAccounts?.some(sa => sa?.accountId === account?.accountId)
+                                                : selectedTwitterAccounts?.some(sa => sa?.userId === account?.userId);
+                                            
+                                            const profileImageUrl = account.platform === 'tiktok' 
+                                                ? account?.avatarUrl100 || account?.avatarUrl
+                                                : account?.profileImageUrl;
+                                            
+                                            const displayName = account.platform === 'tiktok'
+                                                ? account?.displayName || account?.username || 'TikTok User'
+                                                : account?.name || account?.username || 'Twitter User';
+                                            
+                                            const username = account.platform === 'tiktok'
+                                                ? (account?.username ? `@${account.username}` : '')
+                                                : (account?.username ? `@${account.username}` : '');
+
+                                            return (
                                                 <div
-                                                    key={account?.accountId}
-                                                    className={`flex items-center p-2 justify-between ${
-                                                        selectedTiktokAccounts?.some(sa => sa?.accountId === account?.accountId)
-                                                            ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                                                            : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                                                    } rounded-lg cursor-pointer transition-all duration-150 ${isPostLimitReached ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                    onClick={() => handleTikTokAccountToggle(account)}
+                                                    key={`${account.platform}-${account.accountId || account.userId}`}
+                                                    className={`flex flex-col items-center p-2 rounded-lg cursor-pointer transition-all duration-150 w-24 
+                                                        ${isPostLimitReached ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}
+                                                    `}
+                                                    onClick={() => handleAccountToggle(account)}
                                                 >
-                                                    <div className="flex items-center min-w-0"> {/* Container for left-side content */}
-                                                        {account?.avatarUrl100 || account?.avatarUrl ? (
+                                                    <div className={`relative w-16 h-16 rounded-full flex items-center justify-center mb-1 
+                                                        ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : 'ring-1 ring-gray-300 dark:ring-gray-600'}
+                                                        transition-all duration-150`}
+                                                    >
+                                                        {profileImageUrl ? (
                                                             <img 
-                                                                src={account?.avatarUrl100 || account?.avatarUrl} 
-                                                                alt={account?.displayName || account?.username || 'TikTok user'} 
-                                                                className="w-8 h-8 rounded-full mr-2 border border-gray-200 dark:border-gray-700 flex-shrink-0"
+                                                                src={profileImageUrl} 
+                                                                alt={displayName}
+                                                                className="w-full h-full rounded-full object-cover"
                                                             />
                                                         ) : (
-                                                            <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center mr-2 border border-gray-300 dark:border-gray-600 flex-shrink-0">
-                                                                <TikTokSimpleIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                                                            <div className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                                                                {account.platform === 'tiktok' ? <TikTokSimpleIcon className="w-8 h-8 text-gray-500 dark:text-gray-400" /> : <TwitterIcon className="w-8 h-8 text-gray-500 dark:text-gray-400" />}
                                                             </div>
                                                         )}
-                                                        <div className="flex items-center min-w-0"> {/* Aligns name and handle */}
-                                                            <p className="font-medium text-sm text-gray-900 dark:text-white truncate m-1">{account?.displayName || 'TikTok User'}</p>
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate ml-1.5  m-1">@{account?.username}</p>
+                                                        <div className={`absolute -bottom-1 -right-1 bg-white dark:bg-gray-800 p-0.5 rounded-full shadow`}>
+                                                            {account.platform === 'tiktok' ? <TikTokSimpleIcon className="w-4 h-4 text-black dark:text-white" /> : <TwitterIcon className={`w-4 h-4 ${isSelected ? 'text-blue-500' : 'text-[#1DA1F2]'}`} />}
                                                         </div>
                                                     </div>
-                                                    
-                                                    <div className="relative flex items-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            id={`tiktok-${account?.accountId}`}
-                                                            checked={selectedTiktokAccounts?.some(sa => sa?.accountId === account?.accountId)}
-                                                            onChange={() => {}} // Handled by parent div's onClick
-                                                            className="opacity-0 absolute h-5 w-5 cursor-pointer" // Hide default checkbox
-                                                            disabled={isPostLimitReached}
-                                                            onClick={(e) => e.stopPropagation()} // Prevent double toggling
-                                                        />
-                                                        <label
-                                                            htmlFor={`tiktok-${account?.accountId}`}
-                                                            className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all duration-150
-                                                                ${selectedTiktokAccounts?.some(sa => sa?.accountId === account?.accountId)
-                                                                    ? 'bg-blue-600 border-blue-600'
-                                                                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-500 hover:border-gray-400 dark:hover:border-gray-400'
-                                                                }
-                                                                ${isPostLimitReached ? 'cursor-not-allowed opacity-60' : ''}
-                                                            `}
-                                                            onClick={(e) => e.stopPropagation()} // Prevent label click from interfering with div click
-                                                        >
-                                                            {selectedTiktokAccounts?.some(sa => sa?.accountId === account?.accountId) && (
-                                                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                </svg>
-                                                            )}
-                                                        </label>
-                                                    </div>
+                                                    <p className="font-medium text-xs text-center text-gray-700 dark:text-gray-300 truncate w-full px-1" title={displayName}>{displayName}</p>
+                                                    <p className="text-xs text-center text-gray-500 dark:text-gray-400 truncate w-full px-1" title={username}>{username}</p>
                                                 </div>
-                                            ))}
+                                            );
+                                        })}
                                     </div>
+                                )}
+                                {filteredAccounts?.length === 0 && searchTerm && allAccounts?.length > 0 && (
+                                     <p className="text-center text-gray-500 dark:text-gray-400 mt-4">No accounts found matching &quot;{searchTerm}&quot;.</p>
                                 )}
                             </div>
                         </div>
-                        
-                        {/* Twitter accounts - Improved UI */}
+
+                        {/* Scheduling options MOVED HERE */}
                         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
-                            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+                            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
                                 <div className="flex items-center">
-                                    <TwitterIcon className="h-5 w-5 mr-2 text-[#1DA1F2] dark:text-[#1DA1F2]" />
-                                    <h2 className="text-xl font-semibold">Twitter Accounts</h2>
+                                    <input
+                                        type="checkbox"
+                                        id="schedule-checkbox"
+                                        checked={isScheduled}
+                                        onChange={(e) => setIsScheduled(e.target.checked)}
+                                        className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
+                                        disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
+                                    />
+                                    <label htmlFor="schedule-checkbox" className="ml-3 text-xl font-semibold flex items-center">
+                                        <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Schedule for later
+                                    </label>
                                 </div>
-                                <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">
-                                    {selectedTwitterAccounts?.length} selected
-                                </span>
                             </div>
                             
-                            <div className="p-6">
-                                {/* Search bar with icon */}
-                                <div className="relative mb-4">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                                        </svg>
-                                    </div>
-                                    <input
-                                        type="text"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        placeholder="Search Twitter accounts..."
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                                    />
-                                </div>
-                                
-                                {twitterAccounts?.length === 0 ? (
-                                    <div className="p-6 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-center">
-                                        <div className="mx-auto h-12 w-12 text-[#1DA1F2] mb-4">
-                                            <TwitterIcon className="h-full w-full" />
+                            {isScheduled && (
+                                <div className="p-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Date</label>
+                                            <input
+                                                type="date"
+                                                value={scheduledDate}
+                                                onChange={(e) => setScheduledDate(e.target.value)}
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                min={new Date().toISOString().split('T')[0]}
+                                                disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
+                                            />
                                         </div>
-                                        <p className="text-gray-600 dark:text-gray-400 mb-3">No Twitter accounts connected</p>
-                                        <Link href="/connect" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                            <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                            </svg>
-                                            Connect Account
-                                        </Link>
+                                        
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Time</label>
+                                            <input
+                                                type="time"
+                                                value={scheduledTime}
+                                                onChange={(e) => setScheduledTime(e.target.value)}
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
+                                            />
+                                        </div>
                                     </div>
-                                ) : (
-                                    <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
-                                        {twitterAccounts
-                                            ?.filter(acc => 
-                                                !searchTerm || 
-                                                acc?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                                acc?.username?.toLowerCase().includes(searchTerm.toLowerCase())
-                                            )
-                                            ?.map(account => (
-                                                <div
-                                                    key={account?.userId}
-                                                    className={`flex items-center p-2 justify-between ${
-                                                        selectedTwitterAccounts?.some(sa => sa?.userId === account?.userId)
-                                                            ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                                                            : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                                                    } rounded-lg cursor-pointer transition-all duration-150 ${isPostLimitReached ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                    onClick={() => handleTwitterAccountToggle(account)}
-                                                >
-                                                    <div className="flex items-center min-w-0"> {/* Container for left-side content */}
-                                                        {account?.profileImageUrl ? (
-                                                            <img 
-                                                                src={account?.profileImageUrl} 
-                                                                alt={account?.name || account?.username || 'Twitter user'} 
-                                                                className="w-8 h-8 rounded-full mr-2 border border-gray-200 dark:border-gray-700 flex-shrink-0"
-                                                            />
-                                                        ) : (
-                                                            <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center mr-2 border border-gray-300 dark:border-gray-600 flex-shrink-0">
-                                                                <TwitterIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                                                            </div>
-                                                        )}
-                                                        <div className="flex items-center min-w-0"> {/* Aligns name and handle */}
-                                                            <p className="font-medium text-sm text-gray-900 dark:text-white truncate m-1">{account?.name || 'Twitter User'}</p>
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate ml-1.5 m-1">@{account?.username}</p>
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div className="relative flex items-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            id={`twitter-${account?.userId}`}
-                                                            checked={selectedTwitterAccounts?.some(sa => sa?.userId === account?.userId)}
-                                                            onChange={() => {}} // Handled by parent div's onClick
-                                                            className="opacity-0 absolute h-5 w-5 cursor-pointer" // Hide default checkbox
-                                                            disabled={isPostLimitReached}
-                                                            onClick={(e) => e.stopPropagation()} // Prevent double toggling
-                                                        />
-                                                        <label
-                                                            htmlFor={`twitter-${account?.userId}`}
-                                                            className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all duration-150
-                                                                ${selectedTwitterAccounts?.some(sa => sa?.userId === account?.userId)
-                                                                    ? 'bg-blue-600 border-blue-600'
-                                                                    : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-500 hover:border-gray-400 dark:hover:border-gray-400'
-                                                                }
-                                                                ${isPostLimitReached ? 'cursor-not-allowed opacity-60' : ''}
-                                                            `}
-                                                            onClick={(e) => e.stopPropagation()} // Prevent label click from interfering with div click
-                                                        >
-                                                            {selectedTwitterAccounts?.some(sa => sa?.userId === account?.userId) && (
-                                                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                </svg>
-                                                            )}
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                    </div>
-                                )}
-                            </div>
+                                    
+                                    {isScheduled && scheduledDate && scheduledTime && (
+                                        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                            <p className="text-sm text-blue-800 dark:text-blue-300 flex items-center">
+                                                <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                Post will be scheduled for {formatDate(scheduledDate, scheduledTime)}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         
                         {/* Post / Schedule button - Improved UI */}
@@ -2578,68 +2541,6 @@ function ImagePosting() {
                                 />
                             </div>
                         </div>
-                        
-                        {/* Scheduling options */}
-                        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
-                            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-                                <div className="flex items-center">
-                                    <input
-                                        type="checkbox"
-                                        id="schedule-checkbox"
-                                        checked={isScheduled}
-                                        onChange={(e) => setIsScheduled(e.target.checked)}
-                                        className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
-                                        disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
-                                    />
-                                    <label htmlFor="schedule-checkbox" className="ml-3 text-xl font-semibold flex items-center">
-                                        <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        Schedule for later
-                                    </label>
-                                </div>
-                            </div>
-                            
-                            {isScheduled && (
-                                <div className="p-6">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Date</label>
-                                            <input
-                                                type="date"
-                                                value={scheduledDate}
-                                                onChange={(e) => setScheduledDate(e.target.value)}
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                min={new Date().toISOString().split('T')[0]}
-                                                disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
-                                            />
-                                        </div>
-                                        
-                                        <div>
-                                            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Time</label>
-                                            <input
-                                                type="time"
-                                                value={scheduledTime}
-                                                onChange={(e) => setScheduledTime(e.target.value)}
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
-                                            />
-                                        </div>
-                                    </div>
-                                    
-                                    {isScheduled && scheduledDate && scheduledTime && (
-                                        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                                            <p className="text-sm text-blue-800 dark:text-blue-300 flex items-center">
-                                                <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                </svg>
-                                                Post will be scheduled for {formatDate(scheduledDate, scheduledTime)}
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
                     </div> {/* Closing div for the new right column (upload, caption, scheduling) */}
                 </div>
             </div>
@@ -2762,4 +2663,4 @@ export default function ImagePostingPage() {
             <ImagePosting />
         </ProtectedRoute>
     );
-} 
+}
