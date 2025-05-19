@@ -2096,7 +2096,7 @@ function ImagePosting() {
             </Head>
             
             {/* Main container with improved spacing */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Header with gradient background */}
                 <div className="mb-2 text-center">
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">                        
@@ -2125,10 +2125,10 @@ function ImagePosting() {
                         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
                             <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
                                 <div className="flex items-center">
-                                    <svg className="h-6 w-6 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <svg className="h-6 w-6 mr-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                     </svg>
-                                    <h2 className="text-xl font-semibold">Select Accounts</h2>
+                                    <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Select Accounts</h2>
                                 </div>
                                 <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">
                                     {selectedTiktokAccounts?.length + selectedTwitterAccounts?.length} selected
@@ -2147,7 +2147,7 @@ function ImagePosting() {
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         placeholder="Search accounts..."
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                                     />
                                 </div>
 
@@ -2165,7 +2165,7 @@ function ImagePosting() {
                                         </Link>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-4 gap-1 justify-center max-h-96 overflow-y-auto">
+                                    <div className="grid grid-cols-4 gap-3 justify-center max-h-96 overflow-y-auto p-1">
                                         {filteredAccounts?.map(account => {
                                             const isSelected = account.platform === 'tiktok'
                                                 ? selectedTiktokAccounts?.some(sa => sa?.accountId === account?.accountId)
@@ -2186,12 +2186,12 @@ function ImagePosting() {
                                             return (
                                                 <div
                                                     key={`${account.platform}-${account.accountId || account.userId}`}
-                                                    className={`flex flex-col items-center p-1 rounded-lg cursor-pointer transition-all duration-150 w-20 
+                                                    className={`flex flex-col items-center p-2 rounded-lg cursor-pointer transition-all duration-150 w-20 
                                                         ${isPostLimitReached ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}
                                                     `}
                                                     onClick={() => handleAccountToggle(account)}
                                                 >
-                                                    <div className={`relative w-16 h-16 rounded-full flex items-center justify-center mb-1 
+                                                    <div className={`relative w-16 h-16 rounded-full flex items-center justify-center mb-2 
                                                         ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : 'ring-1 ring-gray-300 dark:ring-gray-600'}
                                                         transition-all duration-150`}
                                                     >
@@ -2210,8 +2210,8 @@ function ImagePosting() {
                                                             {account.platform === 'tiktok' ? <TikTokSimpleIcon className="w-4 h-4 text-black dark:text-white" /> : <TwitterIcon className={`w-4 h-4 ${isSelected ? 'text-blue-500' : 'text-[#1DA1F2]'}`} />}
                                                         </div>
                                                     </div>
-                                                    <p className="font-medium text-xs text-center text-gray-700 dark:text-gray-300 truncate w-full px-1" title={displayName}>{displayName}</p>
-                                                    <p className="text-xs text-center text-gray-500 dark:text-gray-400 truncate w-full px-1" title={username}>{username}</p>
+                                                    <p className="font-medium text-sm text-center text-gray-700 dark:text-gray-300 truncate w-full m-0 px-1" title={displayName}>{displayName}</p>
+                                                    <p className="text-xs text-center text-gray-500 dark:text-gray-400 truncate w-full m-0 px-1" title={username}>{username}</p>
                                                 </div>
                                             );
                                         })}
@@ -2235,8 +2235,8 @@ function ImagePosting() {
                                         className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
                                         disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
                                     />
-                                    <label htmlFor="schedule-checkbox" className="ml-3 text-xl font-semibold flex items-center">
-                                        <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <label htmlFor="schedule-checkbox" className="ml-3 text-xl font-semibold text-gray-800 dark:text-gray-200 flex items-center">
+                                        <svg className="w-5 h-5 mr-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
                                         Schedule for later
@@ -2253,7 +2253,7 @@ function ImagePosting() {
                                                 type="date"
                                                 value={scheduledDate}
                                                 onChange={(e) => setScheduledDate(e.target.value)}
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                 min={new Date().toISOString().split('T')[0]}
                                                 disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
                                             />
@@ -2265,7 +2265,7 @@ function ImagePosting() {
                                                 type="time"
                                                 value={scheduledTime}
                                                 onChange={(e) => setScheduledTime(e.target.value)}
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                 disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
                                             />
                                         </div>
@@ -2291,7 +2291,7 @@ function ImagePosting() {
                                 <button
                                     onClick={handlePost}
                                     disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting || isScheduling || files?.length === 0 || (selectedTiktokAccounts?.length === 0 && selectedTwitterAccounts?.length === 0)}
-                                    className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md"
+                                    className="w-full py-3 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-base font-semibold rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md"
                                 >
                                     <span className="flex items-center">
                                         {isScheduled ? (
@@ -2347,13 +2347,11 @@ function ImagePosting() {
                         {/* Upload/Preview area with improved styling */}
                         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
                             {/* Card header */}
-                            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-                                <h2 className="text-xl font-semibold flex items-center">
-                                    <svg className="w-5 h-5 mr-2 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                                    </svg>
-                                    Upload Images
-                                </h2>
+                            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center">
+                                <svg className="w-5 h-5 mr-3 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                                </svg>
+                                <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Upload Images</h2>
                             </div>
                             
                             {/* Card content - This div becomes the main drop zone */}
@@ -2373,8 +2371,8 @@ function ImagePosting() {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
                                         
-                                        <p className="mt-4 text-base font-medium text-gray-700 dark:text-gray-300">Click to select images or drag and drop</p>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                                        <p className="mt-5 text-base font-medium text-gray-700 dark:text-gray-300">Click to select images or drag and drop</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                             Support for PNG, JPG, JPEG, GIF up to 50MB. Maximum {MAX_IMAGES} images.
                                         </p>
                                         
@@ -2388,7 +2386,7 @@ function ImagePosting() {
                                     <div>
                                         {/* Image grid with improved styling and DND handlers */}
                                         <div 
-                                            className={`grid gap-4 mb-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5`}
+                                            className={`grid gap-3 mb-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5`}
                                             // onDragLeave for the container can help reset dragOverItemIndex if drag leaves the grid entirely
                                             onDragLeave={(e) => {
                                                 // Check if leaving to outside the grid
@@ -2468,7 +2466,7 @@ function ImagePosting() {
                                         
                                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                             <div>
-                                                <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+                                                <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
                                                     {files?.length === 1
                                                         ? `${files[0]?.name} (${(files[0]?.size / (1024 * 1024))?.toFixed(2)} MB)`
                                                         : `${files?.length || 0} of ${MAX_IMAGES} images selected`
@@ -2521,13 +2519,11 @@ function ImagePosting() {
                         
                         {/* Caption area */}
                         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
-                            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-                                <h2 className="text-xl font-semibold flex items-center">
-                                    <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                                    </svg>
-                                    Caption
-                                </h2>
+                            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center">
+                                <svg className="w-5 h-5 mr-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                </svg>
+                                <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Caption</h2>
                             </div>
                             
                             <div className="p-6">
@@ -2535,7 +2531,7 @@ function ImagePosting() {
                                     value={caption}
                                     onChange={(e) => setCaption(e.target.value)}
                                     placeholder="Write a caption for your image post..."
-                                    className="w-full p-4 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 placeholder-gray-400 dark:placeholder-gray-500"
+                                    className="w-full p-4 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 placeholder-gray-400 dark:placeholder-gray-500 text-base"
                                     rows={4}
                                     disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
                                 />
