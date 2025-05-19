@@ -2165,14 +2165,14 @@ function ImagePosting() {
                                         </Link>
                                     </div>
                                 ) : (
-                                    <div className="flex flex-wrap gap-4 justify-center sm:justify-start max-h-96 overflow-y-auto">
+                                    <div className="grid grid-cols-4 gap-1 justify-center max-h-96 overflow-y-auto">
                                         {filteredAccounts?.map(account => {
                                             const isSelected = account.platform === 'tiktok'
                                                 ? selectedTiktokAccounts?.some(sa => sa?.accountId === account?.accountId)
                                                 : selectedTwitterAccounts?.some(sa => sa?.userId === account?.userId);
                                             
                                             const profileImageUrl = account.platform === 'tiktok' 
-                                                ? account?.avatarUrl100 || account?.avatarUrl
+                                                ? account?.avatarUrl100 || account?.avatarUrl // Prioritize avatarUrl100 for TikTok
                                                 : account?.profileImageUrl;
                                             
                                             const displayName = account.platform === 'tiktok'
@@ -2186,7 +2186,7 @@ function ImagePosting() {
                                             return (
                                                 <div
                                                     key={`${account.platform}-${account.accountId || account.userId}`}
-                                                    className={`flex flex-col items-center p-2 rounded-lg cursor-pointer transition-all duration-150 w-24 
+                                                    className={`flex flex-col items-center p-1 rounded-lg cursor-pointer transition-all duration-150 w-20 
                                                         ${isPostLimitReached ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}
                                                     `}
                                                     onClick={() => handleAccountToggle(account)}
