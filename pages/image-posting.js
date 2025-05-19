@@ -78,6 +78,16 @@ function ImagePosting() {
     const [uploadedMedia, setUploadedMedia] = useState([]); // New state variable to store uploaded media
     const [isAddingImages, setIsAddingImages] = useState(false); // New state to track whether we're adding or replacing images
 
+    const MAX_IMAGES = 10; // Maximum number of images allowed
+    const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+    const [imageToDeleteIndex, setImageToDeleteIndex] = useState(null);
+    const [imageToDeleteUrl, setImageToDeleteUrl] = useState(null); // For preview in delete confirmation modal
+
+    // States for drag-and-drop functionality
+    const [isDraggingOver, setIsDraggingOver] = useState(false); // For file upload drop zone
+    const [draggedItemIndex, setDraggedItemIndex] = useState(null); // For reordering thumbnails
+    const [dragOverItemIndex, setDragOverItemIndex] = useState(null); // For reordering thumbnails visual cue
+
     // --- Format Date Function ---
     const formatDate = (dateString, timeString) => {
         if (!dateString || !timeString) return 'Invalid Date/Time';
@@ -281,15 +291,11 @@ function ImagePosting() {
             }
             
             // If adding an account, check against the user's plan limit
-            if (userLimits && userLimits.role === 'Starter') {
-                const currentSelectedCount = prev.length + selectedTwitterAccounts.length;
-                const accountLimit = userLimits.socialAccounts;
-                
-                // Show error message if limit reached
-                if (currentSelectedCount >= accountLimit) {
-                    window.showToast?.error?.(`Your ${userLimits.role} plan allows only ${accountLimit} social account(s). Please upgrade your plan or deselect another account.`);
-                    return prev;
-                }
+            // Also check against general social account limit for starter plan
+            const totalSelectedAccounts = prev.length + selectedTwitterAccounts.length;
+            if (userLimits && userLimits.role === 'Starter' && totalSelectedAccounts >= userLimits.socialAccounts) {
+                window.showToast?.error?.(`Your ${userLimits.role} plan allows a maximum of ${userLimits.socialAccounts} social account(s) in total. Please upgrade your plan or deselect another account.`);
+                return prev;
             }
             
             return [...prev, account];
@@ -307,109 +313,149 @@ function ImagePosting() {
             }
             
             // If adding an account, check against the user's plan limit
-            if (userLimits && userLimits.role === 'Starter') {
-                const currentSelectedCount = prev.length + selectedTiktokAccounts.length;
-                const accountLimit = userLimits.socialAccounts;
-                
-                // Show error message if limit reached
-                if (currentSelectedCount >= accountLimit) {
-                    window.showToast?.error?.(`Your ${userLimits.role} plan allows only ${accountLimit} social account(s). Please upgrade your plan or deselect another account.`);
-                    return prev;
-                }
+            // Also check against general social account limit for starter plan
+            const totalSelectedAccounts = prev.length + selectedTiktokAccounts.length;
+            if (userLimits && userLimits.role === 'Starter' && totalSelectedAccounts >= userLimits.socialAccounts) {
+                window.showToast?.error?.(`Your ${userLimits.role} plan allows a maximum of ${userLimits.socialAccounts} social account(s) in total. Please upgrade your plan or deselect another account.`);
+                return prev;
             }
             
             return [...prev, account];
         });
     };
 
-    // --- File handling logic ---
-    const handleFileChange = (e) => {
-        // Cache the current value of isAddingImages at the beginning
-        const addingImages = isAddingImages;
-        
-        if (isPostLimitReached || isUploading || isProcessingUpload || isPosting || isScheduling) return;
-        
-        const selectedFiles = Array.from(e?.target?.files || []);
-        if (selectedFiles.length === 0) {
-            // Reset the adding mode even if no files are selected
-            setIsAddingImages(false);
-            return;
+    // --- Centralized File Processing Logic ---
+    const processSelectedFiles = (selectedFilesArray, currentFilesState, currentlyAddingMode) => {
+        if (selectedFilesArray.length === 0) {
+            // If an explicit "replace all" was intended and no files were chosen, ensure UI reflects this.
+            if (!currentlyAddingMode && selectedFilesArray.length === 0) {
+                localPreviewUrls.forEach(url => { if (url && url.startsWith('blob:')) URL.revokeObjectURL(url); });
+                setFiles([]); setUploadedFileNames([]); setLocalPreviewUrls([]); setImageThumbnails([]);
+                setImageUrls([]); setUploadedMedia([]);
+            }
+            return; // No new files to process
         }
-        
-        // Validate file types and sizes
-        const invalidFiles = selectedFiles.filter(file => !file.type.startsWith('image/'));
+    
+        // Validate file types
+        const invalidFiles = selectedFilesArray.filter(file => !file.type.startsWith('image/'));
         if (invalidFiles.length > 0) {
             setUploadError('Please select only image files.');
-            setIsAddingImages(false);
             return;
         }
-        
-        const oversizedFiles = selectedFiles.filter(file => file.size > 50 * 1024 * 1024); // 50MB limit
+    
+        // Validate file sizes
+        const oversizedFiles = selectedFilesArray.filter(file => file.size > 50 * 1024 * 1024); // 50MB limit
         if (oversizedFiles.length > 0) {
             setUploadError('One or more files exceed the 50MB size limit.');
-            setIsAddingImages(false);
             return;
         }
-        
-        // Reset only error states and processing flags
-        setUploadError(null);
-        setPostSuccess(false);
-        setScheduleSuccess(false);
-        setPlatformResults({});
-        setAccountStatus({ tiktok: {}, twitter: {} });
-        setIsUploading(false);
-        setIsProcessingUpload(false);
-        setIsPosting(false);
-        setIsScheduling(false);
-        setUploadProgress(0);
-        
-        if (addingImages) {
-            // Adding to existing images
-            // Combine existing files with new ones
-            const newFilesList = [...files, ...selectedFiles];
-            setFiles(newFilesList);
-            setUploadedFileNames([...uploadedFileNames, ...selectedFiles.map(file => file.name)]);
-            
-            // Create blob URLs for new files
-            const newLocalUrlsToAdd = selectedFiles.map(file => URL.createObjectURL(file));
-            setLocalPreviewUrls([...localPreviewUrls, ...newLocalUrlsToAdd]);
-            
-            // Add to thumbnails
-            setImageThumbnails([...imageThumbnails, ...newLocalUrlsToAdd]);
-            
-            // Reset upload URLs - they'll be regenerated when user submits
-            setImageUrls([]);
-            
-            console.log('Added', selectedFiles.length, 'more images. Total:', newFilesList.length);
-        } else {
-            // Replacing images (original behavior)
-            // Revoke old localPreviewUrls before creating new ones
-            localPreviewUrls.forEach(url => {
-                if (url && url.startsWith('blob:')) {
-                    URL.revokeObjectURL(url);
-                }
-            });
-
-            // Clear all previous data
-            setImageUrls([]);
-            setImageThumbnails([]);
-            
-            // Store new files and create preview URLs
-            setFiles(selectedFiles);
-            setUploadedFileNames(selectedFiles.map(file => file.name));
-            
-            // Create blob URLs for preview
-            const newLocalUrls = selectedFiles.map(file => URL.createObjectURL(file));
-            setLocalPreviewUrls(newLocalUrls);
-            
-            // Set thumbnails (for images, we can use the same URLs)
-            setImageThumbnails(newLocalUrls);
-            
-            console.log('Replaced with', selectedFiles.length, 'new images');
+    
+        // Enforce MAX_IMAGES limit
+        let filesToProcess = selectedFilesArray;
+        if (currentlyAddingMode) {
+            const totalAfterAdd = currentFilesState.length + selectedFilesArray.length;
+            if (totalAfterAdd > MAX_IMAGES) {
+                setUploadError(`You can upload a maximum of ${MAX_IMAGES} images. You have ${currentFilesState.length}, trying to add ${selectedFilesArray.length}.`);
+                // Optionally, allow adding up to the limit
+                // filesToProcess = selectedFilesArray.slice(0, MAX_IMAGES - currentFilesState.length);
+                // if(filesToProcess.length === 0) return; // Or, just return if strict about not partially adding. For now, returning.
+                return;
+            }
+        } else { // Replacing images
+            if (selectedFilesArray.length > MAX_IMAGES) {
+                setUploadError(`You can upload a maximum of ${MAX_IMAGES} images. You tried to select ${selectedFilesArray.length}.`);
+                 // Optionally, take only the first MAX_IMAGES
+                // filesToProcess = selectedFilesArray.slice(0, MAX_IMAGES);
+                return; 
+            }
         }
+    
+        setUploadError(null); // Clear previous errors
+        // Reset R2 URLs since file selection has changed
+        setImageUrls([]);
+        setUploadedMedia([]);
+    
+        if (currentlyAddingMode) {
+            const newFilesList = [...currentFilesState, ...filesToProcess];
+            setFiles(newFilesList);
+            setUploadedFileNames(prev => [...prev, ...filesToProcess.map(file => file.name)]);
+            const newLocalUrlsToAdd = filesToProcess.map(file => URL.createObjectURL(file));
+            setLocalPreviewUrls(prev => [...prev, ...newLocalUrlsToAdd]);
+            setImageThumbnails(prev => [...prev, ...newLocalUrlsToAdd]);
+            console.log('Added', filesToProcess.length, 'more images. Total:', newFilesList.length);
+        } else { // Replacing
+            localPreviewUrls.forEach(url => { if (url && url.startsWith('blob:')) URL.revokeObjectURL(url); });
+            
+            setFiles(filesToProcess);
+            setUploadedFileNames(filesToProcess.map(file => file.name));
+            const newLocalUrls = filesToProcess.map(file => URL.createObjectURL(file));
+            setLocalPreviewUrls(newLocalUrls);
+            setImageThumbnails(newLocalUrls);
+            console.log('Replaced with', filesToProcess.length, 'new images');
+        }
+    };
+
+    // --- File handling logic ---
+    const handleFileChange = (e) => {        
+        if (isPostLimitReached || isUploading || isProcessingUpload || isPosting || isScheduling) return;
         
-        // Reset the add mode flag after handling the file change
-        setIsAddingImages(false);
+        const selectedFilesArray = Array.from(e?.target?.files || []);
+        
+        // `isAddingImages` state (set by "Add More" button) determines the mode.
+        // If not triggered by "Add More", it's effectively a replace action if isAddingImages is false.
+        processSelectedFiles(selectedFilesArray, files, isAddingImages);
+        
+        // Reset the add mode flag and file input value
+        setIsAddingImages(false); // Reset after processing
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ''; 
+        }
+    };
+
+    // --- Drag and Drop Handlers for Upload Area ---
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages) ) { // Check if adding more is even possible
+            e.dataTransfer.dropEffect = 'none'; // Indicate that drop is not allowed
+        } else {
+            e.dataTransfer.dropEffect = 'copy'; // Indicate that drop is allowed (copy operation)
+        }
+        if (!isDraggingOver) setIsDraggingOver(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Check if drag leave is to an outside element, not a child
+        if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) {
+            setIsDraggingOver(false);
+        } else if (!e.relatedTarget) { // Leavig the window
+            setIsDraggingOver(false);
+        }
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingOver(false);
+
+        if (isPostLimitReached || isUploading || isProcessingUpload || isPosting || isScheduling) return;
+
+        // If at max images and not in a mode that would clear them (like a replace via button click before this drop)
+        // This check might be redundant if handleDragOver sets dropEffect to 'none', but good for safety.
+        if (files.length >= MAX_IMAGES && !isAddingImages) { // Assuming a drop when at max capacity implies adding
+            setUploadError(`Cannot add more than ${MAX_IMAGES} images. Please replace existing ones if needed.`);
+            return;
+        }
+
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        if (droppedFiles.length === 0) return;
+
+        const currentlyAdding = files.length > 0; // If files exist, a drop is an addition
+        processSelectedFiles(droppedFiles, files, currentlyAdding);
+        
+        setIsAddingImages(false); // Reset add mode after drop
     };
 
     // --- Reset Form Function ---
@@ -452,7 +498,12 @@ function ImagePosting() {
     };
 
     const handleUploadClick = () => {
-        if (isPostLimitReached || isUploading || isProcessingUpload || isPosting || isScheduling) return;
+        if (isPostLimitReached || isUploading || isProcessingUpload || isPosting || isScheduling || files.length >= MAX_IMAGES) {
+             if (files.length >= MAX_IMAGES) {
+                window.showToast?.info?.(`You have already selected the maximum of ${MAX_IMAGES} images.`);
+            }
+            return;
+        }
         
         if (!fileInputRef.current) {
             console.error('File input reference is not available');
@@ -466,6 +517,11 @@ function ImagePosting() {
     const handleAddMoreImagesClick = () => {
         if (isPostLimitReached || isUploading || isProcessingUpload || isPosting || isScheduling) {
             console.log('Add More Images clicked but disabled due to state limitations');
+            return;
+        }
+
+        if (files.length >= MAX_IMAGES) {
+            window.showToast?.info?.(`You have reached the maximum of ${MAX_IMAGES} images. Replace images if you want to change them.`);
             return;
         }
         
@@ -535,6 +591,10 @@ function ImagePosting() {
     const handleFileUpload = async (filesToUpload) => {
         if (!filesToUpload || filesToUpload.length === 0) {
             return { success: false, error: 'No files to upload.' };
+        }
+
+        if (filesToUpload.length > MAX_IMAGES) {
+            return { success: false, error: `Cannot upload more than ${MAX_IMAGES} images.` };
         }
         
         // Validate files
@@ -686,6 +746,11 @@ function ImagePosting() {
         // Basic validation
         if (!files || files.length === 0) {
             setPostError('Please upload at least one image');
+            return;
+        }
+
+        if (files.length > MAX_IMAGES) {
+            setPostError(`You can post a maximum of ${MAX_IMAGES} images.`);
             return;
         }
         
@@ -1881,6 +1946,134 @@ function ImagePosting() {
         console.log('Component mounted, fileInputRef initialized:', !!fileInputRef.current);
     }, []);
 
+    const openDeleteConfirmationModal = (index, url) => {
+        if (isUploading || isProcessingUpload || isPosting || isScheduling) return; // Prevent deletion during active operations
+        setImageToDeleteIndex(index);
+        setImageToDeleteUrl(url); 
+        setShowDeleteConfirmModal(true);
+    };
+
+    const handleConfirmDeleteImage = () => {
+        if (imageToDeleteIndex === null || imageToDeleteIndex < 0 || imageToDeleteIndex >= files.length) {
+            setShowDeleteConfirmModal(false);
+            setImageToDeleteIndex(null);
+            setImageToDeleteUrl(null);
+            return;
+        }
+
+        const index = imageToDeleteIndex;
+
+        // Revoke Object URL
+        const urlToRevoke = localPreviewUrls[index];
+        if (urlToRevoke && urlToRevoke.startsWith('blob:')) {
+            URL.revokeObjectURL(urlToRevoke);
+        }
+
+        const newFiles = files.filter((_, i) => i !== index);
+        const newLocalPreviewUrls = localPreviewUrls.filter((_, i) => i !== index);
+        const newUploadedFileNames = uploadedFileNames.filter((_, i) => i !== index);
+        const newImageThumbnails = imageThumbnails.filter((_, i) => i !== index); // Assuming thumbnails mirror localPreviewUrls
+
+        setFiles(newFiles);
+        setLocalPreviewUrls(newLocalPreviewUrls);
+        setUploadedFileNames(newUploadedFileNames);
+        setImageThumbnails(newImageThumbnails);
+
+        // Since the set of files has changed, any previously obtained R2 URLs are now invalid for the new set.
+        // Clear them to ensure handlePost uses the updated files for any new upload.
+        setImageUrls([]);
+        setUploadedMedia([]);
+
+        if (newFiles.length === 0 && fileInputRef.current) {
+            fileInputRef.current.value = ''; // Reset file input if all images are removed
+        }
+
+        setShowDeleteConfirmModal(false);
+        setImageToDeleteIndex(null);
+        setImageToDeleteUrl(null);
+        setUploadError(''); 
+        setPostError(''); 
+    };
+
+    // --- Thumbnail Drag and Drop Reordering Handlers ---
+    const handleThumbnailDragStart = (e, index) => {
+        if (isUploading || isProcessingUpload || isPosting || isScheduling) {
+            e.preventDefault();
+            return;
+        }
+        setDraggedItemIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        // e.dataTransfer.setData('text/html', e.target.parentNode); // Optional: for custom drag image
+        e.dataTransfer.setData('text/plain', index.toString()); // Necessary for Firefox
+    };
+
+    const handleThumbnailDragOver = (e, index) => {
+        e.preventDefault(); // Necessary to allow dropping
+        e.dataTransfer.dropEffect = 'move';
+        if (draggedItemIndex !== null && draggedItemIndex !== index) {
+            if (dragOverItemIndex !== index) { // Only update if it's a new target
+                 setDragOverItemIndex(index);
+            }
+        }
+    };
+    
+    const handleThumbnailDragEnter = (e, index) => {
+        e.preventDefault();
+        if (draggedItemIndex !== null && draggedItemIndex !== index) {
+            setDragOverItemIndex(index);
+        }
+    };
+
+    const handleThumbnailDragLeave = (e) => {
+        // This can be tricky; if leaving to another sibling, DragEnter on the new sibling handles it.
+        // If leaving the container of items, then reset.
+        // For now, rely on DragEnd or dropping on non-target to clear.
+        // Or clear if relatedTarget is outside the grid.
+    };
+
+    const handleThumbnailDrop = (e, targetIndex) => {
+        e.preventDefault();
+        if (draggedItemIndex === null || draggedItemIndex === targetIndex) {
+            setDraggedItemIndex(null);
+            setDragOverItemIndex(null);
+            return;
+        }
+
+        const newFiles = [...files];
+        const newLocalPreviewUrls = [...localPreviewUrls];
+        const newUploadedFileNames = [...uploadedFileNames];
+        const newImageThumbnails = [...imageThumbnails];
+
+        // Remove dragged item
+        const [draggedFile] = newFiles.splice(draggedItemIndex, 1);
+        const [draggedUrl] = newLocalPreviewUrls.splice(draggedItemIndex, 1);
+        const [draggedName] = newUploadedFileNames.splice(draggedItemIndex, 1);
+        const [draggedThumbnail] = newImageThumbnails.splice(draggedItemIndex, 1);
+
+        // Insert at targetIndex
+        newFiles.splice(targetIndex, 0, draggedFile);
+        newLocalPreviewUrls.splice(targetIndex, 0, draggedUrl);
+        newUploadedFileNames.splice(targetIndex, 0, draggedName);
+        newImageThumbnails.splice(targetIndex, 0, draggedThumbnail);
+
+        setFiles(newFiles);
+        setLocalPreviewUrls(newLocalPreviewUrls);
+        setUploadedFileNames(newUploadedFileNames);
+        setImageThumbnails(newImageThumbnails);
+
+        // R2 URLs are out of sync, clear them
+        setImageUrls([]);
+        setUploadedMedia([]);
+
+        setDraggedItemIndex(null);
+        setDragOverItemIndex(null);
+    };
+
+    const handleThumbnailDragEnd = () => {
+        setDraggedItemIndex(null);
+        setDragOverItemIndex(null);
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
             <Head>
@@ -2212,21 +2405,36 @@ function ImagePosting() {
                                 </h2>
                             </div>
                             
-                            {/* Card content */}
-                            <div className="p-6">
+                            {/* Card content - This div becomes the main drop zone */}
+                            <div 
+                                className={`p-6 transition-all duration-200 
+                                    ${(isDraggingOver && !(isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages))) ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500 ring-offset-2' : ''}
+                                    ${(isDraggingOver && (isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages))) ? 'bg-red-50 dark:bg-red-900/20 ring-2 ring-red-500' : ''}
+                                    ${isDraggingOver ? (isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages) ? 'cursor-no-drop' : 'cursor-copy') : ''}
+                                `}
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={handleDrop}
+                            >
                                 {/* File selection area with improved styling */}
                                 {(!files || files?.length === 0) ? (
                                     <div 
-                                        className={`border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 rounded-xl p-10 text-center cursor-pointer transition-all duration-200 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 ${isPostLimitReached ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                        onClick={handleUploadClick}
+                                        className={`border-2 border-dashed rounded-xl p-10 text-center transition-all duration-200 
+                                            ${(isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages)) && !isDraggingOver ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} 
+                                            ${isDraggingOver 
+                                                ? ((isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages)) ? 'border-red-400 dark:border-red-500 bg-red-50 dark:bg-red-900/10' : 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/10') 
+                                                : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                            }
+                                        `}
+                                        onClick={!isPostLimitReached && !(files.length >= MAX_IMAGES && !isAddingImages) ? handleUploadClick : () => {}}
                                     >
-                                        <svg className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className={`mx-auto h-16 w-16 ${isDraggingOver && !(isPostLimitReached || (files.length >= MAX_IMAGES && !isAddingImages)) ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
                                         
                                         <p className="mt-4 text-base font-medium text-gray-700 dark:text-gray-300">Click to select images or drag and drop</p>
                                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                            Support for PNG, JPG, JPEG, GIF up to 50MB
+                                            Support for PNG, JPG, JPEG, GIF up to 50MB. Maximum {MAX_IMAGES} images.
                                         </p>
                                         
                                         {isPostLimitReached && (
@@ -2237,27 +2445,53 @@ function ImagePosting() {
                                     </div>
                                 ) : (
                                     <div>
-                                        {/* Image grid with improved styling */}
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+                                        {/* Image grid with improved styling and DND handlers */}
+                                        <div 
+                                            className={`grid gap-4 mb-6 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5`}
+                                            // onDragLeave for the container can help reset dragOverItemIndex if drag leaves the grid entirely
+                                            onDragLeave={(e) => {
+                                                // Check if leaving to outside the grid
+                                                if (dragOverItemIndex !== null && e.currentTarget && !e.currentTarget.contains(e.relatedTarget)) {
+                                                   // setDragOverItemIndex(null); // Could cause flickering, handle with care
+                                                }
+                                            }}
+                                        >
                                             {localPreviewUrls?.map((url, index) => (
-                                                <div key={index} className="relative group rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 aspect-square">
+                                                <div 
+                                                    key={url} // Use URL as key if unique, or manage stable IDs if files can be identical
+                                                    draggable={!(isUploading || isProcessingUpload || isPosting || isScheduling)}
+                                                    onDragStart={(e) => handleThumbnailDragStart(e, index)}
+                                                    onDragEnter={(e) => handleThumbnailDragEnter(e, index)}
+                                                    onDragOver={(e) => handleThumbnailDragOver(e, index)}
+                                                    // onDragLeave={(e) => handleThumbnailDragLeave(e)} // Individual item leave might be too noisy
+                                                    onDrop={(e) => handleThumbnailDrop(e, index)}
+                                                    onDragEnd={handleThumbnailDragEnd}
+                                                    className={`relative group rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 aspect-square transition-all duration-150 
+                                                        ${draggedItemIndex === index ? 'opacity-40 scale-95 cursor-grabbing' : 'opacity-100'}
+                                                        ${dragOverItemIndex === index && draggedItemIndex !== null && draggedItemIndex !== index ? 'ring-2 ring-blue-500 ring-offset-1 scale-105' : ''}
+                                                        ${(isUploading || isProcessingUpload || isPosting || isScheduling) ? 'cursor-not-allowed' : (draggedItemIndex === null ? 'cursor-grab' : 'cursor-grabbing')}
+                                                    `}
+                                                    style={{ transform: draggedItemIndex === index ? 'translateY(-2px)' : 'none' }} // Example subtle lift
+                                                >
                                                     <img 
                                                         src={url} 
                                                         alt={`Preview ${index + 1}`} 
-                                                        className="h-full w-full object-cover transition-all duration-200 group-hover:scale-105"
+                                                        className="h-full w-full object-cover transition-all duration-200 group-hover:scale-105 cursor-pointer"
                                                         onClick={() => {
                                                             setCurrentImageIndex(index);
                                                             setShowImageModal(true);
                                                         }}
                                                     />
-                                                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 flex items-center justify-center transition-all duration-200">
+                                                    {/* Overlay for actions, shown on group hover */}
+                                                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 flex items-center justify-center transition-all duration-200">
                                                         <button 
-                                                            className="opacity-0 group-hover:opacity-100 p-2 bg-white rounded-full shadow-md transition-opacity duration-200"
+                                                            className="opacity-0 group-hover:opacity-100 p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-opacity duration-200"
                                                             onClick={(e) => {
-                                                                e.stopPropagation();
+                                                                e.stopPropagation(); 
                                                                 setCurrentImageIndex(index);
                                                                 setShowImageModal(true);
                                                             }}
+                                                            title="View Image"
                                                         >
                                                             <svg className="w-5 h-5 text-gray-700" viewBox="0 0 20 20" fill="currentColor">
                                                                 <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
@@ -2265,6 +2499,20 @@ function ImagePosting() {
                                                             </svg>
                                                         </button>
                                                     </div>
+                                                     {/* Delete Button (top-right corner) */}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); 
+                                                            openDeleteConfirmationModal(index, url);
+                                                        }}
+                                                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-md transition-all duration-200 z-10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title="Delete Image"
+                                                        disabled={isUploading || isProcessingUpload || isPosting || isScheduling}
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
                                                 </div>
                                             ))}
                                         </div>
@@ -2274,22 +2522,22 @@ function ImagePosting() {
                                                 <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
                                                     {files?.length === 1
                                                         ? `${files[0]?.name} (${(files[0]?.size / (1024 * 1024))?.toFixed(2)} MB)`
-                                                        : `${files?.length} images selected`
+                                                        : `${files?.length || 0} of ${MAX_IMAGES} images selected`
                                                     }
                                                 </p>
                                             </div>
                                             
                                             <div className="flex flex-wrap gap-3">
                                                 <button
-                                                    className="px-4 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+                                                    className="px-4 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     onClick={handleAddMoreImagesClick}
-                                                    disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
+                                                    disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting || files.length >= MAX_IMAGES}
                                                 >
                                                     <span className="flex items-center">
                                                         <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                                         </svg>
-                                                        Add More
+                                                        {files.length >= MAX_IMAGES ? 'Limit Reached' : 'Add More'}
                                                     </span>
                                                 </button>
                                                 <button
@@ -2415,7 +2663,7 @@ function ImagePosting() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 backdrop-blur-sm">
                     <div className="relative max-w-4xl max-h-[90vh] w-full">
                         <img 
-                            src={localPreviewUrls[currentImageIndex]} 
+                            src={localPreviewUrls[currentImageIndex >= 0 && currentImageIndex < localPreviewUrls.length ? currentImageIndex : 0]} 
                             alt="Preview" 
                             className="max-h-[90vh] max-w-full object-contain mx-auto rounded-lg"
                         />
@@ -2483,6 +2731,41 @@ function ImagePosting() {
                 createdPostId={createdPostId}
                 onClose={() => setShowLoader(false)}
             />
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirmModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-sm"> {/* Ensure z-index is higher than loader if needed */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Confirm Deletion</h3>
+                        {imageToDeleteUrl && (
+                            <div className="mb-4 flex justify-center">
+                                <img src={imageToDeleteUrl} alt="Image to delete" className="max-h-40 rounded-md border dark:border-gray-700 object-contain" />
+                            </div>
+                        )}
+                        <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+                            Are you sure you want to delete this image? This action cannot be undone.
+                        </p>
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                onClick={() => {
+                                    setShowDeleteConfirmModal(false);
+                                    setImageToDeleteIndex(null);
+                                    setImageToDeleteUrl(null);
+                                }}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmDeleteImage}
+                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+                            >
+                                Delete Image
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
