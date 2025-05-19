@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
 import ProtectedRoute from '../src/components/ProtectedRoute';
+import Switch from '../src/components/ui/Switch';
 import { getUserLimits, getPostUsage } from '../src/services/userService';
 
 // Enhanced fetch with timeout and retry utility - REMAINS UNCHANGED
@@ -2292,20 +2293,20 @@ function ImagePosting() {
                         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
                             <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
                                 <div className="flex items-center">
-                                    <input
-                                        type="checkbox"
+                                    <Switch
                                         id="schedule-checkbox"
                                         checked={isScheduled}
-                                        onChange={(e) => setIsScheduled(e.target.checked)}
-                                        className="h-5 w-5 rounded text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
+                                        onChange={(checked) => setIsScheduled(checked)}
                                         disabled={isPostLimitReached || isUploading || isProcessingUpload || isPosting}
+                                        label={
+                                            <div className="flex items-center">
+                                                <svg className="w-5 h-5 mr-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                </svg>
+                                                Schedule for later
+                                            </div>
+                                        }
                                     />
-                                    <label htmlFor="schedule-checkbox" className="ml-3 text-md font-semibold text-gray-800 dark:text-gray-200 flex items-center">
-                                        <svg className="w-5 h-5 mr-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                        </svg>
-                                        Schedule for later
-                                    </label>
                                 </div>
                             </div>
                             
