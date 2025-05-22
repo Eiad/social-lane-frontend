@@ -26,17 +26,36 @@ function PostDetails() {
   // Helper to determine if this is an image post
   const isImagePost = useMemo(() => {
     if (!post) return false;
-    return Array.isArray(post.imageUrls) && post.imageUrls.length > 0;
+    return post.postType === 'image'; // Use postType
+  }, [post]);
+
+  // Helper to determine if this is a video post
+  const isVideoPost = useMemo(() => {
+    if (!post) return false;
+    return post.postType === 'video';
+  }, [post]);
+
+  // Helper to determine if this is a text post
+  const isTextPost = useMemo(() => {
+    if (!post) return false;
+    return post.postType === 'text';
   }, [post]);
 
   // Function to get thumbnail image for display
   const getThumbnailImage = useMemo(() => {
     if (!post) return null;
-    if (isImagePost && post.imageUrls.length > 0) {
+    if (isImagePost && post.imageUrls && post.imageUrls.length > 0) {
       return post.imageUrls[0];
     }
-    return post.video_url;
-  }, [post, isImagePost]);
+    if (isVideoPost && post.video_url) { // Check if it's a video post
+        // Prefer a thumbnail URL if available (e.g., from R2 metadata or a specific field)
+        // For now, if no explicit thumbnail, we might not show one or use a placeholder
+        // Depending on how video_url is structured, it might itself be a previewable link or require processing.
+        // Let's assume for now video_url might be directly usable or we add a specific thumbnail field later.
+        return post.video_thumbnail || post.video_url; // Prefer a specific thumbnail if available
+    }
+    return null; // No thumbnail for text posts or if media is missing
+  }, [post, isImagePost, isVideoPost]);
 
   useEffect(() => {
     // Only fetch when ID is available, not currently fetching, and hasn't been fetched before
@@ -117,8 +136,8 @@ function PostDetails() {
         
       twitterResults.forEach(result => {
         let postLink = '';
-        if (result.success && (result.tweet_id || (result.data && result.data.id))) {
-          postLink = `https://twitter.com/${result.username || 'user'}/status/${result.tweet_id || result.data?.id}`;
+        if (result.success && result.id) {
+          postLink = `https://twitter.com/${result.username || 'user'}/status/${result.id}`;
         }
         
         platformResults.push({
@@ -217,7 +236,9 @@ function PostDetails() {
       
       // Process and normalize post data
       const processedPost = {
-        ...postData
+        ...postData,
+        postType: postData.postType || 'video', // Default to video for older posts
+        textContent: postData.textContent || '' // Ensure textContent exists
       };
 
       // Handle image URLs - check different properties where they might be stored
@@ -334,16 +355,17 @@ function PostDetails() {
   };
 
   // Media Popup Component
-  const MediaPopup = ({ mediaUrl, imageUrls, onClose, isOpen }) => {
+  const MediaPopup = ({ mediaUrl, imageUrls, postType, textContent, onClose, isOpen }) => {
     const [videoError, setVideoError] = useState(false);
     const [videoLoading, setVideoLoading] = useState(true);
     const [blobUrl, setBlobUrl] = useState(null);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
-    const isImagePost = Array.isArray(imageUrls) && imageUrls.length > 0;
+    const [videoKey, setVideoKey] = useState(Date.now()); // Used to force re-render of video
 
     useEffect(() => {
       let objectUrl;
-      if (isOpen && mediaUrl && !isImagePost) {
+      // Ensure blob fetching logic runs only for video posts when the popup is open
+      if (isOpen && postType === 'video' && mediaUrl) {
         setVideoError(false);
         setVideoLoading(true);
         setBlobUrl(null); // Reset blob Url
@@ -373,7 +395,7 @@ function PostDetails() {
           setBlobUrl(null);
         }
       };
-    }, [isOpen, mediaUrl, isImagePost]);
+    }, [isOpen, mediaUrl, postType]); // Updated dependency array
 
     const handleVideoError = () => {
       setVideoError(true);
@@ -417,7 +439,7 @@ function PostDetails() {
             </button>
           </div>
           <div className="p-4 flex-1 overflow-auto">
-            {isImagePost ? (
+            {postType === 'image' && imageUrls && imageUrls.length > 0 ? (
               <div className="relative aspect-w-16 aspect-h-9 flex items-center justify-center">
                 <img 
                   src={imageUrls[currentImageIndex]} 
@@ -450,37 +472,30 @@ function PostDetails() {
                   </>
                 )}
               </div>
-            ) : !mediaUrl ? (
+            ) : postType === 'video' && mediaUrl ? (
+              <video 
+                key={videoKey} // Force re-render on error/retry
+                src={blobUrl || mediaUrl}
+                controls 
+                autoPlay
+                onError={handleVideoError}
+                onLoadedData={handleVideoLoad}
+                className="rounded object-contain w-full max-h-[80vh]"
+              >
+                Your browser does not support the video tag.
+              </video>
+            ) : postType === 'text' && textContent ? (
+              <div className="bg-gray-50 p-4 rounded-md">
+                <h4 className="text-lg font-semibold text-gray-800 mb-2">Text Content</h4>
+                <p className="text-gray-700 whitespace-pre-line">{textContent}</p>
+              </div>
+            ) : (
               <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex flex-col items-center justify-center p-4 rounded">
                 <svg className="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p className="text-gray-700 font-medium mb-1">No media available</p>
                 <p className="text-gray-500 text-sm text-center">The media URL is missing or invalid.</p>
-              </div>
-            ) : videoError ? (
-              <div className="aspect-w-16 aspect-h-9 bg-gray-100 flex flex-col items-center justify-center p-4 rounded">
-                <svg className="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <p className="text-gray-700 font-medium mb-1">Unable to play video</p>
-                <p className="text-gray-500 text-sm text-center">The video may be unavailable or in an unsupported format.</p>
-              </div>
-            ) : (
-              <div className="aspect-w-16 aspect-h-9 relative">
-                {videoLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
-                  </div>
-                )}
-                <video 
-                  src={blobUrl || mediaUrl}
-                  controls 
-                  autoPlay
-                  onError={handleVideoError}
-                  onLoadedData={handleVideoLoad}
-                  className="rounded object-contain w-full max-h-[80vh]"
-                ></video>
               </div>
             )}
           </div>
@@ -635,8 +650,23 @@ function PostDetails() {
             </div>
 
             <div className="flex flex-col md:flex-row space-y-6 md:space-y-0 md:space-x-6">
-                {/* Left Column - 70% - Post Details */}
-                <div className="md:w-8/12">
+                {/* Left Column - Post Details */}
+                <div className={isTextPost ? "w-full" : "md:w-8/12"}>
+                {/* Text Content Section (for text posts) */}
+                {isTextPost && post?.textContent && (
+                    <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 shadow-sm">
+                    <h4 className=" text-[15px] text-gray-700 mb-2 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Text Content
+                    </h4>
+                    <div className="p-3 bg-gray-50 rounded border border-gray-100">
+                        <p className="text-gray-900 whitespace-pre-line">{post?.textContent}</p>
+                    </div>
+                    </div>
+                )}
+
                 {/* Caption Section */}
                 {post?.post_description && (
                     <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 shadow-sm">
@@ -752,90 +782,98 @@ function PostDetails() {
                 </div>
                 </div>
 
-                {/* Right Column - 30% - Media Thumbnail */}
-                <div className="md:w-4/12">
-                <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                    <h2 className="text-[15px] text-gray-900 mb-4 flex items-center">
-                    <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Published media Content
-                    </h2>
-                    
-                    {isImagePost ? (
-                      <>
-                        <div className="bg-gray-100 rounded-lg p-4 mb-3 text-center cursor-pointer" onClick={() => setShowMediaPopup(true)}>
-                          {post.imageUrls[0] ? (
-                            <div className="w-full h-36 overflow-hidden rounded-md mb-2">
-                              <img 
-                                src={post.imageUrls[0]} 
-                                alt="Post image" 
-                                className="w-full h-full object-contain" 
-                              />
-                            </div>
-                          ) : (
-                            <svg className="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                          )}
-                          <p className="text-gray-600 text-sm">{post.imageUrls.length > 1 ? `${post.imageUrls.length} images` : 'Image post'}</p>
-                        </div>
-                        
-                        <div>
-                          <button 
-                            onClick={() => setShowMediaPopup(true)}
-                            className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded flex items-center justify-center"
-                          >
-                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            View {post.imageUrls.length > 1 ? 'Images' : 'Image'}
-                          </button>
-                        </div>
-                      </>
-                    ) : post?.video_url ? (
-                      <>
-                        <div className="bg-gray-100 rounded-lg p-4 mb-3 text-center cursor-pointer" onClick={() => setShowMediaPopup(true)}>
-                          <svg className="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          <p className="text-gray-600 text-sm">Video post</p>
-                        </div>
-                        
-                        <div>
-                          <button 
-                              onClick={() => setShowMediaPopup(true)}
-                              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded flex items-center justify-center"
-                          >
-                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                              </svg>
-                              Watch Video
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="bg-gray-100 rounded-lg p-6 text-center">
-                        <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p className="text-gray-600">Media not available</p>
-                        <p className="text-gray-500 text-sm mt-1">The media for this post may have been removed or is no longer accessible.</p>
-                      </div>
-                    )}
-                </div>
-                </div>
+                {/* Right Column - Media Preview & Info - Conditionally render only if NOT a text post */}
+                {!isTextPost && (
+                  <div className="md:w-4/12 mt-6 md:mt-0">
+                      {/* Media Preview Section - only for image or video posts */}
+                      {post && (isImagePost || isVideoPost) && (
+                          <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm mb-6">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-3">Media Preview</h4>
+                              <div
+                                  className="relative aspect-video bg-gray-100 rounded-md overflow-hidden cursor-pointer group hover:shadow-lg transition-shadow duration-200"
+                                  onClick={() => { if(post && (isImagePost || isVideoPost)) setShowMediaPopup(true); }}
+                              >
+                                  {/* Video Post Preview */}
+                                  {isVideoPost && (
+                                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-200">
+                                          <svg className="w-12 h-12 text-slate-500" fill="currentColor" viewBox="0 0 20 20">
+                                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                          </svg>
+                                          <p className="mt-1 text-xs text-slate-600">Video</p>
+                                      </div>
+                                  )}
+
+                                  {/* Image Post Preview */}
+                                  {isImagePost && post.imageUrls && post.imageUrls.length > 0 && (
+                                      <img
+                                          src={post.imageUrls[0]}
+                                          alt="Post image preview"
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                              // Fallback for broken image link
+                                              const placeholderContainer = e.target.parentElement;
+                                              if (placeholderContainer) {
+                                                  e.target.style.display = 'none'; // Hide broken img
+                                                  // Check if placeholder already exists
+                                                  if (!placeholderContainer.querySelector('.image-load-error-placeholder')) {
+                                                      const placeholder = document.createElement('div');
+                                                      placeholder.className = "image-load-error-placeholder w-full h-full flex flex-col items-center justify-center bg-slate-200";
+                                                      placeholder.innerHTML = `
+                                                          <svg class="w-12 h-12 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                                                          </svg>
+                                                          <p class="mt-1 text-xs text-slate-600">Preview unavailable</p>`;
+                                                      placeholderContainer.appendChild(placeholder);
+                                                  }
+                                              }
+                                          }}
+                                      />
+                                  )}
+                                  {isImagePost && (!post.imageUrls || post.imageUrls.length === 0) && (
+                                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-200">
+                                          <svg className="w-12 h-12 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                                          </svg>
+                                          <p className="mt-1 text-xs text-slate-600">No Image Preview</p>
+                                      </div>
+                                  )}
+
+                                  {/* Overlay "View Media" Button */}
+                                  {post && (isImagePost || isVideoPost) && (
+                                      <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200">
+                                          <button
+                                              className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition duration-150 ease-in-out flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                          >
+                                              {isImagePost && (
+                                                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                              )}
+                                              {isVideoPost && (
+                                                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M6.323 5.682A1.5 1.5 0 004 7.028v5.944a1.5 1.5 0 002.323 1.346l5.432-2.972a1.5 1.5 0 000-2.692L6.323 5.682zM0 10a10 10 0 1120 0A10 10 0 010 10z" clipRule="evenodd" fillRule="evenodd"  /></svg>
+                                              )}
+                                              View Media {isImagePost && post.imageUrls && post.imageUrls.length > 1 ? `(${post.imageUrls.length})` : ''}
+                                          </button>
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      )}
+                  </div>
+                )}
             </div>
             </div>
         </div>
         </main>        
         {/* Media Popup */}
-        <MediaPopup 
-          mediaUrl={post?.video_url} 
-          imageUrls={post?.imageUrls || post?.image_urls || []} 
-          onClose={() => setShowMediaPopup(false)} 
-          isOpen={showMediaPopup} 
-        />
+        {showMediaPopup && (
+          <MediaPopup 
+            mediaUrl={post?.video_url}
+            imageUrls={post?.imageUrls}
+            postType={post?.postType}
+            textContent={post?.textContent}
+            onClose={() => setShowMediaPopup(false)} 
+            isOpen={showMediaPopup} 
+          />
+        )}
       </div>
     </ProtectedRoute>
   );

@@ -854,7 +854,8 @@ function ImagePosting() {
                     twitter_accounts: selectedTwitterAccounts.map(acc => ({ 
                         userId: acc.userId, 
                         username: acc.username 
-                    }))
+                    })),
+                    postType: 'image' // Explicitly set postType for image posts
                 };
 
                 console.log('Scheduling post with payload:', payload);
@@ -1183,6 +1184,7 @@ function ImagePosting() {
                     post_description: caption,
                     video_url: imageUrls[0], // First image as video_url for backward compatibility
                     imageUrls: imageUrls,
+                    postType: 'image', // Explicitly set postType for image posts
                     tiktok_accounts: selectedTiktokAccounts.map(acc => ({ 
                         accountId: acc.accountId, 
                         username: acc.username, 

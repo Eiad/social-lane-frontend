@@ -522,6 +522,7 @@ function MediaPosting() {
                         tiktok_accounts: selectedTiktokAccounts.map(acc => ({ accountId: acc.accountId, username: acc.username, displayName: acc.displayName })),
                         twitter_accounts: selectedTwitterAccounts.map(acc => ({ userId: acc.userId, username: acc.username })),
                 isScheduled: isScheduled,
+                postType: 'video' // Explicitly set postType for video posts
             };
             if (isScheduled && scheduledAtLocal) {
                 payload.scheduledDate = scheduledAtLocal.toISOString(); // Add scheduledDate only if scheduling

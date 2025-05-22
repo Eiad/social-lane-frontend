@@ -66,15 +66,15 @@ function PostsHistory() {
       );
     }
     
-    // Filter by post type (normal vs scheduled vs image vs video)
+    // Filter by post type (normal vs scheduled vs image vs video vs text)
     if (postTypeFilter !== 'all') {
       filteredPosts = filteredPosts.filter(post => {
-        // Handle image/video types
         if (postTypeFilter === 'image') {
-          return post.isImagePost === true;
+          return post.postType === 'image';
         } else if (postTypeFilter === 'video') {
-          // Video posts have a video_url but are not image posts
-          return post.video_url && !post.isImagePost;
+          return post.postType === 'video';
+        } else if (postTypeFilter === 'text') {
+          return post.postType === 'text';
         }
         
         // For scheduled/normal posts (as before)
@@ -212,8 +212,7 @@ function PostsHistory() {
       // Process the results
       const enhancedPosts = fetchedPosts.map(post => {
         // Determine if this is an image post
-        const isImagePost = Array.isArray(post.imageUrls) && post.imageUrls.length > 0 || 
-                            Array.isArray(post.image_urls) && post.image_urls.length > 0;
+        const isImagePost = post.postType === 'image';
         
         // Normalize image URLs field
         let normalizedImageUrls = [];
@@ -237,7 +236,9 @@ function PostsHistory() {
             platformResults: updatedPlatformResults,
             type: post.isScheduled ? 'scheduled' : 'regular',
             isImagePost: isImagePost,
-            imageUrls: normalizedImageUrls
+            imageUrls: normalizedImageUrls,
+            postType: post.postType,
+            textContent: post.textContent
           };
         }
         
@@ -288,7 +289,9 @@ function PostsHistory() {
           platformResults,
           type: post.isScheduled ? 'scheduled' : 'regular',
           isImagePost: isImagePost,
-          imageUrls: normalizedImageUrls
+          imageUrls: normalizedImageUrls,
+          postType: post.postType,
+          textContent: post.textContent
         };
       });
       
@@ -608,7 +611,8 @@ function PostsHistory() {
                   { value: 'normal', label: 'Instant Posts' },
                   { value: 'scheduled', label: 'Scheduled Posts' },
                   { value: 'image', label: 'Image Posts' },
-                  { value: 'video', label: 'Video Posts' }
+                  { value: 'video', label: 'Video Posts' },
+                  { value: 'text', label: 'Text Posts' }
                 ]}
               />
             </div>
@@ -701,18 +705,25 @@ function PostsHistory() {
                               <div className="text-gray-500 flex items-center">
                                 <span className="mr-2">⚡️</span>
                                 <span className="flex items-center mr-2">
-                                  {post.isImagePost ? (
+                                  {post.postType === 'image' ? (
                                     <svg className="w-4 h-4 text-blue-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
-                                  ) : (
+                                  ) : post.postType === 'video' ? (
                                     <svg className="w-4 h-4 text-blue-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                     </svg>
-                                  )}
-                                  {post.isImagePost ? 
+                                  ) : post.postType === 'text' ? (
+                                    <svg className="w-4 h-4 text-gray-700 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                  ) : null }
+                                  {post.postType === 'image' ? 
                                     (post.imageUrls && post.imageUrls.length > 1 ? `${post.imageUrls.length} images` : 'Image') : 
-                                    'Video'}
+                                   post.postType === 'video' ? 'Video' :
+                                   post.postType === 'text' ? 'Text' :
+                                   'Media' // Fallback for older posts or unknown types
+                                  }
                                 </span>
                               </div>
                             )}
