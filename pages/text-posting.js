@@ -234,7 +234,6 @@ function TextPosting() {
 
     const resetForNewPost = () => {
         setTextContent('');
-        setCaption('');
         setSelectedTwitterAccounts([]);
         // No TikTok for text posts setSelectedTiktokAccounts([]);
         setIsScheduled(false);
@@ -330,7 +329,7 @@ function TextPosting() {
             userId,
             postType: 'text', // Set postType to text
             textContent: textContent.trim(), // Send text content
-            post_description: caption.trim(), // Optional: use caption as description or title
+            post_description: '', // Optional: use caption as description or title
             platforms: [],
             isScheduled: !!isScheduled,
             scheduledDate: scheduledAtISO,
@@ -512,7 +511,7 @@ function TextPosting() {
             </Head>
 
             <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8 px-4 sm:px-6 lg:px-8">
-                <div className="max-w-4xl mx-auto">
+                <div className="max-w-[1400px] mx-auto">
                     {/* Header */}
                     <div className="mb-8 text-center sm:text-left">
                         <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
@@ -545,57 +544,10 @@ function TextPosting() {
 
 
                     {/* Main Content Area - Two Columns */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Left Column: Text Input and Caption */}
-                        <div className="lg:col-span-2 space-y-6">
-                            {/* Text Content Area */}
-                            <div className="bg-white dark:bg-slate-800 shadow-xl rounded-lg overflow-hidden">
-                                <div className="p-6">
-                                    <label htmlFor="textContent" className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
-                                        Your Text Post
-                                    </label>
-                                    <textarea
-                                        id="textContent"
-                                        name="textContent"
-                                        rows={8}
-                                        className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-slate-50 placeholder-slate-400 dark:placeholder-slate-500 transition duration-150 ease-in-out resize-none"
-                                        placeholder="What&apos;s on your mind? Type your text post here..."
-                                        value={textContent}
-                                        onChange={(e) => setTextContent(e.target.value)}
-                                        disabled={isPageDisabledByLimit || isPosting || isScheduling || postSuccess || scheduleSuccess}
-                                    />
-                                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                        Character limits may apply depending on the platform (e.g., Twitter/X).
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Optional Caption/Description Area */}
-                            <div className="bg-white dark:bg-slate-800 shadow-xl rounded-lg overflow-hidden">
-                                <div className="p-6">
-                                    <label htmlFor="caption" className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
-                                        Optional: Add a Title or Internal Note (not posted)
-                                    </label>
-                                    <textarea
-                                        id="caption"
-                                        name="caption"
-                                        rows={3}
-                                        className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-slate-50 placeholder-slate-400 dark:placeholder-slate-500 transition duration-150 ease-in-out resize-none"
-                                        placeholder={'E.g., &apos;Weekly update draft&apos; or a short title for your reference.'}
-                                        value={caption}
-                                        onChange={(e) => setCaption(e.target.value)}
-                                        disabled={isPageDisabledByLimit || isPosting || isScheduling || postSuccess || scheduleSuccess}
-                                    />
-                                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                        This field is for your internal reference or can sometimes be used as a title on certain platforms if they support it with text posts. The main content from "Your Text Post" will be what's published.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Right Column: Platform Selection, Scheduling, Actions */}
-                        <div className="lg:col-span-1 space-y-6">
-                            {/* Platform Selection */}
+                    <div className="flex flex-col lg:flex-row gap-8">
+                        {/* Left Column (35%) */}
+                        <div className="lg:w-[35%] flex-shrink-0 space-y-6">
+                            {/* Platform Selection Card - MOVED HERE */}
                              <div className="bg-white dark:bg-slate-800 shadow-xl rounded-lg">
                                 <div className="p-6">
                                     <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">Select Accounts</h3>
@@ -617,41 +569,74 @@ function TextPosting() {
                                                 No Twitter accounts found or connected. Please <Link href="/settings?tab=accounts" legacyBehavior><a className="text-blue-500 hover:underline">connect one</a></Link>.
                                             </p>
                                         )}
-                                        {filteredAccounts.map(account => (
-                                            <div 
-                                                key={account.platform === 'twitter' ? account.userId : account.accountId} 
-                                                className={`flex items-center justify-between p-3 rounded-lg border transition-all duration-150 ease-in-out cursor-pointer
-                                                    ${(account.platform === 'twitter' && selectedTwitterAccounts.find(a => a.userId === account.userId))
-                                                        ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-700 ring-1 ring-blue-500' 
-                                                        : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500'}
-                                                    ${isPageDisabledByLimit || postSuccess || scheduleSuccess || isPosting || isScheduling ? 'opacity-60 cursor-not-allowed' : ''}
-                                                `}
-                                                onClick={() => !(isPageDisabledByLimit || postSuccess || scheduleSuccess || isPosting || isScheduling) && handleAccountToggle(account)}
-                                            >
-                                                <div className="flex items-center">
-                                                    {account.platform === 'twitter' && <TwitterIcon className="w-6 h-6 mr-3 text-[#1DA1F2]" />}
-                                                    {/* No TikTok Icon as it's disabled */}
-                                                    <div>
+                                        {filteredAccounts.map(account => {
+                                            const isSelected = selectedTwitterAccounts.find(a => a.userId === account.userId);
+                                            return (
+                                                <div 
+                                                    key={account.userId} 
+                                                    className={`flex items-center p-3 rounded-lg border transition-all duration-150 ease-in-out cursor-pointer
+                                                        ${isSelected
+                                                            ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-700 ring-1 ring-blue-500' 
+                                                            : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500'}
+                                                        ${isPageDisabledByLimit || postSuccess || scheduleSuccess || isPosting || isScheduling ? 'opacity-60 cursor-not-allowed' : ''}
+                                                    `}
+                                                    onClick={() => !(isPageDisabledByLimit || postSuccess || scheduleSuccess || isPosting || isScheduling) && handleAccountToggle(account)}
+                                                >
+                                                    <div className="flex-shrink-0 mr-3">
+                                                        {account.profileImageUrl ? (
+                                                            <img src={account.profileImageUrl} alt={account.username} className="w-10 h-10 rounded-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-slate-500 dark:text-slate-300 text-lg font-medium">
+                                                                {account.username ? account.username.charAt(0).toUpperCase() : 'T'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-grow">
                                                         <span className="block text-sm font-medium text-slate-800 dark:text-slate-100">
                                                             {account.displayName || account.name || account.username}
                                                         </span>
                                                         <span className="block text-xs text-slate-500 dark:text-slate-400">
-                                                            @{account.username} ({account.platform})
+                                                            @{account.username} {account.platform === 'twitter' && <TwitterIcon className="w-4 h-4 inline-block ml-1" />}
                                                         </span>
                                                     </div>
+                                                    {isSelected && (
+                                                        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 ml-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                        </svg>
+                                                    )}
                                                 </div>
-                                                {(account.platform === 'twitter' && selectedTwitterAccounts.find(a => a.userId === account.userId)) && (
-                                                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                    </svg>
-                                                )}
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            {/* Scheduling Options */}
+                        {/* Right Column (65%) */}
+                        <div className="lg:w-[65%] space-y-6">
+                            {/* Text Content Area Card - MOVED HERE */}
+                            <div className="bg-white dark:bg-slate-800 shadow-xl rounded-lg overflow-hidden">
+                                <div className="p-6">
+                                    <label htmlFor="textContent" className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                                        Your Text Post
+                                    </label>
+                                    <textarea
+                                        id="textContent"
+                                        name="textContent"
+                                        rows={8}
+                                        className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-slate-50 placeholder-slate-400 dark:placeholder-slate-500 transition duration-150 ease-in-out resize-none"
+                                        placeholder="What&apos;s on your mind? Type your text post here..."
+                                        value={textContent}
+                                        onChange={(e) => setTextContent(e.target.value)}
+                                        disabled={isPageDisabledByLimit || isPosting || isScheduling || postSuccess || scheduleSuccess}
+                                    />
+                                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                        Character limits may apply depending on the platform (e.g., Twitter/X).
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Scheduling Options Card - MOVED HERE */}
                             <div className="bg-white dark:bg-slate-800 shadow-xl rounded-lg">
                                 <div className="p-6">
                                     <div className="flex items-center justify-between mb-3">
@@ -692,7 +677,7 @@ function TextPosting() {
                                 </div>
                             </div>
 
-                            {/* Action Buttons */}
+                            {/* Action Buttons Card - MOVED HERE */}
                             <div className="bg-white dark:bg-slate-800 shadow-xl rounded-lg">
                                 <div className="p-6">
                                     {postError && (
