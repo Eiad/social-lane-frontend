@@ -118,7 +118,7 @@ const Subscription = () => {
     
     try {
       setIsCreatingSubscription(true);
-      const response = await createSubscription(user.uid, planTier, billingPeriod);
+      const response = await createSubscription(user.uid, planTier);
       
       if (response?.success && response?.data?.approvalUrl) {
         window.location.href = response.data.approvalUrl;
@@ -220,11 +220,9 @@ const Subscription = () => {
   const renderPlanTabs = () => (
     <div className="flex justify-center mb-10">
       <div className="border border-gray-300 rounded-full inline-flex p-1 bg-gray-200 text-gray-700 relative">
-        {billingPeriod === 'yearly' && (
-          <div className="absolute -right-6 -top-6 bg-purple-600 text-white text-xs font-semibold py-1 px-2 rounded-full transform rotate-12 shadow-lg">
-            40% OFF
-          </div>
-        )}
+        <div className="absolute -right-6 -top-6 bg-purple-600 text-white text-xs font-semibold py-1 px-2 rounded-full transform rotate-12 shadow-lg">
+          40% OFF
+        </div>
         <button
           className={`px-8 py-3 rounded-full transition-all font-medium ${
             billingPeriod === 'monthly' 
@@ -302,7 +300,9 @@ const Subscription = () => {
             )}
             
             <div className="p-6">
-              <h3 className="text-xl font-semibold text-gray-900">{plan.name}</h3>
+              <h3 className="text-xl font-semibold text-gray-900">{plan.name}
+                {billingPeriod === 'yearly' && <span className="text-sm"> (Yearly)</span>}
+              </h3>
               <p className="text-gray-600 text-sm">{plan.description}</p>
               
               <div className="mt-6 mb-8">

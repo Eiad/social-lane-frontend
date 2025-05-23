@@ -5,14 +5,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 /**
  * Create a PayPal subscription for a user
  * @param {string} uid - User ID
- * @param {string} planTier - The tier of the plan (e.g., Launch, Rise, Scale)
- * @param {string} billingPeriod - The billing period (e.g., monthly, yearly)
  * @returns {Promise<Object>} - Subscription details with approval URL
  */
-export const createSubscription = async (uid, planTier, billingPeriod) => {
+export const createSubscription = async (uid, planTier) => {
   try {
-    console.log(`Creating subscription for user: ${uid}, plan: ${planTier}, period: ${billingPeriod}`);
-    const response = await axiosInstance.post('/paypal/create-subscription', { uid, planTier, billingPeriod });
+    console.log(`Creating subscription for user: ${uid}, plan: ${planTier || 'default'}`);
+    const response = await axiosInstance.post('/paypal/create-subscription', { uid, planTier });
     console.log('Subscription created successfully:', response?.data);
     return response?.data;
   } catch (error) {
