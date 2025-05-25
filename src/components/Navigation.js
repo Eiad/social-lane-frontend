@@ -71,11 +71,11 @@ export default function Navigation() {
   const [firstName, setFirstName] = useState('');
   const [profileImage, setProfileImage] = useState(null);
   
-  // Initialize expandedMenus with 'accounts' expanded if Twitter or TikTok page is active
+  // Initialize expandedMenus with 'accounts' expanded if Twitter, TikTok, or Connect page is active
   const [expandedMenus, setExpandedMenus] = useState(() => {
-    // Auto-expand Accounts menu if current route is Twitter or TikTok
+    // Auto-expand Accounts menu if current route is Twitter, TikTok, or Connect
     return {
-      accounts: ['/twitter', '/tiktok'].includes(router.pathname)
+      accounts: ['/twitter', '/tiktok', '/connect'].includes(router.pathname)
     };
   });
 
@@ -151,8 +151,14 @@ export default function Navigation() {
       current: isActive('/posts-history')
     },
     {
+      name: 'Connect Accounts',
+      href: '/connect',
+      icon: <ConnectIcon />,
+      current: isActive('/connect')
+    },
+    {
       id: 'accounts',
-      name: 'Accounts',
+      name: 'Individual Accounts',
       icon: <AccountsIcon />,
       hasSubmenu: true,
       current: isSubmenuActive([

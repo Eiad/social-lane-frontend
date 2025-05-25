@@ -339,7 +339,7 @@ const MyAccount = () => {
                           <span className="text-gray-600">Posts:</span>
                           <span className="font-semibold text-gray-800 text-base">
                             {userPlanUsage.numberOfPosts === -1 
-                              ? '∞' 
+                              ? `${userPlanUsage.currentPostsCount ?? 0} / ∞`
                               : `${userPlanUsage.currentPostsCount ?? 0} / ${userPlanUsage.numberOfPosts ?? 'N/A'}`}
                           </span>
                         </div>
