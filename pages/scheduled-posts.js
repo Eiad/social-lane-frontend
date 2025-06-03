@@ -588,7 +588,7 @@ function ScheduledPosts() {
                   </button>
                 </div>
               ) : posts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center bg-white dark:bg-slate-800/50 p-8 rounded-xl shadow-lg">
+                <div className="flex flex-col items-center justify-center py-20 text-center">
                   <div className="bg-primary/10 dark:bg-primary/20 rounded-full p-6 mb-8 shadow-inner">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-primary dark:text-primary-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
