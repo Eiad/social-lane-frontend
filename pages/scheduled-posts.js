@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { TikTokSimpleIcon, TwitterIcon } from '../src/components/icons/SocialIcons';
@@ -38,6 +38,11 @@ function ScheduledPosts() {
   const [playerModalBlobUrl, setPlayerModalBlobUrl] = useState(null);
   const [playerModalVideoLoading, setPlayerModalVideoLoading] = useState(true);
   const [playerModalVideoError, setPlayerModalVideoError] = useState(false);
+
+  // State for image carousel modal
+  const [showImageCarouselModal, setShowImageCarouselModal] = useState(false);
+  const [imageModalUrls, setImageModalUrls] = useState([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // State for delete confirmation modal
   const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] = useState(false);
@@ -219,8 +224,34 @@ function ScheduledPosts() {
         return scheduledDate > now || post?.status === 'pending';
       });
       
+      // Process and normalize posts data
+      const processedPosts = filteredPosts.map(post => {
+        // Normalize image URLs from different possible field names
+        let normalizedImageUrls = [];
+        if (Array.isArray(post.imageUrls) && post.imageUrls.length > 0) {
+          normalizedImageUrls = post.imageUrls;
+        } else if (Array.isArray(post.image_urls) && post.image_urls.length > 0) {
+          normalizedImageUrls = post.image_urls;
+        } else if (post.video_url && (
+          post.video_url.endsWith('.jpg') || 
+          post.video_url.endsWith('.jpeg') || 
+          post.video_url.endsWith('.png') || 
+          post.video_url.endsWith('.gif')
+        )) {
+          // Handle case where image was mistakenly stored in video_url
+          normalizedImageUrls = [post.video_url];
+        }
+
+        return {
+          ...post,
+          imageUrls: normalizedImageUrls,
+          // Ensure postType is set correctly
+          postType: post.postType || (normalizedImageUrls.length > 0 ? 'image' : (post.video_url ? 'video' : 'text'))
+        };
+      });
+      
       // Sort posts by scheduled date (newest first)
-      const sortedPosts = filteredPosts.sort((a, b) => {
+      const sortedPosts = processedPosts.sort((a, b) => {
         return new Date(a?.scheduledDate) - new Date(b?.scheduledDate);
       });
       
@@ -537,6 +568,72 @@ function ScheduledPosts() {
     };
   }, [showVideoPlayerModal, videoModalUrl]);
 
+  const nextImage = useCallback(() => {
+    if (imageModalUrls?.length > 1) {
+      setCurrentImageIndex((prevIndex) => 
+        prevIndex === imageModalUrls.length - 1 ? 0 : prevIndex + 1
+      );
+    }
+  }, [imageModalUrls?.length]);
+
+  const prevImage = useCallback(() => {
+    if (imageModalUrls?.length > 1) {
+      setCurrentImageIndex((prevIndex) => 
+        prevIndex === 0 ? imageModalUrls.length - 1 : prevIndex - 1
+      );
+    }
+  }, [imageModalUrls?.length]);
+
+  // Keyboard navigation for image carousel
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (!showImageCarouselModal) return;
+      
+      switch (event.key) {
+        case 'ArrowLeft':
+          event.preventDefault();
+          prevImage();
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          nextImage();
+          break;
+        case 'Escape':
+          event.preventDefault();
+          handleCloseImageModal();
+          break;
+      }
+    };
+
+    if (showImageCarouselModal) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [showImageCarouselModal, nextImage, prevImage]);
+
+  // Handlers for image carousel modal
+  const handleOpenImageModal = (imageUrls, initialIndex = 0) => {
+    setImageModalUrls(imageUrls || []);
+    setCurrentImageIndex(initialIndex);
+    setShowImageCarouselModal(true);
+  };
+
+  const handleCloseImageModal = () => {
+    setShowImageCarouselModal(false);
+    setImageModalUrls([]);
+    setCurrentImageIndex(0);
+  };
+
+  // Helper function to determine if post is image type
+  const isImagePost = (post) => {
+    return post?.postType === 'image' || (post?.imageUrls?.length > 0);
+  };
+
+  // Helper function to determine if post is video type  
+  const isVideoPost = (post) => {
+    return post?.postType === 'video' || (post?.video_url && !isImagePost(post));
+  };
+
   return (
     <>
       <Head>
@@ -623,17 +720,61 @@ function ScheduledPosts() {
                       <div className="p-5 flex-grow">
                         <div 
                           className="rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-700/50 mb-4 aspect-video relative group cursor-pointer shadow-inner" 
-                          onClick={() => post?.video_url && handleOpenVideoModal(post.video_url)}
+                          onClick={() => {
+                            if (isVideoPost(post) && post?.video_url) {
+                              handleOpenVideoModal(post.video_url);
+                            } else if (isImagePost(post) && post?.imageUrls?.length > 0) {
+                              handleOpenImageModal(post.imageUrls, 0);
+                            }
+                          }}
                         >
-                          <video src={post?.video_url} playsInline className="w-full h-full object-cover pointer-events-none" />
-                          {post?.video_url && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 group-hover:bg-opacity-50 transition-opacity duration-300">
-                              <svg className="w-14 h-14 md:w-16 md:h-16 text-white opacity-80 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-300" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M7 4v16l13-8z" />
-                              </svg>
-                            </div>
+                          {/* Video Preview */}
+                          {isVideoPost(post) && post?.video_url && (
+                            <>
+                              <video src={post.video_url} playsInline className="w-full h-full object-cover pointer-events-none" />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 group-hover:bg-opacity-50 transition-opacity duration-300">
+                                <svg className="w-14 h-14 md:w-16 md:h-16 text-white opacity-80 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-300" viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M7 4v16l13-8z" />
+                                </svg>
+                              </div>
+                            </>
                           )}
-                          {!post?.video_url && (
+                          
+                          {/* Image Preview */}
+                          {isImagePost(post) && post?.imageUrls?.length > 0 && (
+                            <>
+                              <img 
+                                src={post.imageUrls[0]} 
+                                alt="Post preview" 
+                                className="w-full h-full object-cover pointer-events-none"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  const placeholder = e.target.nextElementSibling;
+                                  if (placeholder) placeholder.style.display = 'flex';
+                                }}
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 group-hover:bg-opacity-50 transition-opacity duration-300">
+                                <div className="flex items-center text-white">
+                                  <svg className="w-10 h-10 md:w-12 md:h-12 opacity-80 group-hover:opacity-100 transform group-hover:scale-110 transition-all duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                  </svg>
+                                  {post.imageUrls.length > 1 && (
+                                    <span className="ml-2 text-sm font-medium">+{post.imageUrls.length - 1}</span>
+                                  )}
+                                </div>
+                              </div>
+                              {/* Hidden placeholder for broken images */}
+                              <div className="hidden absolute inset-0 flex-col items-center justify-center bg-slate-100 dark:bg-slate-700">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-slate-400 dark:text-slate-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm">Image preview error</p>
+                              </div>
+                            </>
+                          )}
+                          
+                          {/* No Media Placeholder */}
+                          {!isVideoPost(post) && !isImagePost(post) && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-700">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-slate-400 dark:text-slate-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.573 3.855A1.002 1.002 0 0116.5 3H20a1 1 0 011 1v16a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1h3.5a1 1 0 01.927.645l.386.965A1 1 0 0010.5 6H13a1 1 0 00.927-.645l.386-.965a1 1 0 01.927-.645zM12 12a3 3 0 100-6 3 3 0 000 6z" />
@@ -893,7 +1034,8 @@ function ScheduledPosts() {
                       
                       <div className="mt-4">
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Media Preview</label>
-                        {editingPost?.video_url ? (
+                        {/* Video Preview */}
+                        {isVideoPost(editingPost) && editingPost?.video_url ? (
                           editModalVideoLoading ? (
                             <div className="aspect-w-16 aspect-h-9 bg-slate-200 dark:bg-slate-700 flex items-center justify-center rounded shadow-inner">
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-700 dark:border-slate-300"></div>
@@ -908,7 +1050,7 @@ function ScheduledPosts() {
                               src={editModalBlobUrl}
                               controls
                               className="w-full rounded shadow-md max-h-[300px]"
-                              onError={() => setEditModalVideoError(true)} // Simple error handling for the video element itself
+                              onError={() => setEditModalVideoError(true)}
                             ></video>
                           ) : (
                              <div className="aspect-w-16 aspect-h-9 bg-slate-100 dark:bg-slate-700/50 flex flex-col items-center justify-center p-3 rounded border border-slate-300 dark:border-slate-600 shadow-inner">
@@ -916,10 +1058,47 @@ function ScheduledPosts() {
                               <p className="text-slate-600 dark:text-slate-400 text-sm">Media preview unavailable</p>
                             </div>
                           )
+                        ) : /* Image Preview */ isImagePost(editingPost) && editingPost?.imageUrls?.length > 0 ? (
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-[300px] overflow-y-auto p-2 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-600">
+                              {editingPost?.imageUrls?.map((imageUrl, index) => (
+                                <div 
+                                  key={index} 
+                                  className="relative aspect-square bg-slate-200 dark:bg-slate-700 rounded-lg overflow-hidden cursor-pointer group hover:shadow-lg transition-all duration-200"
+                                  onClick={() => handleOpenImageModal(editingPost.imageUrls, index)}
+                                >
+                                  <img 
+                                    src={imageUrl} 
+                                    alt={`Image ${index + 1}`}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                      const placeholder = e.target.nextElementSibling;
+                                      if (placeholder) placeholder.style.display = 'flex';
+                                    }}
+                                  />
+                                  {/* Hidden placeholder for broken images */}
+                                  <div className="hidden absolute inset-0 flex-col items-center justify-center bg-slate-100 dark:bg-slate-700">
+                                    <svg className="w-6 h-6 text-slate-400 dark:text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">Error</p>
+                                  </div>
+                                  {/* Overlay with image number */}
+                                  <div className="absolute top-1 right-1 bg-black bg-opacity-70 text-white text-xs px-2 py-0.5 rounded-full">
+                                    {index + 1}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              {editingPost?.imageUrls?.length} image{editingPost?.imageUrls?.length !== 1 ? 's' : ''} • Click to view full size
+                            </p>
+                          </div>
                         ) : (
                           <p className="text-sm text-slate-500 dark:text-slate-400">No media associated with this post.</p>
                         )}
-                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Media cannot be changed. Create a new post to use a different video or image.</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Media cannot be changed. Create a new post to use a different video or image.</p>
                       </div>
 
                       <div>
@@ -1012,6 +1191,102 @@ function ScheduledPosts() {
                   ) : (
                     <div className="aspect-video flex items-center justify-center bg-slate-800 dark:bg-black rounded-b-lg min-h-[200px]">
                       <p className="text-slate-400 dark:text-slate-500">Media could not be loaded.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Image Carousel Modal */}
+          {showImageCarouselModal && imageModalUrls?.length > 0 && (
+            <div className="fixed inset-0 z-[60] overflow-y-auto overflow-x-hidden flex items-center justify-center" aria-modal="true" role="dialog">
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-md transition-opacity" onClick={handleCloseImageModal}></div>
+              <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl mx-4 my-8 z-10 transform transition-all">
+                <div className="flex items-center justify-between px-4 py-3 md:px-6 md:pt-4 md:pb-3 border-b border-slate-200 dark:border-slate-700">
+                  <h2 className="text-lg md:text-xl font-semibold text-slate-800 dark:text-slate-100">
+                    Image Preview 
+                    {imageModalUrls?.length > 1 && (
+                      <span className="ml-2 text-sm text-slate-500 dark:text-slate-400 font-normal">
+                        {currentImageIndex + 1} of {imageModalUrls.length}
+                      </span>
+                    )}
+                  </h2>
+                  <button 
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none rounded-full p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                    onClick={handleCloseImageModal}
+                    aria-label="Close image carousel"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+                <div className="relative p-4 md:p-6">
+                  <div className="relative flex items-center justify-center min-h-[300px] max-h-[70vh]">
+                    <img 
+                      src={imageModalUrls?.[currentImageIndex]} 
+                      alt={`Image ${currentImageIndex + 1}`}
+                      className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                      onError={(e) => {
+                        console.error('Error loading image in carousel:', e);
+                      }}
+                    />
+                    
+                    {/* Navigation buttons */}
+                    {imageModalUrls?.length > 1 && (
+                      <>
+                        <button 
+                          onClick={prevImage}
+                          className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full transition-all duration-200 backdrop-blur-sm z-10"
+                          aria-label="Previous image"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button 
+                          onClick={nextImage}
+                          className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full transition-all duration-200 backdrop-blur-sm z-10"
+                          aria-label="Next image"
+                        >
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Thumbnail strip for multiple images */}
+                  {imageModalUrls?.length > 1 && (
+                    <div className="mt-4 border-t border-slate-200 dark:border-slate-700 pt-4 bg-white">
+                      <div className="flex gap-2 overflow-x-auto pb-2 max-w-full bg-white">
+                        {imageModalUrls?.map((imageUrl, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setCurrentImageIndex(index)}
+                            className={`p-0 relative flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                              index === currentImageIndex 
+                                ? 'border-primary dark:border-primary-light shadow-lg' 
+                                : 'border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500'
+                            }`}
+                          >
+                            <img 
+                              src={imageUrl} 
+                              alt={`Thumbnail ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className={`absolute inset-0 transition-opacity duration-200 ${
+                              index === currentImageIndex ? 'bg-primary/20' : 'bg-black/0 hover:bg-black/10'
+                            }`}></div>
+                            <div className="absolute top-0.5 right-0.5 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
+                              {index + 1}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
